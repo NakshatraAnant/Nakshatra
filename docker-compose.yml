@@ -1,0 +1,50 @@
+# Local deployment: the built app plus PostgreSQL 16.
+#   1. cp .env.example .env   and set APP_SECRET and POSTGRES_PASSWORD
+#   2. docker compose up --build
+#   3. optional sample data: docker compose exec app node dist/server/seed-cli.js
+# The app runs in "local" mode (NODE_ENV=development) so the labelled development
+# payment simulator and local mailbox work. See docs/LOCAL_SETUP.md for production mode.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nakshatra
+      POSTGRES_USER: nakshatra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nakshatra -d nakshatra"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${COMPOSE_NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 4000
+      APP_ORIGIN: http://localhost:4000
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET (32+ characters) in .env}
+      DATABASE_URL: postgres://nakshatra:${POSTGRES_PASSWORD}@db:5432/nakshatra
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-dev_simulator}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-dev_mailbox}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Nakshatra <no-reply@nakshatra.local>}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  pgdata:
+  uploads:

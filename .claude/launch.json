@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "api", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:api"], "port": 4400, "autoPort": false, "env": { "PORT": "4400" } },
+    { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:web"], "port": 5173, "env": { "NAKSHATRA_API": "http://127.0.0.1:4400" } }
+  ]
+}
