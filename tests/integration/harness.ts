@@ -4,7 +4,23 @@ import { buildApp } from '../../src/server/app';
 import { openDatabase } from '../../src/server/db/client';
 import type { Ctx } from '../../src/server/lib/context';
 import * as s from '../../src/server/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
+
+/** Tables another application keeps in public with the same names as Nakshatra's, plus a row each. */
+export const LEGACY_PUBLIC_TABLES = `
+  create table public.profiles (id uuid primary key default gen_random_uuid(), username text, created_at timestamptz default now());
+  create table public.products (id serial primary key, name text);
+  create table public.referrals (id serial primary key, code text);
+  create table public.analytics_events (id serial primary key, name text);
+  create table public.audit_logs (id serial primary key, action text);
+  create table public.users (id serial primary key, legacy text);
+  insert into public.profiles (username) values ('legacy-user');
+  insert into public.products (name) values ('legacy-product');
+  insert into public.referrals (code) values ('LEGACY');
+  insert into public.analytics_events (name) values ('legacy-event');
+  insert into public.audit_logs (action) values ('legacy-action');
+  insert into public.users (legacy) values ('legacy');
+`;
 
 export interface TestApp { app: FastifyInstance; ctx: Ctx; close: () => Promise<void> }
 
@@ -34,7 +50,10 @@ export async function makeApp(overrides: Record<string, string> = {}): Promise<T
       await c.end();
     };
   }
-  const dbHandle = await openDatabase({ databaseUrl, pgliteDir: ':memory:' });
+  // TEST_DATABASE_SCHEMA runs the suite with the app in its own schema, next to clashing tables in public.
+  const schemaName = process.env.TEST_DATABASE_SCHEMA || undefined;
+  const dbHandle = await openDatabase({ databaseUrl, pgliteDir: ':memory:', schemaName });
+  if (schemaName) for (const st of LEGACY_PUBLIC_TABLES.split(';').map((x) => x.trim()).filter(Boolean)) await dbHandle.db.execute(sql.raw(st));
   const { app, ctx } = await buildApp(config, { dbHandle, logger: false });
   await app.ready();
   return { app, ctx, close: async () => { await app.close(); await dbHandle.close(); if (dropDb) await dropDb(); } };

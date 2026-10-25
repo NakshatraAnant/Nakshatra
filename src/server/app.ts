@@ -36,7 +36,7 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
     // reuses a socket the server is closing (which surfaces as ECONNRESET on the next request).
     keepAliveTimeout: 65_000,
   });
-  const dbHandle = opts.dbHandle ?? (await openDatabase({ databaseUrl: config.DATABASE_URL, pgliteDir: config.PGLITE_DIR, caCert: config.DATABASE_CA_CERT, poolMax: config.DATABASE_POOL_MAX }));
+  const dbHandle = opts.dbHandle ?? (await openDatabase({ databaseUrl: config.DATABASE_URL, pgliteDir: config.PGLITE_DIR, caCert: config.DATABASE_CA_CERT, poolMax: config.DATABASE_POOL_MAX, schemaName: config.DATABASE_SCHEMA }));
   await dbHandle.migrate();
   const ctx: Ctx = { db: dbHandle.db, config, log: app.log };
   await seedReferenceData(ctx);

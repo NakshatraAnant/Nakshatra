@@ -32,6 +32,10 @@ services:
       # Supabase CA certificate (PEM) so the TLS connection is verified, not just encrypted.
       - key: DATABASE_CA_CERT
         sync: false
+      # The Supabase project also holds an earlier prototype's tables in public (left untouched);
+      # every Nakshatra table, and its migration history, lives in this schema instead.
+      - key: DATABASE_SCHEMA
+        value: nakshatra
       # Supabase's free session pooler has a small per-project client limit.
       - key: DATABASE_POOL_MAX
         value: "5"

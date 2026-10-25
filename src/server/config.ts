@@ -27,6 +27,8 @@ const schema = z.object({
   DATABASE_CA_CERT: z.string().optional(),
   /** Maximum pooled PostgreSQL connections; keep small on hosted poolers with per-project client limits. */
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  /** Dedicated schema for all app tables (e.g. "nakshatra") when sharing a database; unset = public. */
+  DATABASE_SCHEMA: z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/, 'lower-case letters, digits and underscores').optional(),
   APP_ORIGIN: z.string().url().default('http://localhost:5173'),
   /** Secret used for HMAC signing (unsubscribe links, dev payment webhooks). */
   APP_SECRET: z.string().min(32).optional(),

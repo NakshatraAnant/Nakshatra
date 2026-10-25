@@ -6,7 +6,7 @@ import { seedDemoData, seedReferenceData, writeDevCredentials } from './seed';
 
 const config = loadConfig();
 await refuseIfLocalServerRunning(Boolean(config.DATABASE_URL));
-const handle = await openDatabase({ databaseUrl: config.DATABASE_URL, pgliteDir: config.PGLITE_DIR, caCert: config.DATABASE_CA_CERT, poolMax: config.DATABASE_POOL_MAX });
+const handle = await openDatabase({ databaseUrl: config.DATABASE_URL, pgliteDir: config.PGLITE_DIR, caCert: config.DATABASE_CA_CERT, poolMax: config.DATABASE_POOL_MAX, schemaName: config.DATABASE_SCHEMA });
 await handle.migrate();
 const ctx = { db: handle.db, config, log: pino({ level: 'warn' }) };
 await seedReferenceData(ctx);

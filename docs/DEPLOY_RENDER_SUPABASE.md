@@ -2,7 +2,9 @@
 
 One Render web service runs the whole app: the Fastify API and the built React frontend, from the repo's `Dockerfile`. Supabase provides PostgreSQL. `render.yaml` describes the service; secrets are entered in the Render dashboard, never committed.
 
-What happens on every boot: migrations run, reference data (games, prompts, offers) is loaded, and row level security is switched on for the app's tables. Demo data and test accounts are **never** created in production.
+What happens on every boot: migrations run, reference data (games, prompts, offers) is loaded, and the app's tables are locked down (row level security on, Supabase API roles revoked). Demo data and test accounts are **never** created in production.
+
+**Database layout.** The Supabase project "Nakshatra" already holds 22 tables from an earlier prototype in `public` (no users; 11 reference rows in `archetypes`). Several share names with Nakshatra's (`profiles`, `products`, `referrals`, `analytics_events`, `audit_logs`). They are left exactly as they are. With `DATABASE_SCHEMA=nakshatra` (set in `render.yaml`), every app table, index, foreign key and the migration history live in the `nakshatra` schema. Each connection's search path is that schema alone, so no query can reach the legacy tables. The schema is created by the app on its first boot.
 
 Allow about 30 minutes. Do the parts in order.
 
@@ -13,10 +15,10 @@ Allow about 30 minutes. Do the parts in order.
 1. Open https://supabase.com/dashboard and pick the project **Nakshatra** (Singapore, currently paused).
 2. Click **Restore project** and wait until the status shows as healthy (a few minutes).
    - If restore isn't offered (projects paused too long can't be restored), click **New project** instead: organisation = your org, name `nakshatra`, region **Southeast Asia (Singapore)**, plan **Free**. Save the database password it asks for.
-3. **Check it's empty.** Left sidebar → **Table Editor**. If you see tables from an older experiment, stop and tell Claude. Claude can inspect them read-only before anything is migrated.
+3. *(Already done: the project was restored on 25 Oct 2026, and its legacy tables were inspected and are left untouched; see "Database layout" above.)*
 4. **Turn off the Data API** (the app doesn't use it, and this closes the public HTTP route to your tables):
    **Project Settings** (gear icon) → **Data API** → switch **Enable Data API** off → **Save**.
-   The app also enables row level security on its own tables, so they stay closed even if this switch is turned back on.
+   The Data API only ever exposes `public` (the legacy tables, which have row level security on). The app's `nakshatra` schema is never exposed, the API roles (`anon`, `authenticated`, `service_role`) are revoked from it, and its tables have row level security on, so they stay closed even if this switch is turned back on.
 5. **Database password.** If you don't know it: **Project Settings → Database → Reset database password**, then copy the new one somewhere safe.
 6. **Connection string.** Click **Connect** (top of the project page) → **Connection String** tab → set **Method** to **Session pooler** → copy the URI. It looks like
    `postgresql://postgres.<project-ref>:<YOUR-PASSWORD>@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`
@@ -92,4 +94,4 @@ If the deploy fails, copy the last 30 lines of **Logs** to Claude.
 
 - **Update:** push to `main` and Render rebuilds and deploys automatically.
 - **Roll back:** Render → service → **Events** → choose an earlier successful deploy → **Rollback**. Migrations only add things, so rolling back the app doesn't touch data.
-- **Back up:** with PostgreSQL client tools installed, `pg_dump "<DATABASE_URL>" -Fc -f nakshatra-YYYY-MM-DD.dump`. **Restore** into an empty database with `pg_restore -d "<DATABASE_URL>" --no-owner nakshatra-YYYY-MM-DD.dump`.
+- **Back up:** with PostgreSQL client tools installed, `pg_dump "<DATABASE_URL>" -n nakshatra -Fc -f nakshatra-YYYY-MM-DD.dump` (`-n nakshatra` limits it to the app's schema). **Restore** into an empty database with `pg_restore -d "<DATABASE_URL>" --no-owner nakshatra-YYYY-MM-DD.dump`.
