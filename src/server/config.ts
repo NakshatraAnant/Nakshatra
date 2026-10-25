@@ -22,6 +22,11 @@ const schema = z.object({
   /** postgres://… for a real PostgreSQL server; omit to use the embedded PGlite database. */
   DATABASE_URL: z.string().optional(),
   PGLITE_DIR: z.string().default('./.data/pglite'),
+  /** PEM CA certificate for verifying the PostgreSQL server (e.g. Supabase's CA). Literal "
+" sequences are accepted for single-line env vars. */
+  DATABASE_CA_CERT: z.string().optional(),
+  /** Maximum pooled PostgreSQL connections; keep small on hosted poolers with per-project client limits. */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
   APP_ORIGIN: z.string().url().default('http://localhost:5173'),
   /** Secret used for HMAC signing (unsubscribe links, dev payment webhooks). */
   APP_SECRET: z.string().min(32).optional(),
@@ -49,7 +54,9 @@ export type AppConfig = z.infer<typeof schema> & { appSecret: string; isProd: bo
 
 export function loadConfig(overrides: Partial<Record<keyof z.infer<typeof schema>, string>> = {}): AppConfig {
   // Blank values (e.g. `APP_SECRET=` copied from .env.example) mean "not set", not "set to an empty string".
-  const raw = Object.fromEntries(Object.entries({ ...process.env, ...overrides }).filter(([, v]) => v !== undefined && v !== ''));
+  const raw: Record<string, string | undefined> = Object.fromEntries(Object.entries({ ...process.env, ...overrides }).filter(([, v]) => v !== undefined && v !== ''));
+  // On Render the public URL is provided automatically; an explicit APP_ORIGIN (e.g. a custom domain) still wins.
+  if (!raw.APP_ORIGIN && raw.RENDER_EXTERNAL_URL) raw.APP_ORIGIN = raw.RENDER_EXTERNAL_URL;
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
