@@ -50,3 +50,24 @@ describe('row level security lock-down', () => {
     await pg.close();
   });
 });
+
+describe('database file storage', () => {
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+  it('persists uploads in PostgreSQL, serves only public files publicly, and enforces type and size', async () => {
+    const { openDatabase } = await import('../../src/server/db/client');
+    const { DatabaseStorage, IMAGE_TYPES } = await import('../../src/server/lib/storage');
+    const h = await openDatabase({ pgliteDir: ':memory:' });
+    await h.migrate();
+    const store = new DatabaseStorage(h.db, 1024);
+    const pub = await store.save(PNG, { allowed: IMAGE_TYPES, isPrivate: false, maxBytes: 5 * 1048576 });
+    const priv = await store.save(PNG, { allowed: IMAGE_TYPES, isPrivate: true, maxBytes: 5 * 1048576 });
+    expect(pub.path).toMatch(/^public\/[A-Za-z0-9_-]+\.png$/);
+    expect((await store.read(pub.path)).equals(PNG)).toBe(true);
+    expect((await store.readPublic(pub.path.slice('public/'.length)))?.mime).toBe('image/png');
+    expect(await store.readPublic(priv.path.slice('private/'.length))).toBeNull();
+    expect(await store.readPublic('../private/x.png')).toBeNull();
+    await expect(store.save(Buffer.concat([PNG, Buffer.alloc(2048)]), { allowed: IMAGE_TYPES, isPrivate: false, maxBytes: 5 * 1048576 })).rejects.toThrow(/too large/);
+    await expect(store.save(Buffer.from('%PDF-1.4 hello'), { allowed: IMAGE_TYPES, isPrivate: false, maxBytes: 5 * 1048576 })).rejects.toThrow(/Unsupported/);
+    await h.close();
+  });
+});

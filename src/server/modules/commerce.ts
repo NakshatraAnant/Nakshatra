@@ -15,7 +15,7 @@ import { textRelevance } from '../services/ranking';
 import { displayNames, currentChart } from '../services/identity';
 import { grantCourseEnrollment } from './learning';
 import { generateReport, REPORT_TEMPLATES } from '../services/reports';
-import { LocalStorage, IMAGE_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES } from '../lib/storage';
 
 export const SHIPPING_RULE = { flatPaise: 9900, freeAbovePaise: 99900, description: 'Flat ₹99 shipping on physical orders below ₹999; free above.' };
 
@@ -57,7 +57,7 @@ async function restock(tx: Executor, orderId: string, reason: 'refund' | 'adjust
 }
 
 export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   registerPaymentHandlers('order', {
     onSucceeded: async (c, tx: Tx, payment) => {

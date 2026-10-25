@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, integer, boolean, uniqueIndex, primaryKey, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, index, integer, boolean, uniqueIndex, primaryKey, date, customType } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 
 /* ---------------- Gamification ---------------- */
@@ -246,6 +246,21 @@ export const uploads = pgTable('uploads', {
   bytes: integer('bytes').notNull(),
   /** Private uploads are only served to authorised viewers via the API. */
   isPrivate: boolean('is_private').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' });
+
+/**
+ * File bytes for STORAGE_DRIVER=database: hosts without a persistent disk keep uploads in PostgreSQL.
+ * `path` matches uploads.path ("public/<random>.<ext>" or "private/<random>.<ext>").
+ */
+export const storedFiles = pgTable('stored_files', {
+  path: text('path').primaryKey(),
+  mime: text('mime').notNull(),
+  bytes: integer('bytes').notNull(),
+  isPrivate: boolean('is_private').notNull(),
+  data: bytea('data').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

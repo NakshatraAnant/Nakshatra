@@ -84,7 +84,7 @@ If the deploy fails, copy the last 30 lines of **Logs** to Claude.
 ## Free-tier limits to know about
 
 - **Render free web service** stops after 15 minutes without traffic. The next visit takes roughly a minute to wake it. The scheduler (expiring invites, queued email retries) only runs while it's awake.
-- **Uploaded files aren't kept.** The free instance's disk is wiped on every restart and deploy, so uploads (e.g. photos) disappear. Everything in the database is kept. Durable uploads need object storage, such as Cloudflare R2's free tier, which is a code change.
+- **Uploads are stored in PostgreSQL** (`STORAGE_DRIVER=database`), because the free instance's disk is wiped on every restart and deploy. Each file is limited to 5 MB (`DATABASE_FILE_MAX_MB`), and files count toward Supabase's 500 MB. Larger media, such as lesson videos, is refused with a clear message. Cloudflare R2 would remove this limit, but enabling R2 requires adding billing details in the Cloudflare dashboard.
 - **Supabase free** has 500 MB of database storage and **pauses after 7 days without database activity**. Restore it from the dashboard if that happens. Free projects have no downloadable backups, so take your own (below).
 - Payments are off (`PAYMENT_PROVIDER=none`). The ₹29 and ₹99 offers are visible but can't be bought until Razorpay keys are added.
 

@@ -8,7 +8,7 @@ import { track } from '../lib/context';
 import { badRequest, forbidden, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import { notify } from '../lib/notify';
-import { LocalStorage, IMAGE_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES } from '../lib/storage';
 import { displayNames, isBlockedEitherWay, relationOf } from '../services/identity';
 
 export type ConversationKind = 'direct' | 'dating_match' | 'matchmaking' | 'consultation' | 'vendor' | 'wedding';
@@ -32,7 +32,7 @@ async function membership(db: Executor, conversationId: string, userId: string) 
 }
 
 export async function messagingRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   app.get('/api/v1/conversations', async (req) => {
     const a = requireAuth(req);

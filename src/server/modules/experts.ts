@@ -10,7 +10,7 @@ import { badRequest, conflict, forbidden, notFound, parse, unavailable } from '.
 import { requireAuth } from '../lib/auth';
 import { notify } from '../lib/notify';
 import { approveRefund, createPayment, registerPaymentHandlers, requestRefund } from '../lib/payments';
-import { LocalStorage, DOC_TYPES } from '../lib/storage';
+import { createStorage, DOC_TYPES } from '../lib/storage';
 import { randomToken } from '../lib/crypto';
 import { rankExperts } from '../services/ranking';
 import { displayNames } from '../services/identity';
@@ -65,7 +65,7 @@ async function setBookingStatus(db: Executor, bookingId: string, to: string, act
 }
 
 export async function expertRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   registerPaymentHandlers('booking', {
     onSucceeded: async (c, tx: Tx, payment) => {

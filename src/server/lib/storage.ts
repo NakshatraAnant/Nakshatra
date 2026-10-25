@@ -1,7 +1,11 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, resolve, normalize } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { randomToken } from './crypto';
-import { badRequest } from './http';
+import { badRequest, notFound } from './http';
+import type { Ctx } from './context';
+import type { DB } from '../db/client';
+import { storedFiles } from '../db/schema';
 
 /**
  * Local file storage for uploads. Files are validated by magic bytes (not by the
@@ -23,15 +27,28 @@ export function detectType(buf: Buffer, allowed: string[]): { mime: string; ext:
   return sig;
 }
 
-export class LocalStorage {
+type SaveOpts = { allowed: string[]; isPrivate: boolean; maxBytes: number };
+type Saved = { path: string; mime: string; bytes: number };
+
+export interface FileStorage {
+  save(buf: Buffer, opts: SaveOpts): Promise<Saved>;
+  read(relPath: string): Promise<Buffer>;
+}
+
+/** Shared validation: non-empty, within size, type detected from content, random name. */
+function prepare(buf: Buffer, opts: SaveOpts) {
+  if (buf.length === 0) throw badRequest('Empty file');
+  if (buf.length > opts.maxBytes) throw badRequest(`File too large (max ${Math.round(opts.maxBytes / 1048576)} MB)`);
+  const { mime, ext } = detectType(buf, opts.allowed);
+  const dir = opts.isPrivate ? 'private' : 'public';
+  return { mime, dir, name: `${randomToken(16)}.${ext}` };
+}
+
+export class LocalStorage implements FileStorage {
   constructor(private root: string) {}
 
-  async save(buf: Buffer, opts: { allowed: string[]; isPrivate: boolean; maxBytes: number }): Promise<{ path: string; mime: string; bytes: number }> {
-    if (buf.length === 0) throw badRequest('Empty file');
-    if (buf.length > opts.maxBytes) throw badRequest(`File too large (max ${Math.round(opts.maxBytes / 1048576)} MB)`);
-    const { mime, ext } = detectType(buf, opts.allowed);
-    const dir = opts.isPrivate ? 'private' : 'public';
-    const name = `${randomToken(16)}.${ext}`;
+  async save(buf: Buffer, opts: SaveOpts): Promise<Saved> {
+    const { mime, dir, name } = prepare(buf, opts);
     await mkdir(join(resolve(this.root), dir), { recursive: true });
     await writeFile(join(resolve(this.root), dir, name), buf);
     return { path: `${dir}/${name}`, mime, bytes: buf.length };
@@ -46,6 +63,40 @@ export class LocalStorage {
   get publicDir(): string {
     return join(resolve(this.root), 'public');
   }
+}
+
+/**
+ * Stores file bytes in PostgreSQL, for hosts whose disk is wiped on restart. Same validation and
+ * naming as LocalStorage; a lower per-file cap keeps the database inside small free-tier quotas.
+ */
+export class DatabaseStorage implements FileStorage {
+  constructor(private db: DB, private maxFileBytes: number) {}
+
+  async save(buf: Buffer, opts: SaveOpts): Promise<Saved> {
+    const { mime, dir, name } = prepare(buf, { ...opts, maxBytes: Math.min(opts.maxBytes, this.maxFileBytes) });
+    const path = `${dir}/${name}`;
+    await this.db.insert(storedFiles).values({ path, mime, bytes: buf.length, isPrivate: opts.isPrivate, data: buf });
+    return { path, mime, bytes: buf.length };
+  }
+
+  async read(relPath: string): Promise<Buffer> {
+    const [f] = await this.db.select({ data: storedFiles.data }).from(storedFiles).where(eq(storedFiles.path, relPath));
+    if (!f) throw notFound('File');
+    return Buffer.from(f.data);
+  }
+
+  /** Public files only, for the /uploads/public route. */
+  async readPublic(name: string): Promise<{ data: Buffer; mime: string } | null> {
+    if (!/^[A-Za-z0-9_-]+.[a-z0-9]+$/.test(name)) return null;
+    const [f] = await this.db.select({ data: storedFiles.data, mime: storedFiles.mime, isPrivate: storedFiles.isPrivate }).from(storedFiles).where(eq(storedFiles.path, `public/${name}`));
+    return f && !f.isPrivate ? { data: Buffer.from(f.data), mime: f.mime } : null;
+  }
+}
+
+export function createStorage(ctx: Ctx): FileStorage {
+  return ctx.config.STORAGE_DRIVER === 'database'
+    ? new DatabaseStorage(ctx.db, ctx.config.DATABASE_FILE_MAX_MB * 1048576)
+    : new LocalStorage(ctx.config.UPLOAD_DIR);
 }
 
 export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];

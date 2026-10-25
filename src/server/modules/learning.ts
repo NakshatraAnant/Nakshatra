@@ -10,7 +10,7 @@ import { requireAuth } from '../lib/auth';
 import { randomToken } from '../lib/crypto';
 import { notify } from '../lib/notify';
 import { awardXp, evaluateAchievements } from '../lib/rewards';
-import { LocalStorage, MEDIA_TYPES } from '../lib/storage';
+import { createStorage, MEDIA_TYPES } from '../lib/storage';
 import { displayNames } from '../services/identity';
 
 type Course = typeof s.courses.$inferSelect;
@@ -58,7 +58,7 @@ export async function grantCourseEnrollment(db: Tx | Executor, userId: string, c
 }
 
 export async function learningRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   app.get('/api/v1/courses', async (req) => {
     const q = parse(z.object({ q: z.string().max(60).optional(), topic: z.string().optional(), level: z.enum(['beginner', 'intermediate', 'advanced']).optional(), free: z.coerce.boolean().optional() }), req.query);

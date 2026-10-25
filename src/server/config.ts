@@ -31,6 +31,10 @@ const schema = z.object({
   /** Secret used for HMAC signing (unsubscribe links, dev payment webhooks). */
   APP_SECRET: z.string().min(32).optional(),
   UPLOAD_DIR: z.string().default('./uploads'),
+  /** local = files under UPLOAD_DIR; database = bytes in PostgreSQL (for hosts without a persistent disk). */
+  STORAGE_DRIVER: z.enum(['local', 'database']).default('local'),
+  /** Per-file cap when STORAGE_DRIVER=database, to stay inside small database quotas. */
+  DATABASE_FILE_MAX_MB: z.coerce.number().min(1).max(50).default(5),
   MAX_UPLOAD_MB: z.coerce.number().default(5),
   /** Payments: dev_simulator (clearly labelled, no real money) or razorpay. */
   PAYMENT_PROVIDER: z.enum(['dev_simulator', 'razorpay', 'none']).default('dev_simulator'),

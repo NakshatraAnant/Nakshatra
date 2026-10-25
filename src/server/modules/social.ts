@@ -9,7 +9,7 @@ import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import { notify } from '../lib/notify';
 import { awardXp, evaluateAchievements } from '../lib/rewards';
-import { LocalStorage, IMAGE_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES } from '../lib/storage';
 import { rankFeed, type FeedCandidate } from '../services/ranking';
 import { bigThreeFor, displayNames, isBlockedEitherWay } from '../services/identity';
 import { DateTime } from 'luxon';
@@ -90,7 +90,7 @@ export async function hydratePosts(db: Executor, viewerId: string, rows: (typeof
 }
 
 export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   /* ---------- Follows ---------- */
   app.post('/api/v1/follows/:userId', async (req) => {

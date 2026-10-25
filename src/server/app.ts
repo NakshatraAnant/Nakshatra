@@ -16,6 +16,7 @@ import { randomToken, safeEqual } from './lib/crypto';
 import { AppError, errorPayload } from './lib/http';
 import { registerModules } from './modules';
 import { seedReferenceData } from './db/seed';
+import { DatabaseStorage } from './lib/storage';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -111,9 +112,19 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
 
   await registerModules(app, ctx);
 
-  const uploadDir = resolve(config.UPLOAD_DIR, 'public');
-  mkdirSync(uploadDir, { recursive: true });
-  await app.register(fastifyStatic, { root: uploadDir, prefix: '/uploads/public/', decorateReply: false });
+  if (config.STORAGE_DRIVER === 'database') {
+    const files = new DatabaseStorage(dbHandle.db, config.DATABASE_FILE_MAX_MB * 1048576);
+    app.get('/uploads/public/:name', async (req, reply) => {
+      const f = await files.readPublic((req.params as { name: string }).name);
+      if (!f) throw new AppError(404, 'not_found', 'File not found');
+      // Names are random and never reused, so public files can be cached indefinitely.
+      return reply.header('content-type', f.mime).header('cache-control', 'public, max-age=31536000, immutable').send(f.data);
+    });
+  } else {
+    const uploadDir = resolve(config.UPLOAD_DIR, 'public');
+    mkdirSync(uploadDir, { recursive: true });
+    await app.register(fastifyStatic, { root: uploadDir, prefix: '/uploads/public/', decorateReply: false });
+  }
 
   const webDist = resolve(process.cwd(), 'dist/web');
   if (existsSync(join(webDist, 'index.html'))) {

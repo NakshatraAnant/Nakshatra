@@ -29,6 +29,13 @@
       "when": 1792887016874,
       "tag": "0003_social_network",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792918610941,
+      "tag": "0004_stored_files",
+      "breakpoints": true
     }
   ]
 }

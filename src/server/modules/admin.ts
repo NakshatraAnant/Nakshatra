@@ -9,7 +9,7 @@ import { badRequest, conflict, notFound, parse } from '../lib/http';
 import { requireCapability, type Role } from '../lib/auth';
 import { notify } from '../lib/notify';
 import { approveRefund, rejectRefund, requestRefund } from '../lib/payments';
-import { LocalStorage } from '../lib/storage';
+import { createStorage } from '../lib/storage';
 import { setSetting, getSetting } from '../services/settings';
 import { displayNames } from '../services/identity';
 import { deleteAccount } from './account';
@@ -18,7 +18,7 @@ import { refreshRules } from '../services/content';
 const ROLES: Role[] = ['admin', 'moderator', 'support', 'expert', 'creator', 'vendor', 'seller'];
 
 export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
   const ip = (req: { ip: string }) => req.ip;
 
   /* ---------- Overview ---------- */

@@ -11,7 +11,7 @@ import { placeById, searchPlaces, timezoneFor } from '../lib/geo';
 import { awardXp, evaluateAchievements, totalXp } from '../lib/rewards';
 import { BirthDataError, normalizeBirth } from '../../astro';
 import { levelForXp } from '../../shared/gamification';
-import { LocalStorage, IMAGE_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES } from '../lib/storage';
 import {
   DEFAULT_FIELD_VISIBILITY, ageOn, bigThreeFor, calculateAndStore, fieldVisible, isBlockedEitherWay, primaryBirth, relationOf,
   type FieldVis,
@@ -104,7 +104,7 @@ export async function saveBirthProfile(ctx: Ctx, userId: string, raw: unknown, i
 }
 
 export async function profileRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   /* ---------- Creator / seller applications (reviewed by staff in Admin → Verification) ---------- */
   const AppliedRole = z.object({ role: z.enum(['creator', 'seller']) });

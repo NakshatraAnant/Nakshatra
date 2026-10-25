@@ -8,7 +8,7 @@ import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import { notify } from '../lib/notify';
 import { coarsen, distanceKm, placeById } from '../lib/geo';
-import { LocalStorage, IMAGE_TYPES, DOC_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES, DOC_TYPES } from '../lib/storage';
 import { rankDating, type DatingCandidate } from '../services/ranking';
 import { ageOn, bigThreeFor, currentChart, displayNames, isBlockedEitherWay, primaryBirth } from '../services/identity';
 import { compatibility } from '../../astro';
@@ -69,7 +69,7 @@ function completeness(p: typeof s.datingProfiles.$inferSelect): number {
 }
 
 export async function datingRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   app.get('/api/v1/dating/profile', async (req) => {
     const a = requireAuth(req);

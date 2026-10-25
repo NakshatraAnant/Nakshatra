@@ -12,7 +12,7 @@ import { randomToken, sha256 } from '../lib/crypto';
 import { notify, sendEmail } from '../lib/notify';
 import { createPayment, registerPaymentHandlers, requestRefund } from '../lib/payments';
 import { placeById } from '../lib/geo';
-import { LocalStorage, IMAGE_TYPES } from '../lib/storage';
+import { createStorage, IMAGE_TYPES } from '../lib/storage';
 import { bigThreeFor, displayNames } from '../services/identity';
 import { createConversation, postSystemMessage } from './messaging';
 
@@ -49,7 +49,7 @@ async function vendorOwned(db: Executor, vendorId: string, userId: string) {
 }
 
 export async function weddingRoutes(app: FastifyInstance, ctx: Ctx) {
-  const storage = new LocalStorage(ctx.config.UPLOAD_DIR);
+  const storage = createStorage(ctx);
 
   registerPaymentHandlers('vendor_milestone', {
     onSucceeded: async (c, tx: Tx, payment) => {
