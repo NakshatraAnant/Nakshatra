@@ -10,6 +10,7 @@ import { ArchetypeArt, Art, ResponsiveArt } from '../components/visual';
 import { clearPendingAnswers, renderPersonaCard, savePendingAnswers, type Persona } from '../lib/persona';
 import { ARCHETYPE_VISUALS, archetypeAccent, archetypeArt, cardStyleFrame, envArt } from '../lib/visual';
 import { shareOrDownload } from '../lib/cosmic';
+import { ShareLinkPanel } from './share';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
@@ -54,7 +55,7 @@ export function Assessment({ onDone, submitLabel = 'See my archetype', initial }
                       const on = answers[item.id] === val;
                       return (
                         <label key={label} className={cx('flex min-h-11 cursor-pointer flex-col items-center justify-center rounded-[var(--radius-sm)] border px-1 py-2 text-center text-[11px] leading-tight transition-colors', on ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-3 hover:border-line-strong')}>
-                          <input type="radio" className="sr-only" name={item.id} value={val} checked={on} onChange={() => setAnswers({ ...answers, [item.id]: val })} />
+                          <input type="radio" className="sr-only" name={item.id} value={val} aria-label={label} checked={on} onChange={() => setAnswers({ ...answers, [item.id]: val })} />
                           <span aria-hidden="true" className={cx('mb-1 h-2.5 w-2.5 rounded-full border', on ? 'border-accent bg-accent' : 'border-fg-3')} />
                           {label}
                         </label>
@@ -96,7 +97,7 @@ export function DimensionBars({ dims }: { dims: Persona['dimensions'] }) {
   );
 }
 
-const CONFIDENCE: Record<string, string> = { high: 'Clear match', medium: 'Good match', low: 'Close call — a few archetypes fit you' };
+const CONFIDENCE: Record<string, string> = { high: 'Clear match', medium: 'Good match', low: 'Close call — a few archetypes fit you', inconclusive: 'Inconclusive — no clear fit yet' };
 
 /**
  * Archetype reveal: identity-reveal environment, the archetype's sigil drawn on, then
@@ -115,8 +116,9 @@ export function PersonaResult({ persona, actions }: { persona: Persona; style?: 
       <div className="reveal-rest-wrap">
         <div className="reveal-rest flex flex-wrap items-center gap-2">
           <Badge tone="accent">Calculated from your answers</Badge>
-          <Badge tone="neutral">{CONFIDENCE[persona.confidence]}</Badge>
+          <Badge tone={persona.confidence === 'inconclusive' ? 'warning' : 'neutral'}>{CONFIDENCE[persona.confidence]}</Badge>
         </div>
+        {persona.quality?.message && <p className="reveal-rest mt-3 rounded-[var(--radius)] border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-fg-2" role="note">{persona.quality.message}</p>}
         <h1 id="persona-name" className="reveal-name mt-3 font-display text-5xl leading-[1] md:text-7xl text-pretty">{persona.name}</h1>
         <p className="reveal-name mt-3 font-display text-2xl italic text-fg-2 text-pretty">{persona.signature}</p>
         <ul className="reveal-rest mt-4 flex flex-wrap gap-2">{persona.traits.map((t) => <li key={t} className="rounded-full border px-3 py-1 text-sm text-fg" style={{ borderColor: `${accent}66` }}>{t}</li>)}</ul>
@@ -186,6 +188,7 @@ function PersonaShare({ persona, style, labels }: { persona: Persona; style: str
         <Button variant="secondary" loading={busy === 'square'} onClick={() => make('square')}>Square card</Button>
       </div>
       <p className="mt-2 text-xs text-fg-3">Cards show your archetype, traits and up to three labels — never your handle, pen name or birth details.</p>
+      <div className="mt-4"><ShareLinkPanel archetypeName={persona.name} signedIn /></div>
     </div>
   );
 }
@@ -226,6 +229,7 @@ export function IdentityStudio() {
         <div className="space-y-8">
           <PersonaResult persona={d.persona} style={d.cardStyle} actions={<div className="space-y-4"><PersonaShare persona={d.persona} style={d.cardStyle} labels={d.labels} /><Button variant="ghost" size="sm" onClick={() => setRetake(true)}>Retake assessment</Button></div>} />
           <WhyThisResult persona={d.persona} />
+          <IdentityTimeline />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
@@ -337,6 +341,7 @@ export function PersonalityPreview() {
           <div className="flex flex-wrap gap-2">
             <Button size="lg" onClick={() => { savePendingAnswers(result.answers); nav(me ? '/onboarding' : '/signup?from=personality'); }}>Save my archetype</Button>
             <Button size="lg" variant="secondary" onClick={() => setResult(null)}>Start again</Button>
+            <div className="basis-full pt-2"><ShareLinkPanel archetypeName={result.persona.name} answers={result.answers} signedIn={false} /></div>
           </div>
         } />
         <WhyThisResult persona={result.persona} />
@@ -390,3 +395,42 @@ export function PublicIdentity() {
 }
 
 export { clearPendingAnswers };
+
+interface Timeline {
+  results: { id: string; takenAt: string; name: string; confidence: string; changedArchetype: boolean; dimensions: { key: string; name: string; score: number; delta: number | null }[] }[];
+  vibes: { date: string; mood: string }[];
+  milestones: { at: string; kind: string; title: string }[];
+  note: string;
+}
+
+/** Identity Evolution Timeline — private: how your results moved over time, your vibes and milestones. */
+function IdentityTimeline() {
+  const q = useQuery({ queryKey: ['identity-timeline'], queryFn: () => get<Timeline>('identity/timeline') });
+  if (!q.data) return null;
+  const t = q.data;
+  return (
+    <Card className="space-y-4">
+      <div><h2 className="font-display text-2xl">Your timeline</h2><p className="text-sm text-fg-2">{t.note}</p></div>
+      <ol className="space-y-3">
+        {t.results.map((r) => (
+          <li key={r.id} className="rounded-[var(--radius-sm)] border border-line p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="font-semibold">{r.name}{r.changedArchetype && <span className="ml-2 text-xs text-accent">new archetype</span>}</p>
+              <p className="text-xs text-fg-3">{new Date(r.takenAt).toLocaleDateString()} · {r.confidence}</p>
+            </div>
+            <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-5">
+              {r.dimensions.map((d) => <li key={d.key} className="flex justify-between gap-2"><span className="text-fg-3">{d.name}</span><span className="numeric">{d.score.toFixed(2)}{d.delta !== null && d.delta !== 0 && <span className={d.delta > 0 ? 'text-success' : 'text-accent'}> {d.delta > 0 ? '▲' : '▼'}{Math.abs(d.delta).toFixed(2)}</span>}</span></li>)}
+            </ul>
+          </li>
+        ))}
+      </ol>
+      {t.vibes.length > 0 && (
+        <div>
+          <p className="text-sm text-fg-3">Recent vibes</p>
+          <ul className="mt-1 flex flex-wrap gap-1.5">{t.vibes.slice(0, 21).map((v) => <li key={v.date} title={v.date} className="rounded-full border border-line px-2 py-0.5 text-xs capitalize">{v.mood}</li>)}</ul>
+        </div>
+      )}
+      {t.milestones.length > 0 && <ul className="space-y-1 text-sm">{t.milestones.slice(0, 8).map((m) => <li key={m.kind + m.at + m.title} className="flex justify-between gap-2"><span>✦ {m.title}</span><span className="text-xs text-fg-3">{new Date(m.at).toLocaleDateString()}</span></li>)}</ul>}
+    </Card>
+  );
+}

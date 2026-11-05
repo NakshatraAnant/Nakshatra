@@ -1,0 +1,65 @@
+[
+  {
+    "endpoint": "GET /api/v1/auth/me",
+    "n": 150,
+    "p50": 7.26,
+    "p95": 9.07,
+    "p99": 13.63
+  },
+  {
+    "endpoint": "GET /api/v1/feed",
+    "n": 150,
+    "p50": 23,
+    "p95": 30.01,
+    "p99": 33.72
+  },
+  {
+    "endpoint": "GET /api/v1/circles",
+    "n": 150,
+    "p50": 8.26,
+    "p95": 11.12,
+    "p99": 15.7
+  },
+  {
+    "endpoint": "GET /api/v1/circles/:id",
+    "n": 150,
+    "p50": 14.97,
+    "p95": 23.85,
+    "p99": 32.24
+  },
+  {
+    "endpoint": "GET /api/v1/play/sessions/:id",
+    "n": 150,
+    "p50": 10.91,
+    "p95": 17.35,
+    "p99": 21.63
+  },
+  {
+    "endpoint": "GET /api/v1/identity/me",
+    "n": 150,
+    "p50": 10.99,
+    "p95": 15.39,
+    "p99": 21.86
+  },
+  {
+    "endpoint": "GET /api/v1/social-rituals",
+    "n": 150,
+    "p50": 9.23,
+    "p95": 12.08,
+    "p99": 15.74
+  },
+  {
+    "endpoint": "GET /api/v1/events",
+    "n": 150,
+    "p50": 4.36,
+    "p95": 6.44,
+    "p99": 10.57
+  },
+  {
+    "endpoint": "GET /visual/brand/nakshatra-favicon.svg (static, signed in)",
+    "n": 150,
+    "p50": 1.79,
+    "p95": 3.88,
+    "p99": 4.23
+  }
+]

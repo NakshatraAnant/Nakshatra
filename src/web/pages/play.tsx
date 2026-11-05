@@ -151,7 +151,7 @@ interface SessionView {
   game: GameMeta;
   me: { joined: boolean; isHost: boolean; allowReuse: boolean; shareIdentity: boolean; canAct: boolean; submission: { id: string; payload: Record<string, unknown> } | null };
   players: { userId: string; name: string; score: number; left: boolean; waitingOn: boolean }[];
-  round: null | { index: number; kind: string; title: string; prompt: string; ref?: string; options?: { id: string; label: string }[]; maxLength?: number; actorId?: string; excludeId?: string; aboutId?: string; submitted: number; waitingFor: number };
+  round: null | { index: number; kind: string; title: string; prompt: string; ref?: string; options?: { id: string; label: string }[]; maxLength?: number; actorId?: string; excludeId?: string; aboutId?: string; submitted: number; waitingFor: number; hidesAuthor?: boolean };
   history: { index: number; title: string; prompt: string; reveal: { headline: string; lines: Line[]; note?: string } }[];
   summary: { headline: string; lines: Line[]; note?: string } | null;
   payouts: { name: string; playPoints: number }[] | null;
@@ -276,7 +276,7 @@ export function GameSession() {
               {r.ref && <RoundReport refId={r.ref} />}
               {v.me.canAct ? <RoundInput v={v} busy={call.isPending} onSubmit={(payload) => call.mutate({ path: 'submit', body: { payload } })} />
                 : !v.me.joined ? <Notice tone="info">This game started without you. You can watch the results here.</Notice>
-                  : <Notice tone="info">{r.actorId ? `Waiting for ${v.players.find((p) => p.userId === r.actorId)?.name ?? 'the next player'}.` : r.excludeId ? 'This round is about you — sit back while the others guess.' : 'Waiting for the others.'}</Notice>}
+                  : <Notice tone="info">{r.actorId ? `Waiting for ${v.players.find((p) => p.userId === r.actorId)?.name ?? 'the next player'}.` : r.hidesAuthor ? 'This one is yours — sit back while the others guess. Nobody else can see that.' : r.excludeId ? 'This round is about you — sit back while the others guess.' : 'Waiting for the others.'}</Notice>}
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-fg-3">
                 <span>{r.submitted} in · waiting for {r.waitingFor}</span>
                 <span className="flex gap-2">
@@ -298,6 +298,7 @@ export function GameSession() {
               {v.summary && <ul className="space-y-1 text-sm">{v.summary.lines.map((l, i) => <li key={i} className={v.game.key === 'plot_twist' ? 'text-fg' : 'flex justify-between gap-3'}><span>{l.label}</span>{l.detail && <span className="text-fg-3">{l.detail}</span>}</li>)}</ul>}
               {v.summary?.note && <p className="text-xs text-fg-3">{v.summary.note}</p>}
               {v.payouts && <Notice tone="info" title="Play points (not money)">{v.payouts.map((p) => `${p.name}: ${p.playPoints}`).join(' · ')}</Notice>}
+              {v.me.joined && <RematchButton id={v.session.id} />}
             </Card>
           )}
           {v.session.status === 'abandoned' && <EmptyState icon="alert" title="This game was abandoned" body="It was cancelled or idle for a week. Start a fresh one any time." />}
@@ -323,4 +324,16 @@ export function GameSession() {
       );
     }}</QueryState>
   );
+}
+
+/** Opens a fresh lobby of the same game and invites the other players (they choose to join). */
+function RematchButton({ id }: { id: string }) {
+  const nav = useNavigate();
+  const toast = useToast();
+  const m = useMutation({
+    mutationFn: () => post<{ session: { id: string }; invited: number }>(`play/sessions/${id}/rematch`),
+    onSuccess: (r) => { toast(r.invited ? `Invited ${r.invited} player${r.invited === 1 ? '' : 's'}` : 'New lobby open', 'success'); nav(`/play/${r.session.id}`); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not start a rematch', 'error'),
+  });
+  return <Button className="motion-press" loading={m.isPending} onClick={() => m.mutate()}>Rematch</Button>;
 }

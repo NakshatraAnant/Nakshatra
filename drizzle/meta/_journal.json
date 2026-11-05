@@ -36,6 +36,20 @@
       "when": 1792918610941,
       "tag": "0004_stored_files",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793890974067,
+      "tag": "0005_security_privacy_gifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793893401163,
+      "tag": "0006_gamification_engine",
+      "breakpoints": true
     }
   ]
 }

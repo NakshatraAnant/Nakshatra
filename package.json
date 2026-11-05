@@ -29,7 +29,9 @@
     "audit:secrets": "tsx scripts/secret-scan.ts",
     "db:restore": "tsx src/server/db/restore-cli.ts",
     "local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
-    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local.ps1"
+    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "build:web:e2e": "vite build --outDir .data/e2e-web --emptyOutDir",
+    "bench:api": "tsx scripts/bench-api.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.16",

@@ -1,0 +1,51 @@
+id,area,feature,status_before,status_now,user_problem,modules,backend_api_db,privacy_abuse_controls,tests,notes
+1,Identity,Identity Evolution Timeline,Missing (history list only),Implemented & tested,"See how I changed over time","studio.ts, studio.tsx","GET /api/v1/identity/timeline (assessment_results, vibe_checkins, user_achievements)",Owner-only,features.test.ts,
+2,Identity,Archetype Blending,Existing but incomplete (secondary archetype),Deferred,"I'm between two archetypes",personality.ts,—,—,—,Secondary archetype already shown; blend view not built
+3,Identity,Advanced Identity Dashboard,Existing but incomplete,Partially implemented,"One place for my identity",studio.tsx,"identity/me + timeline + share list",Owner-only,features.test.ts,Timeline added to Studio
+4,Identity,Daily Vibe Check-in,Missing,Implemented & tested,"Quick daily reflection","progression.ts, home.tsx, progress.tsx","POST /api/v1/vibe (vibe_checkins)",Mood never sent to analytics,progression.test.ts,
+5,Identity,Mini Assessment Engine,Missing,Deferred,"More ways to learn about myself",—,—,—,—,Content + psychometric review needed
+6,Identity,Identity Journal,Existing but incomplete (private rituals),Existing,"Write privately",rituals.ts,existing,Private,existing,Daily thought/weekly reflection exist
+7,Identity,Identity Calendar,Existing (astrology calendar),Deferred,—,calendar.tsx,—,—,—,Astrology calendar only
+8,Identity,Profile Theme Studio,Existing but incomplete,Existing,—,collectibles,existing,—,existing,
+9,Identity,Avatar and Character Creator,Missing,Deferred,—,—,—,—,—,Art + design needed
+10,Identity,Personal Year-in-Review,Existing (astrology Wrapped),Deferred,—,journey.tsx,—,—,—,Identity-based recap not built
+11,Social discovery,Connection Intent,Missing,Deferred,—,—,—,—,—,Needs discovery first
+12,Social discovery,People Discovery Engine,Missing,Deferred,"Find my kind of person",—,—,High privacy risk; needs opt-in model,—,Deliberately not built without consent design
+13,Social discovery,Compatibility Signals,Partially (Compatibility Lab game),Existing,—,engine.ts,existing,Opt-in,existing,
+14,Social discovery,Common Ground Cards,Missing,Implemented & tested,"What do we share?","commonGround.ts, circles.ts, circles.tsx",GET /api/v1/circles/:id/common-ground/:userId,"Co-members only; respects persona/labels visibility",features.test.ts,
+15,Social discovery,Conversation Starters,Missing,Implemented & tested,"Break the ice",commonGround.ts,Part of common ground,Deterministic curated prompts,features.test.ts,
+16,Social discovery,Close Friends Clusters,Existing (circles),Existing,—,circles,—,—,—,
+17,Social discovery,Mutual Circle Discovery,Missing,Not implemented (by design),—,—,—,Circles are invite-only,—,
+18,Social discovery,Follow and Friend Graph,Existing,Existing,—,social.ts,existing,—,existing,
+19,Social discovery,Discovery Preferences,Missing,Deferred,—,—,—,—,—,
+20,Social discovery,Global Search and Explore,Existing (search),Improved,—,account.ts,Search scoped by modules + post-level visibility,Blocks honoured,modules.test.ts,
+21,Expression,Rich Reaction System,Existing (4 reactions),Existing,—,social.ts,—,—,existing,
+22,Expression,Interactive Polls,Existing,Existing,—,social.ts,—,—,existing,
+23,Expression,Threaded Conversations,Existing (3 levels),Improved,—,social.ts,Pen-name author replies keep pen name,SEC-02,security-regressions.test.ts,
+24,Expression,Voice Thought Drops,Missing,Deferred,—,—,—,Moderation of audio,—,
+25,Expression,Photo Carousels,Missing (single image),Deferred,—,—,—,—,—,
+26,Expression,Short-form Video,Missing,Deferred,—,—,—,Cost/moderation,—,
+27,Expression,Collaborative Thought Drops,Missing (Plot Twist game),Deferred,—,—,—,—,—,
+28,Expression,Saved Collections,Existing (saved posts),Existing,—,social.ts,—,—,existing,
+29,Expression,Content Templates,Existing (thought/question/dilemma/confession/prompt),Existing,—,—,—,—,—,
+30,Expression,Rich Creator Profiles,Missing,Deferred,—,—,—,—,—,Creator programme not in launch scope
+31,Communities,Circle Channels,Missing,Deferred,—,—,—,—,—,
+32,Communities,Circle Roles and Permissions,Existing,Existing,—,circles.ts,—,—,existing,
+33,Communities,Circle Events and RSVP,Defective (SEC-04),Fixed & tested,—,events.ts,Visibility SQL,Members only,security-regressions.test.ts,
+34,Communities,Recurring Circle Events,Missing,Deferred,—,—,—,—,—,
+35,Communities,Circle Quests,Missing,Implemented & tested,"Reason to show up for my circle",progression.ts,weekly_circle + found_a_circle quests,Server-computed,progression.test.ts,
+36,Communities,Circle Leaderboards,Missing,Deferred,—,—,—,Competitive pressure among friends,—,Circle streaks/levels used instead
+37,Communities,Circle Onboarding,Existing (invite preview + empty states),Existing,—,—,—,—,—,
+38,Communities,Circle Discovery,Missing,Not implemented (by design),—,—,—,Private by design,—,
+39,Communities,Circle Membership Tiers,Missing,Deferred,—,—,—,—,—,Monetisation model 33/34
+40,Communities,Moderator Dashboard,Existing (admin moderation),Existing,—,admin,—,—,existing,
+41,Gamification,XP Ledger,Existing,Improved & tested,—,rewards.ts,"meta, reverses_id; reversal endpoint",Unique keys; staff reversal,progression.test.ts,
+42,Gamification,Daily and Weekly Quests,Missing,Implemented & tested,"Small goals",progression.ts,quest_claims,"Idempotent, server-computed",progression.test.ts,
+43,Gamification,Social Streaks,Missing,Implemented (circle streaks) & tested,"Shared rhythm",progression.ts,computed,No streak nags,progression.test.ts,Friend (pair) streaks deferred
+44,Gamification,Seasonal Progression,Missing,Implemented & tested,"Something to work toward",progression.ts,season_claims,Premium track disabled,progression.test.ts,
+45,Gamification,Achievement Collection,Existing (Journey rewards),Improved,—,progress.tsx,GET /api/v1/progress/inventory,—,progression.test.ts,
+46,Gamification,Game Tournaments,Missing,Deferred,—,—,—,—,—,
+47,Gamification,Asynchronous Match Invitations,Partially (lobby notifications),Implemented (rematch) & tested,"Play again with the same people",play.ts,POST /api/v1/play/sessions/:id/rematch,Players choose to join,features.test.ts,
+48,Gamification,User Quiz Builder,Missing,Deferred,—,—,—,UGC moderation,—,
+49,Gamification,Seasonal Leaderboards,Missing,Deferred,—,—,—,—,—,
+50,Gamification,Celebration and Unlock Animations,Missing,Implemented,"Feel the win",motion.tsx,—,Reduced-motion respected,manual browser,

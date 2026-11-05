@@ -310,3 +310,21 @@ dialog::backdrop { background: rgb(7 8 26 / 0.65); backdrop-filter: blur(4px); }
   html:not([data-motion='reduced']) .loading-emblem { animation: emblem-turn 2400ms linear infinite; }
   html:not([data-motion='reduced']) .result-pop { animation: art-pop 600ms var(--ease-emph) both; }
 }
+
+/* ---------------- Motion patterns (motion-v2) ----------------
+   Short, purposeful, never blocking. Every animation below runs only under prefers-reduced-motion:
+   no-preference AND without the in-app reduced-motion setting; otherwise elements simply appear. */
+@keyframes xp-float { 0% { opacity: 0; transform: translateY(6px) scale(0.92); } 18% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-22px); } }
+@keyframes burst-ring { from { opacity: 0.85; transform: scale(0.4); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes celebrate-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes progress-fill { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .motion-page { animation: page-in 220ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .motion-xp { animation: xp-float 1400ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-burst { animation: burst-ring 900ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-celebrate { animation: celebrate-in 320ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-fill { transform-origin: left; animation: progress-fill 600ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .motion-press { transition: transform 120ms var(--ease-standard); }
+  html:not([data-motion='reduced']) .motion-press:active { transform: scale(0.97); }
+}

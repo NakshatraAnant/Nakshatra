@@ -38,8 +38,15 @@ const schema = z.object({
   /** Per-file cap when STORAGE_DRIVER=database, to stay inside small database quotas. */
   DATABASE_FILE_MAX_MB: z.coerce.number().min(1).max(50).default(5),
   MAX_UPLOAD_MB: z.coerce.number().default(5),
-  /** Payments: dev_simulator (clearly labelled, no real money) or razorpay. */
+  /**
+   * Master switch for real money. Must be exactly "true" before any live provider (razorpay) can be used.
+   * The dev simulator (no money moves; refused in production) is a test mode and is not gated by this.
+   */
+  PAYMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
+  /** Payments: dev_simulator (clearly labelled, no real money), razorpay (live; needs PAYMENTS_ENABLED=true) or none. */
   PAYMENT_PROVIDER: z.enum(['dev_simulator', 'razorpay', 'none']).default('dev_simulator'),
+  /** launch = legacy modules start switched off (once per database); all = every module on (tests, legacy e2e). */
+  MODULE_SCOPE: z.enum(['launch', 'all']).optional(),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
@@ -56,7 +63,7 @@ const schema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
 });
 
-export type AppConfig = z.infer<typeof schema> & { appSecret: string; isProd: boolean };
+export type AppConfig = Omit<z.infer<typeof schema>, 'MODULE_SCOPE'> & { MODULE_SCOPE: 'launch' | 'all'; appSecret: string; isProd: boolean };
 
 export function loadConfig(overrides: Partial<Record<keyof z.infer<typeof schema>, string>> = {}): AppConfig {
   // Blank values (e.g. `APP_SECRET=` copied from .env.example) mean "not set", not "set to an empty string".
@@ -74,6 +81,9 @@ export function loadConfig(overrides: Partial<Record<keyof z.infer<typeof schema
   if (isProd && c.PAYMENT_PROVIDER === 'dev_simulator') {
     throw new Error('The development payment simulator cannot be used when NODE_ENV=production');
   }
+  if (c.PAYMENT_PROVIDER === 'razorpay' && c.PAYMENTS_ENABLED !== 'true') {
+    throw new Error('PAYMENT_PROVIDER=razorpay moves real money and requires PAYMENTS_ENABLED=true. Payments are disabled for this installation.');
+  }
   if (c.PAYMENT_PROVIDER === 'razorpay' && !(c.RAZORPAY_KEY_ID && c.RAZORPAY_KEY_SECRET && c.RAZORPAY_WEBHOOK_SECRET)) {
     throw new Error('PAYMENT_PROVIDER=razorpay requires RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET');
   }
@@ -83,6 +93,7 @@ export function loadConfig(overrides: Partial<Record<keyof z.infer<typeof schema
   }
   return {
     ...c,
+    MODULE_SCOPE: c.MODULE_SCOPE ?? (c.NODE_ENV === 'test' ? 'all' : 'launch'),
     // Development fallback secret is deterministic and clearly non-production.
     appSecret: c.APP_SECRET ?? 'dev-only-insecure-secret-change-me-0123456789',
     isProd,

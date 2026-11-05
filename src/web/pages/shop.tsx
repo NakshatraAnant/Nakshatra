@@ -1,3 +1,5 @@
+import { GiftsPanel } from './gifts';
+import { useModules } from '../lib/modules';
 import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,6 +31,7 @@ function ProductArt({ p, className }: { p: { title: string; category: string; im
 }
 
 export function ShopPage() {
+  const mods = useModules();
   const [params, setParams] = useSearchParams();
   const category = params.get('category') ?? '';
   const [q, setQ] = useState(params.get('q') ?? '');
@@ -37,10 +40,11 @@ export function ShopPage() {
   const list = useQuery({ queryKey: ['products', category, q, sort, page], queryFn: () => get<{ products: ProductItem[]; total: number; page: number; pageSize: number; shipping: string }>(`products?${new URLSearchParams({ ...(category && { category }), ...(q && { q }), sort, page: String(page) })}`) });
   return (
     <div>
+      {!mods.enabled("marketplace") ? <PageHeader kicker="Premium" title="Identity extras" subtitle={mods.payments.enabled ? "Optional cosmetic styles and a deeper report built from your own answers. Nothing here affects points, levels or how you appear." : "A preview of optional extras. Purchasing is not open yet — no payment can be taken."} actions={<ButtonLink to="/shop/library" variant="secondary" icon="bookmark">Library</ButtonLink>} /> : <>
       <PageHeader kicker="Shop" title="Reports, learning & ritual goods" subtitle="Reports are generated from your calculated chart. Physical listings show exactly what the seller has documented — nothing more."
         actions={<><ButtonLink to="/seller" variant="ghost">Sell on Nakshatra</ButtonLink><ButtonLink to="/shop/library" variant="secondary" icon="bookmark">Library</ButtonLink><ButtonLink to="/shop/orders" variant="secondary">Orders</ButtonLink><ButtonLink to="/shop/cart" icon="cart">Cart</ButtonLink></>} />
       <div className="mb-4 flex flex-wrap gap-2">{CATEGORIES.map(([k, l]) => <button key={k} type="button" aria-pressed={category === k} onClick={() => { setPage(1); setParams((p) => { if (k) p.set('category', k); else p.delete('category'); return p; }); }} className={cx('rounded-full border px-3 py-1.5 text-sm', category === k ? 'border-accent bg-accent/10 text-fg' : 'border-line text-fg-2')}>{l}</button>)}</div>
-      <div className="mb-5 flex flex-wrap gap-3"><Input aria-label="Search products" placeholder="Search…" className="max-w-xs" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /><Select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} className="w-48"><option value="relevance">Relevance</option><option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option></Select></div>
+      <div className="mb-5 flex flex-wrap gap-3"><Input aria-label="Search products" placeholder="Search…" className="max-w-xs" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /><Select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} className="w-48"><option value="relevance">Relevance</option><option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option></Select></div></>}
       <QueryState q={list} empty={(d) => (!d.products.length ? <EmptyState icon="shop" title="Nothing found" /> : null)}>{(d) => (
         <>
           <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">{d.products.map((p) => (
@@ -54,7 +58,7 @@ export function ShopPage() {
             </Link></li>
           ))}</ul>
           <Pagination page={d.page} pageSize={d.pageSize} total={d.total} onChange={setPage} />
-          <p className="mt-4 text-xs text-fg-3">{d.shipping}</p>
+          {mods.enabled("marketplace") && <p className="mt-4 text-xs text-fg-3">{d.shipping}</p>}
         </>
       )}</QueryState>
     </div>
@@ -108,6 +112,7 @@ export function ProductPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const nav = useNavigate();
+  const { payments } = useModules();
   const [variant, setVariant] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [report, setReport] = useState(false);
@@ -149,9 +154,10 @@ export function ProductPage() {
               <p className="mt-4 font-display text-4xl">{money(v.pricePaise)}{v.compareAtPaise && <span className="ml-2 text-lg text-fg-3 line-through">{money(v.compareAtPaise)}</span>}</p>
               {v.lowStock && <p className="text-sm text-accent">Only {v.stock} left</p>}
               <div className="mt-4 flex flex-wrap items-center gap-3">
+              {!payments.enabled && <Notice tone="info" className="mt-3" title="Preview">Purchasing is not open yet — no payment can be taken. You can save this item for later.</Notice>}
                 {p.fulfilment === 'physical' && <Input aria-label="Quantity" type="number" min={1} max={20} className="w-20" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} />}
-                <Button size="lg" icon="cart" disabled={!v.available || (d.owned && p.fulfilment === 'digital')} loading={add.isPending} onClick={() => add.mutate()}>{v.available ? (d.owned && p.fulfilment === 'digital' ? 'Owned' : 'Add to cart') : 'Sold out'}</Button>
-                <Button size="lg" variant="secondary" onClick={() => { add.mutateAsync().then(() => nav('/shop/cart')).catch(() => undefined); }} disabled={!v.available}>Buy now</Button>
+                <Button size="lg" icon="cart" disabled={!payments.enabled || !v.available || (d.owned && p.fulfilment === 'digital')} loading={add.isPending} onClick={() => add.mutate()}>{v.available ? (d.owned && p.fulfilment === 'digital' ? 'Owned' : 'Add to cart') : 'Sold out'}</Button>
+                <Button size="lg" variant="secondary" onClick={() => { add.mutateAsync().then(() => nav('/shop/cart')).catch(() => undefined); }} disabled={!payments.enabled || !v.available}>Buy now</Button>
                 <Button variant="ghost" icon="bookmark" aria-pressed={d.saved} onClick={() => save.mutate()}>{d.saved ? 'Saved' : 'Save'}</Button>
               </div>
             </div>
@@ -212,7 +218,7 @@ export function CartPage() {
                 </Card>
               )}
               <Card className="space-y-3">
-                <Checkbox checked={gift.on} onChange={(v) => setGift({ ...gift, on: v })} label="This is a gift" description="Digital items go to the recipient’s account (matched by email); they receive a note from you." />
+                <Checkbox checked={gift.on} onChange={(v) => setGift({ ...gift, on: v })} label="This is a gift" description="The recipient gets an email with a claim link. It is added to their library once they sign in with that verified email — never to yours." />
                 {gift.on && <div className="grid gap-3 sm:grid-cols-2"><Field label="Recipient email">{(id) => <Input id={id} type="email" value={gift.recipientEmail} onChange={(e) => setGift({ ...gift, recipientEmail: e.target.value })} />}</Field><Field label="Gift message">{(id) => <Input id={id} value={gift.message} onChange={(e) => setGift({ ...gift, message: e.target.value })} />}</Field></div>}
               </Card>
             </div>
@@ -306,7 +312,8 @@ export function LibraryPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const nav = useNavigate();
-  const q = useQuery({ queryKey: ['library'], queryFn: () => get<{ products: { id: string; slug: string; title: string; category: string }[]; reports: { id: string; title: string; templateKey: string; createdAt: string }[]; subscription: { refId: string; expiresAt: string | null } | null }>('library') });
+  const q = useQuery({ queryKey: ['library'], queryFn: () => get<{ products: { id: string; slug: string; title: string; category: string }[]; reports: { id: string; title: string; templateKey: string; createdAt: string }[]; pendingReports: { entitlementId: string; title: string; needs: string }[]; subscription: { refId: string; expiresAt: string | null } | null }>('library') });
+  const build = useMutation({ mutationFn: (entitlementId: string) => post<{ reportId: string }>(`library/${entitlementId}/generate`), onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['library'] }); nav(`/reports/${r.reportId}`); }, onError: (e) => toast((e as Error).message, 'error') });
   const gen = useMutation({ mutationFn: (templateKey: string) => post<{ report: { id: string } }>('reports/generate', { templateKey }), onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['library'] }); nav(`/reports/${r.report.id}`); }, onError: (e) => toast((e as Error).message, 'error') });
   return (
     <div>
@@ -315,9 +322,11 @@ export function LibraryPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <h2 className="font-display text-2xl">Reports</h2>
-            <ul className="mt-3 space-y-2">{d.reports.map((r) => <li key={r.id}><Link to={`/reports/${r.id}`} className="flex justify-between text-sm hover:underline"><span className="text-fg">{r.title}</span><span className="text-fg-3">{new Date(r.createdAt).toLocaleDateString()}</span></Link></li>)}{!d.reports.length && <li className="text-sm text-fg-3">No reports yet.</li>}</ul>
+            <ul className="mt-3 space-y-2">{d.reports.map((r) => <li key={r.id}><Link to={`/reports/${r.id}`} className="flex justify-between text-sm hover:underline"><span className="text-fg">{r.title}</span><span className="text-fg-3">{new Date(r.createdAt).toLocaleDateString()}</span></Link></li>)}{!d.reports.length && !d.pendingReports.length && <li className="text-sm text-fg-3">No reports yet.</li>}</ul>
+            {d.pendingReports.map((p) => <div key={p.entitlementId} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-line p-3 text-sm"><span>{p.title} <span className="text-fg-3">— ready to build {p.needs === 'assessment' ? 'from your assessment' : 'from your birth details'}</span></span><Button size="sm" loading={build.isPending} onClick={() => build.mutate(p.entitlementId)}>Build report</Button></div>)}
             {d.subscription && <div className="mt-4 space-y-2"><p className="text-sm text-fg-2">Included with Nakshatra+:</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" loading={gen.isPending} onClick={() => gen.mutate('natal_vedic_full')}>Generate Vedic report</Button><Button size="sm" variant="secondary" loading={gen.isPending} onClick={() => gen.mutate('western_natal')}>Generate Western report</Button></div></div>}
           </Card>
+          <div className="lg:col-span-2"><GiftsPanel /></div>
           <Card>
             <h2 className="font-display text-2xl">Digital products</h2>
             <ul className="mt-3 space-y-2">{d.products.map((p) => <li key={p.id}><Link to={`/shop/p/${p.slug}`} className="text-sm text-fg hover:underline">{p.title}</Link></li>)}{!d.products.length && <li className="text-sm text-fg-3">None yet.</li>}</ul>

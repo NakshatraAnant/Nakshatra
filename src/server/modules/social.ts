@@ -7,6 +7,7 @@ import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
 import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
+import { hmac } from '../lib/crypto';
 import { notify } from '../lib/notify';
 import { awardXp, evaluateAchievements } from '../lib/rewards';
 import { createStorage, IMAGE_TYPES } from '../lib/storage';
@@ -17,6 +18,7 @@ import { blockedPhrases, screenText } from '../services/moderation';
 import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { checkCircleActivation } from '../services/circles';
+import { eventVisibleSql } from '../services/events';
 
 export const TOPICS = ['vedic', 'western', 'tarot', 'numerology', 'panchang', 'festivals', 'rituals', 'relationships', 'learning', 'meditation', 'mythology', 'nakshatras', 'transits', 'wellbeing',
   'life', 'friendship', 'work', 'study', 'music', 'film', 'food', 'travel', 'tech', 'sport', 'fun', 'dilemmas', 'questions', 'confessions'];
@@ -36,21 +38,36 @@ export function spamCheck(body: string, recentBodies: string[]): string | null {
   return null;
 }
 
+/** Opaque, per-muter handle for a pen-name mute (cannot be reversed or compared across users). */
+export function penMuteRef(secret: string, muterId: string, authorId: string): string {
+  return hmac(secret, `pen-mute:${muterId}:${authorId}`).slice(0, 32);
+}
+
+/** Feed filters: real-name mutes hide only real-name posts; pen-name mutes hide only pen-name posts. */
+export async function muteFilters(db: Executor, userId: string) {
+  const muted = new Set((await db.select({ id: s.mutes.mutedId }).from(s.mutes).where(eq(s.mutes.muterId, userId))).map((r) => r.id));
+  const penMuted = new Set((await db.select({ id: s.penMutes.authorId }).from(s.penMutes).where(eq(s.penMutes.muterId, userId))).map((r) => r.id));
+  return (p: { authorId: string; pseudonymous: boolean }) => (p.pseudonymous ? penMuted.has(p.authorId) : muted.has(p.authorId));
+}
+
 async function blockedSet(db: Executor, userId: string): Promise<Set<string>> {
   const rows = await db.select().from(s.blocks).where(or(eq(s.blocks.blockerId, userId), eq(s.blocks.blockedId, userId)));
   return new Set(rows.map((r) => (r.blockerId === userId ? r.blockedId : r.blockerId)));
 }
 
-/** Server-side visibility check for a single post. */
+/**
+ * Visibility policy (posts-v2). The post's own visibility decides who can read it:
+ *  - public: every signed-in member (profile privacy controls the profile page, not explicitly public posts);
+ *  - followers: accepted followers only (never allowed for pen-name posts);
+ *  - group: active members of that circle/group, or anyone for a public community group.
+ * Blocks in either direction always hide a post. Mutes are a feed preference, applied by callers.
+ */
 export async function canViewPost(db: Executor, viewerId: string, post: typeof s.posts.$inferSelect): Promise<boolean> {
   if (post.deletedAt || (post.hiddenByModeration && post.authorId !== viewerId)) return false;
   if (post.expiresAt && post.expiresAt < new Date() && post.authorId !== viewerId) return false;
   if (post.authorId === viewerId) return true;
   if (await isBlockedEitherWay(db, viewerId, post.authorId)) return false;
-  if (post.visibility === 'public') {
-    const [author] = await db.select({ v: s.profiles.visibility }).from(s.profiles).where(eq(s.profiles.userId, post.authorId));
-    if (author?.v === 'public') return true;
-  }
+  if (post.visibility === 'public') return true;
   if (post.visibility === 'group' && post.groupId) {
     const [m] = await db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, post.groupId), eq(s.groupMembers.userId, viewerId), eq(s.groupMembers.status, 'active')));
     const [g] = await db.select().from(s.groups).where(eq(s.groups.id, post.groupId));
@@ -60,11 +77,29 @@ export async function canViewPost(db: Executor, viewerId: string, post: typeof s
   return Boolean(f);
 }
 
+/**
+ * Comment serializer. A comment written by the post's pen-name author in their own pen-name thread is shown
+ * under the pen name to everyone else — no user id, handle or display name is included.
+ */
+export async function serializeComments(db: Executor, viewerId: string, post: typeof s.posts.$inferSelect, rows: (typeof s.comments.$inferSelect)[]) {
+  const hidden = (c: typeof s.comments.$inferSelect) => c.asPseudonym && c.authorId !== viewerId;
+  const names = await displayNames(db, rows.filter((c) => !hidden(c)).map((c) => c.authorId));
+  let pen = post.penName;
+  if (!pen && rows.some(hidden)) pen = (await db.select({ p: s.profiles.pseudonym }).from(s.profiles).where(eq(s.profiles.userId, post.authorId)))[0]?.p ?? null;
+  return rows.map((c) => ({
+    id: c.id, parentId: c.parentId, body: c.body, createdAt: c.createdAt,
+    author: hidden(c) ? { pseudonym: pen ?? 'Anonymous member', isPostAuthor: true } : { userId: c.authorId, ...names.get(c.authorId), ...(c.asPseudonym ? { pseudonym: pen ?? undefined, isPostAuthor: true } : {}) },
+    isMine: c.authorId === viewerId,
+  }));
+}
+
 export async function hydratePosts(db: Executor, viewerId: string, rows: (typeof s.posts.$inferSelect)[], reasons?: Map<string, string[]>) {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const names = await displayNames(db, rows.map((r) => r.authorId));
-  const pseudoAuthors = rows.filter((r) => r.pseudonymous && r.authorId !== viewerId).map((r) => r.authorId);
+  // Real names are loaded only for posts the viewer may see attributed (never for other people's pen-name posts).
+  const names = await displayNames(db, rows.filter((r) => !r.pseudonymous || r.authorId === viewerId).map((r) => r.authorId));
+  // Older pen-name posts have no snapshot; fall back to the author's current pen name.
+  const pseudoAuthors = rows.filter((r) => r.pseudonymous && !r.penName && r.authorId !== viewerId).map((r) => r.authorId);
   const pens = pseudoAuthors.length ? new Map((await db.select({ u: s.profiles.userId, p: s.profiles.pseudonym }).from(s.profiles).where(inArray(s.profiles.userId, pseudoAuthors))).map((x) => [x.u, x.p])) : new Map<string, string | null>();
   const reactions = await db.select({ postId: s.reactions.postId, kind: s.reactions.kind, n: sql<number>`count(*)::int` }).from(s.reactions).where(inArray(s.reactions.postId, ids)).groupBy(s.reactions.postId, s.reactions.kind);
   const mine = await db.select().from(s.reactions).where(and(inArray(s.reactions.postId, ids), eq(s.reactions.userId, viewerId)));
@@ -77,7 +112,7 @@ export async function hydratePosts(db: Executor, viewerId: string, rows: (typeof
   return rows.map((r) => ({
     id: r.id, kind: r.kind, body: r.body, imageUrl: r.imageUrl, card: r.card, topics: r.topics, visibility: r.visibility, groupId: r.groupId,
     createdAt: r.createdAt, expiresAt: r.expiresAt, editedAt: r.editedAt, pseudonymous: r.pseudonymous,
-    author: r.pseudonymous && r.authorId !== viewerId ? { pseudonym: pens.get(r.authorId) ?? 'Anonymous member' } : { userId: r.authorId, ...names.get(r.authorId) },
+    author: r.pseudonymous && r.authorId !== viewerId ? { pseudonym: r.penName ?? pens.get(r.authorId) ?? 'Anonymous member' } : { userId: r.authorId, ...names.get(r.authorId), ...(r.pseudonymous ? { pseudonym: r.penName ?? undefined } : {}) },
     reactions: Object.fromEntries(reactions.filter((x) => x.postId === r.id).map((x) => [x.kind, x.n])),
     myReaction: mine.find((m) => m.postId === r.id)?.kind ?? null,
     commentCount: commentCounts.find((c) => c.postId === r.id)?.n ?? 0,
@@ -167,8 +202,24 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const rows = await ctx.db.select().from(s.blocks).where(eq(s.blocks.blockerId, a.userId));
     const mutesRows = await ctx.db.select().from(s.mutes).where(eq(s.mutes.muterId, a.userId));
+    const penRows = await ctx.db.select().from(s.penMutes).where(eq(s.penMutes.muterId, a.userId));
     const names = await displayNames(ctx.db, [...rows.map((r) => r.blockedId), ...mutesRows.map((m) => m.mutedId)]);
-    return { blocked: rows.map((r) => ({ userId: r.blockedId, ...names.get(r.blockedId) })), muted: mutesRows.map((m) => ({ userId: m.mutedId, ...names.get(m.mutedId) })) };
+    return {
+      blocked: rows.map((r) => ({ userId: r.blockedId, ...names.get(r.blockedId) })),
+      muted: mutesRows.map((m) => ({ userId: m.mutedId, ...names.get(m.mutedId) })),
+      // Pen-name mutes: only the pen name and an opaque handle — never the author's account.
+      mutedPenNames: penRows.map((m) => ({ ref: penMuteRef(ctx.config.appSecret, a.userId, m.authorId), penName: m.penName, createdAt: m.createdAt })),
+    };
+  });
+
+  app.delete('/api/v1/pen-mutes/:ref', async (req) => {
+    const a = requireAuth(req);
+    const { ref } = parse(z.object({ ref: z.string().regex(/^[a-f0-9]{32}$/) }), req.params);
+    const rows = await ctx.db.select({ authorId: s.penMutes.authorId }).from(s.penMutes).where(eq(s.penMutes.muterId, a.userId));
+    const hit = rows.find((r) => penMuteRef(ctx.config.appSecret, a.userId, r.authorId) === ref);
+    if (!hit) throw notFound('Mute');
+    await ctx.db.delete(s.penMutes).where(and(eq(s.penMutes.muterId, a.userId), eq(s.penMutes.authorId, hit.authorId)));
+    return { ok: true };
   });
 
   app.post('/api/v1/mutes/:userId', async (req) => {
@@ -213,12 +264,18 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const body = parse(PostBody, req.body);
     if (body.kind === 'poll' && !body.pollOptions) throw badRequest('Polls need 2–4 options.');
     if (body.kind === 'image' && !body.imageUrl) throw badRequest('Attach an image.');
+    if (body.imageUrl) {
+      const [own] = await ctx.db.select({ id: s.uploads.id }).from(s.uploads).where(and(eq(s.uploads.ownerId, a.userId), eq(s.uploads.path, body.imageUrl.slice('/uploads/'.length))));
+      if (!own) throw badRequest('Upload the image first.');
+    }
     if (TEXT_KINDS.includes(body.kind) && !body.body) throw badRequest('Write something first.');
     if ((THOUGHT_KINDS as readonly string[]).includes(body.kind) && body.body.length > 500) throw badRequest('Thought Drops are up to 500 characters.');
+    let penName: string | null = null;
     if (body.pseudonymous) {
       if (body.visibility === 'followers') throw badRequest('Pseudonymous posts can be public or shared in a circle, not followers-only.');
       const [pen] = await ctx.db.select({ p: s.profiles.pseudonym }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
       if (!pen?.p) throw badRequest('Choose a pen name in Identity Studio before posting pseudonymously.');
+      penName = pen.p;
     }
     const screened = screenText(body.body, await blockedPhrases(ctx.db), { protectIdentity: body.pseudonymous || body.kind === 'confession' });
     if (!screened.ok) throw badRequest(screened.reason!);
@@ -243,7 +300,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const post = await ctx.db.transaction(async (tx) => {
       const [p] = await tx.insert(s.posts).values({
         authorId: a.userId, groupId: body.groupId ?? null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
-        topics: body.topics, visibility: body.visibility, expiresAt, pseudonymous: body.pseudonymous,
+        topics: body.topics, visibility: body.visibility, expiresAt, pseudonymous: body.pseudonymous, penName,
       }).returning();
       if (body.kind === 'poll') await tx.insert(s.pollOptions).values(body.pollOptions!.map((label, position) => ({ postId: p.id, label, position })));
       const [loc] = await tx.select().from(s.userLocations).where(eq(s.userLocations.userId, a.userId));
@@ -281,8 +338,14 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const [p] = await ctx.db.select().from(s.posts).where(eq(s.posts.id, id));
     if (!p || !(await canViewPost(ctx.db, a.userId, p))) throw notFound('Post');
     if (p.authorId === a.userId) throw badRequest('You cannot mute yourself.');
-    await ctx.db.insert(s.mutes).values({ muterId: a.userId, mutedId: p.authorId }).onConflictDoNothing();
-    await track(ctx.db, a.userId, 'block_applied', { kind: 'mute_author' });
+    if (p.pseudonymous) {
+      // A pen-name mute hides only this author's pen-name posts and is listed by pen name, never by account.
+      const [pen] = p.penName ? [{ p: p.penName }] : await ctx.db.select({ p: s.profiles.pseudonym }).from(s.profiles).where(eq(s.profiles.userId, p.authorId));
+      await ctx.db.insert(s.penMutes).values({ muterId: a.userId, authorId: p.authorId, penName: pen?.p ?? 'Anonymous member' }).onConflictDoNothing();
+    } else {
+      await ctx.db.insert(s.mutes).values({ muterId: a.userId, mutedId: p.authorId }).onConflictDoNothing();
+    }
+    await track(ctx.db, a.userId, 'block_applied', { kind: p.pseudonymous ? 'mute_pen_name' : 'mute_author' });
     return { ok: true };
   });
 
@@ -293,12 +356,13 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const following = (await ctx.db.select({ id: s.follows.followeeId }).from(s.follows).where(and(eq(s.follows.followerId, a.userId), eq(s.follows.status, 'accepted')))).map((r) => r.id);
     const groupsIn = (await ctx.db.select({ id: s.groupMembers.groupId }).from(s.groupMembers).where(and(eq(s.groupMembers.userId, a.userId), eq(s.groupMembers.status, 'active')))).map((r) => r.id);
     const excluded = await blockedSet(ctx.db, a.userId);
-    const muted = new Set((await ctx.db.select({ id: s.mutes.mutedId }).from(s.mutes).where(eq(s.mutes.muterId, a.userId))).map((r) => r.id));
+    const isMuted = await muteFilters(ctx.db, a.userId);
+    // Following mode never includes other people's pen-name posts: it would narrow their author to people you follow.
     const visibility = q.mode === 'following'
-      ? and(inArray(s.posts.authorId, [a.userId, ...following]), ne(s.posts.visibility, 'group'))
+      ? and(inArray(s.posts.authorId, [a.userId, ...following]), ne(s.posts.visibility, 'group'), or(eq(s.posts.pseudonymous, false), eq(s.posts.authorId, a.userId)))
       : or(
         eq(s.posts.authorId, a.userId),
-        and(eq(s.posts.visibility, 'public'), sql`exists (select 1 from profiles pr where pr.user_id = ${s.posts.authorId} and pr.visibility = 'public')`),
+        eq(s.posts.visibility, 'public'),
         following.length ? and(eq(s.posts.visibility, 'followers'), inArray(s.posts.authorId, following)) : sql`false`,
         groupsIn.length ? and(eq(s.posts.visibility, 'group'), inArray(s.posts.groupId, groupsIn)) : sql`false`,
       );
@@ -307,10 +371,10 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       or(isNull(s.posts.expiresAt), gt(s.posts.expiresAt, new Date())), visibility,
       q.topic ? sql`${q.topic} = any(${s.posts.topics})` : undefined, q.kind ? eq(s.posts.kind, q.kind) : undefined,
     )).orderBy(desc(s.posts.createdAt)).limit(400);
-    const visible = rows.filter((r) => !excluded.has(r.authorId) && !muted.has(r.authorId));
+    const visible = rows.filter((r) => !excluded.has(r.authorId) && !isMuted(r));
     const ids = visible.map((r) => r.id);
     const rc = ids.length ? await ctx.db.select({ postId: s.reactions.postId, n: sql<number>`count(*)::int` }).from(s.reactions).where(inArray(s.reactions.postId, ids)).groupBy(s.reactions.postId) : [];
-    const cc = ids.length ? await ctx.db.select({ postId: s.comments.postId, n: sql<number>`count(*)::int` }).from(s.comments).where(inArray(s.comments.postId, ids)).groupBy(s.comments.postId) : [];
+    const cc = ids.length ? await ctx.db.select({ postId: s.comments.postId, n: sql<number>`count(*)::int` }).from(s.comments).where(and(inArray(s.comments.postId, ids), isNull(s.comments.deletedAt), eq(s.comments.hiddenByModeration, false))).groupBy(s.comments.postId) : [];
     const reportsOpen = ids.length ? await ctx.db.select({ id: s.reports.targetId, n: sql<number>`count(*)::int` }).from(s.reports).where(and(eq(s.reports.targetType, 'post'), eq(s.reports.status, 'open'), inArray(s.reports.targetId, ids))).groupBy(s.reports.targetId) : [];
     const [me] = await ctx.db.select().from(s.profiles).where(eq(s.profiles.userId, a.userId));
     const feedback = await ctx.db.select({ signal: s.feedFeedback.signal, authorId: s.posts.authorId }).from(s.feedFeedback).innerJoin(s.posts, eq(s.posts.id, s.feedFeedback.postId)).where(eq(s.feedFeedback.userId, a.userId));
@@ -355,8 +419,8 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const excluded = await blockedSet(ctx.db, a.userId);
     const cs = await ctx.db.select().from(s.comments).where(and(eq(s.comments.postId, id), isNull(s.comments.deletedAt), eq(s.comments.hiddenByModeration, false))).orderBy(s.comments.createdAt);
     const visibleComments = cs.filter((c) => !excluded.has(c.authorId));
-    const names = await displayNames(ctx.db, visibleComments.map((c) => c.authorId));
-    return { post: (await hydratePosts(ctx.db, a.userId, [p]))[0], comments: visibleComments.map((c) => ({ id: c.id, parentId: c.parentId, body: c.body, createdAt: c.createdAt, author: { userId: c.authorId, ...names.get(c.authorId) }, isMine: c.authorId === a.userId })) };
+    const post = (await hydratePosts(ctx.db, a.userId, [p]))[0];
+    return { post, comments: await serializeComments(ctx.db, a.userId, p, visibleComments) };
   });
 
   app.delete('/api/v1/posts/:id', async (req) => {
@@ -416,7 +480,9 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       }
     }
     const c = await ctx.db.transaction(async (tx) => {
-      const [row] = await tx.insert(s.comments).values({ postId: id, authorId: a.userId, parentId: body.parentId ?? null, body: body.body }).returning();
+      // The pen-name author replying in their own thread keeps the pen name (never their real identity).
+      const asPseudonym = p.pseudonymous && p.authorId === a.userId;
+      const [row] = await tx.insert(s.comments).values({ postId: id, authorId: a.userId, parentId: body.parentId ?? null, body: body.body, asPseudonym }).returning();
       await awardXp(ctx, tx, a.userId, 'comment_created', { localDate: DateTime.utc().toISODate()! });
       await evaluateAchievements(ctx, tx, a.userId, ['comments']);
       await track(tx, a.userId, 'comment_created', {});
@@ -428,7 +494,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       const names = await displayNames(ctx.db, [a.userId]);
       await notify(ctx, ctx.db, { userId: p.authorId, category: 'social', title: `${names.get(a.userId)?.displayName} commented on your post`, body: body.body.slice(0, 80), link: `/social/post/${id}` });
     }
-    return { comment: c };
+    return { comment: (await serializeComments(ctx.db, a.userId, p, [c]))[0] };
   });
 
   app.delete('/api/v1/comments/:id', async (req) => {
@@ -462,6 +528,8 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const { signal } = parse(z.object({ signal: z.enum(['more_like_this', 'less_like_this']) }), req.body);
+    const [fp] = await ctx.db.select().from(s.posts).where(eq(s.posts.id, id));
+    if (!fp || !(await canViewPost(ctx.db, a.userId, fp))) throw notFound('Post');
     await ctx.db.insert(s.feedFeedback).values({ userId: a.userId, postId: id, signal }).onConflictDoUpdate({ target: [s.feedFeedback.userId, s.feedFeedback.postId], set: { signal } });
     return { ok: true };
   });
@@ -551,6 +619,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const [target] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId)));
     if (!target) throw notFound('Member');
     if (target.role === 'owner') throw forbidden('The owner cannot be moderated.');
+    if (target.role === 'moderator' && me.role !== 'owner') throw forbidden('Only the owner can act on moderators.');
     if (action === 'approve') await ctx.db.update(s.groupMembers).set({ status: 'active' }).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId)));
     if (action === 'remove') await ctx.db.delete(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId)));
     if (action === 'ban') await ctx.db.update(s.groupMembers).set({ status: 'banned' }).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId)));
@@ -562,7 +631,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
   /* ---------- Events ---------- */
   app.get('/api/v1/events', async (req) => {
     const a = requireAuth(req);
-    const rows = await ctx.db.select().from(s.events).where(and(gt(s.events.endsAt, new Date()), ne(s.events.status, 'cancelled'))).orderBy(s.events.startsAt).limit(50);
+    const rows = await ctx.db.select().from(s.events).where(and(gt(s.events.endsAt, new Date()), ne(s.events.status, 'cancelled'), eventVisibleSql(a.userId))).orderBy(s.events.startsAt).limit(50);
     const rsvps = rows.length ? await ctx.db.select().from(s.eventRsvps).where(and(eq(s.eventRsvps.userId, a.userId), inArray(s.eventRsvps.eventId, rows.map((r) => r.id)))) : [];
     const counts = rows.length ? await ctx.db.select({ e: s.eventRsvps.eventId, n: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(inArray(s.eventRsvps.eventId, rows.map((r) => r.id)), inArray(s.eventRsvps.status, ['going', 'attended']))).groupBy(s.eventRsvps.eventId) : [];
     const names = await displayNames(ctx.db, rows.map((r) => r.hostId));
@@ -590,7 +659,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const { status } = parse(z.object({ status: z.enum(['going', 'interested', 'cancelled']) }), req.body);
-    const [e] = await ctx.db.select().from(s.events).where(eq(s.events.id, id));
+    const [e] = await ctx.db.select().from(s.events).where(and(eq(s.events.id, id), eventVisibleSql(a.userId)));
     if (!e || e.status === 'cancelled') throw notFound('Event');
     if (e.pricePaise > 0) throw badRequest('Paid events are booked through the marketplace.');
     if (status === 'going' && e.capacity) {

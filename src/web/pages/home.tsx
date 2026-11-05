@@ -11,6 +11,8 @@ import { CircleEmblem, CreateCircleDialog } from './circles';
 import { SessionList } from './play';
 import { Composer } from './thoughts';
 import type { Persona } from '../lib/persona';
+import { VibeCheckIn, type Progress } from './progress';
+import { ProgressBar } from '../components/motion';
 
 interface Prompt { id: string; text: string; options: { id: string; label: string }[] | null }
 interface PersonalRitual { key: string; title: string; description: string; response: 'choice' | 'text' | 'done'; maxLength?: number; visibility: string; prompt: Prompt; myResponse: Record<string, unknown> | null; results: { a: number; b: number; total: number } | null }
@@ -169,6 +171,7 @@ export function HomePage() {
       </header>
 
       <TodayRituals />
+      <HomeProgress />
 
       <section aria-labelledby="home-circles">
         <div className="flex items-baseline justify-between"><h2 id="home-circles" className="font-display text-3xl">Your circles</h2><Link to="/circles" className="text-sm text-fg-2 hover:text-fg">All circles</Link></div>
@@ -243,5 +246,27 @@ export function InvitePage() {
         </div>
       )}</QueryState>
     </div>
+  );
+}
+
+/** Vibe check-in, streak and the next claimable quest — one glance, no pressure. */
+function HomeProgress() {
+  const q = useQuery({ queryKey: ['progress'], queryFn: () => get<Progress>('progress') });
+  if (!q.data) return null;
+  const p = q.data;
+  const ready = p.quests.filter((x) => x.claimable).length;
+  const nextQuest = p.quests.find((x) => !x.complete && x.period === 'daily') ?? p.quests.find((x) => !x.complete);
+  return (
+    <section aria-labelledby="home-progress" className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+      <Card>
+        <h2 id="home-progress" className="font-display text-2xl">How’s today?</h2>
+        <VibeCheckIn today={p.vibe.today} />
+      </Card>
+      <Card className="space-y-2">
+        <div className="flex items-baseline justify-between"><p className="text-sm text-fg-3">Streak</p><p className="font-display text-2xl numeric">{p.streak.current} {p.streak.current === 1 ? 'day' : 'days'}</p></div>
+        {nextQuest && (<><p className="text-sm text-fg-2">Next: <span className="text-fg">{nextQuest.title}</span> · +{nextQuest.xp} XP</p><ProgressBar value={nextQuest.steps.reduce((t, st) => t + st.value, 0)} max={nextQuest.steps.reduce((t, st) => t + st.target, 0)} label={nextQuest.title} /></>)}
+        <Link to="/progress" className="inline-flex text-sm text-accent underline underline-offset-2">{ready ? `${ready} reward${ready === 1 ? '' : 's'} ready to claim` : 'Quests, streaks and season'}</Link>
+      </Card>
+    </section>
   );
 }

@@ -9,12 +9,15 @@ import { audit, track } from '../lib/context';
 import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import { randomToken } from '../lib/crypto';
-import { notify, sendEmail } from '../lib/notify';
+import { notify } from '../lib/notify';
 import { createPayment, registerPaymentHandlers, requestRefund } from '../lib/payments';
 import { textRelevance } from '../services/ranking';
 import { displayNames, currentChart } from '../services/identity';
 import { grantCourseEnrollment } from './learning';
 import { generateReport, REPORT_TEMPLATES } from '../services/reports';
+import { createGiftClaim, refundGifts, tryGenerateReport } from '../services/gifts';
+import { moduleEnabled } from '../services/modules';
+import { IDENTITY_OFFER_SLUGS } from '../../shared/modules';
 import { createStorage, IMAGE_TYPES } from '../lib/storage';
 
 export const SHIPPING_RULE = { flatPaise: 9900, freeAbovePaise: 99900, description: 'Flat ₹99 shipping on physical orders below ₹999; free above.' };
@@ -62,25 +65,31 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
   registerPaymentHandlers('order', {
     onSucceeded: async (c, tx: Tx, payment) => {
       const [o] = await tx.select().from(s.orders).where(eq(s.orders.id, payment.purposeId));
-      if (!o || o.status !== 'pending_payment') return;
+      if (!o) return;
+      if (o.status === 'cancelled') {
+        // The provider confirmed payment after the order had expired: never keep money without delivering.
+        await requestRefund(c, tx, { paymentId: payment.id, amountPaise: payment.amountPaise, reason: 'Payment confirmed after the order expired — automatic refund', requestedBy: o.userId, idempotencyKey: `late-payment:${payment.id}` });
+        await audit(tx, { actorId: null, action: 'payment.late_success_refund_requested', targetType: 'payment', targetId: payment.id });
+        await notify(c, tx, { userId: o.userId, category: 'orders', title: `Payment for expired order ${o.number} will be refunded`, link: `/shop/orders/${o.id}` });
+        return;
+      }
+      if (o.status !== 'pending_payment') return;
       const items = await tx.select().from(s.orderItems).where(eq(s.orderItems.orderId, o.id));
       const hasPhysical = items.some((i) => i.fulfilment === 'physical');
       await tx.update(s.orders).set({ status: hasPhysical ? 'fulfilling' : 'completed', paymentId: payment.id, updatedAt: new Date() }).where(eq(s.orders.id, o.id));
       if (hasPhysical) await tx.insert(s.shipments).values({ orderId: o.id, status: 'preparing' });
       if (o.discountCode) await tx.update(s.discounts).set({ usedCount: sql`${s.discounts.usedCount} + 1` }).where(sql`upper(${s.discounts.code}) = ${o.discountCode.toUpperCase()}`);
       for (const it of items.filter((i) => i.fulfilment === 'digital')) {
+        // Gifts reach the recipient through a claim tied to their verified email; the purchaser never gets them.
+        if (o.isGift && o.giftRecipientEmail) { await createGiftClaim(c, tx, o, it); continue; }
         const [p] = await tx.select().from(s.products).where(eq(s.products.id, it.productId));
         const asset = (p.digitalAsset ?? {}) as { courseId?: string; reportTemplate?: string };
-        const beneficiary = o.isGift && o.giftRecipientEmail ? (await tx.select({ id: s.users.id }).from(s.users).where(sql`lower(${s.users.email}) = ${o.giftRecipientEmail.toLowerCase()}`))[0]?.id ?? o.userId : o.userId;
-        const [ent] = await tx.insert(s.entitlements).values({ userId: beneficiary, kind: asset.courseId ? 'course' : 'product', refId: asset.courseId ?? p.id, sourceType: 'order_item', sourceId: it.id }).onConflictDoNothing().returning();
-        if (asset.courseId) await grantCourseEnrollment(tx, beneficiary, asset.courseId, 'purchase', o.id);
-        if (asset.reportTemplate && ent) {
-          const content = await generateReport(tx, beneficiary, asset.reportTemplate);
-          await tx.insert(s.reportDocuments).values({ userId: beneficiary, entitlementId: ent.id, templateKey: asset.reportTemplate, engineVersion: content.engineVersion, content: content as unknown as Record<string, unknown> });
-        }
+        const [ent] = await tx.insert(s.entitlements).values({ userId: o.userId, kind: asset.courseId ? 'course' : 'product', refId: asset.courseId ?? p.id, sourceType: 'order_item', sourceId: it.id }).onConflictDoNothing().returning();
+        if (asset.courseId) await grantCourseEnrollment(tx, o.userId, asset.courseId, 'purchase', o.id);
+        // Generated in a savepoint: a content problem never fails the payment; the library can retry.
+        if (asset.reportTemplate && ent) await tryGenerateReport(tx, o.userId, ent.id, asset.reportTemplate);
       }
-      await notify(c, tx, { userId: o.userId, category: 'orders', title: `Order ${o.number} confirmed`, body: hasPhysical ? 'We’ll update you when it ships.' : 'Your digital items are ready.', link: `/shop/orders/${o.id}` });
-      if (o.isGift && o.giftRecipientEmail) await sendEmail(c, tx, o.giftRecipientEmail, 'You received a gift on Nakshatra', `${o.giftMessage ?? ''}\n\nSign in or create an account with this email to access it: ${c.config.APP_ORIGIN}/shop/library`);
+      await notify(c, tx, { userId: o.userId, category: 'orders', title: o.isGift ? `Gift order ${o.number} confirmed` : `Order ${o.number} confirmed`, body: o.isGift ? 'We emailed the recipient a claim link.' : hasPhysical ? 'We’ll update you when it ships.' : 'Your digital items are ready.', link: `/shop/orders/${o.id}` });
       await track(tx, o.userId, 'product_ordered', { items: items.length, digital: !hasPhysical });
     },
     onFailed: async (c, tx, payment) => {
@@ -100,6 +109,7 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
         const items = await tx.select().from(s.orderItems).where(eq(s.orderItems.orderId, o.id));
         await tx.update(s.entitlements).set({ revokedAt: new Date() }).where(and(eq(s.entitlements.sourceType, 'order_item'), inArray(s.entitlements.sourceId, items.map((i) => i.id))));
         await tx.update(s.enrollments).set({ status: 'revoked' }).where(and(eq(s.enrollments.orderId, o.id), eq(s.enrollments.source, 'purchase')));
+        await refundGifts(tx, o.id);
       }
       await notify(c, tx, { userId: o.userId, category: 'orders', title: `Refund of ₹${(amount / 100).toFixed(2)} processed`, body: `Order ${o.number}`, link: `/shop/orders/${o.id}` });
     },
@@ -127,7 +137,9 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
   /* ---------- Catalogue ---------- */
   app.get('/api/v1/products', async (req) => {
     const q = parse(z.object({ q: z.string().max(80).optional(), category: z.string().optional(), seller: z.uuid().optional(), minPaise: z.coerce.number().int().optional(), maxPaise: z.coerce.number().int().optional(), sort: z.enum(['relevance', 'newest', 'price_asc', 'price_desc']).default('relevance'), page: z.coerce.number().int().min(1).default(1) }), req.query);
-    const rows = await ctx.db.select().from(s.products).where(and(eq(s.products.status, 'active'), q.category ? eq(s.products.category, q.category) : undefined, q.seller ? eq(s.products.sellerId, q.seller) : undefined));
+    // While the legacy marketplace is off, the catalogue is the identity offers only (no gemstones, physical goods or astrology reports).
+    const marketplaceOn = await moduleEnabled(ctx.db, 'marketplace', req.auth?.userId ?? null);
+    const rows = await ctx.db.select().from(s.products).where(and(eq(s.products.status, 'active'), marketplaceOn ? undefined : inArray(s.products.slug, IDENTITY_OFFER_SLUGS), q.category ? eq(s.products.category, q.category) : undefined, q.seller ? eq(s.products.sellerId, q.seller) : undefined));
     const variants = rows.length ? await ctx.db.select().from(s.productVariants).where(and(inArray(s.productVariants.productId, rows.map((r) => r.id)), eq(s.productVariants.active, true))) : [];
     const ratings = rows.length ? await ctx.db.select({ id: s.reviews.subjectId, avg: sql<number>`avg(${s.reviews.rating})::float`, n: sql<number>`count(*)::int` }).from(s.reviews).where(and(eq(s.reviews.subjectType, 'product'), inArray(s.reviews.subjectId, rows.map((r) => r.id)))).groupBy(s.reviews.subjectId) : [];
     let list = rows.map((p) => {
@@ -143,6 +155,7 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/api/v1/products/:slug', async (req) => {
     const { slug } = parse(z.object({ slug: z.string() }), req.params);
     const [p] = await ctx.db.select().from(s.products).where(eq(s.products.slug, slug));
+    if (p && !IDENTITY_OFFER_SLUGS.includes(p.slug) && !(await moduleEnabled(ctx.db, 'marketplace', req.auth?.userId ?? null))) throw notFound('Product');
     const isSeller = req.auth && (p?.sellerId === req.auth.userId || req.auth.roles.includes('admin'));
     if (!p || (p.status !== 'active' && !isSeller)) throw notFound('Product');
     const variants = await ctx.db.select().from(s.productVariants).where(and(eq(s.productVariants.productId, p.id), eq(s.productVariants.active, true)));
@@ -212,10 +225,15 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     const [existing] = await ctx.db.select().from(s.orders).where(and(eq(s.orders.userId, a.userId), eq(s.orders.idempotencyKey, body.idempotencyKey)));
     if (existing) {
       const [p] = existing.paymentId ? await ctx.db.select().from(s.payments).where(eq(s.payments.id, existing.paymentId)) : [];
-      return { order: existing, checkout: p ? { paymentId: p.id, checkoutPath: `/pay/dev/${p.id}`, isSimulated: true, amountPaise: p.amountPaise, status: p.status, provider: p.provider } : null };
+      return { order: existing, checkout: p ? { paymentId: p.id, checkoutPath: p.provider === 'razorpay' ? `/pay/razorpay/${p.id}` : `/pay/dev/${p.id}`, isSimulated: p.provider === 'dev_simulator', amountPaise: p.amountPaise, status: p.status, provider: p.provider } : null };
     }
     const lines = await cartLines(ctx.db, a.userId);
     if (!lines.length) throw badRequest('Your cart is empty.');
+    if (!(await moduleEnabled(ctx.db, 'marketplace', a.userId)) && lines.some((l) => !IDENTITY_OFFER_SLUGS.includes(l.p.slug))) throw badRequest('Some items in your cart are no longer available. Remove them and try again.');
+    if (body.gift) {
+      if (body.gift.recipientEmail.trim().toLowerCase() === a.email.toLowerCase()) throw badRequest('A gift needs someone else’s email address.');
+      if (lines.some((l) => l.p.fulfilment !== 'digital')) throw badRequest('Only digital items can be sent as gifts.');
+    }
     if (lines.some((l) => l.p.fulfilment === 'physical') && !body.shippingAddress) throw badRequest('Add a shipping address for physical items.');
     // Reports are generated at payment time from your own data, so check it exists before taking payment.
     // (Gifts are generated for the recipient, so the buyer's data is not required.)
@@ -339,7 +357,34 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     const productIds = ents.filter((e) => e.kind === 'product').map((e) => e.refId);
     const products = productIds.length ? await ctx.db.select().from(s.products).where(inArray(s.products.id, productIds)) : [];
     const reports = await ctx.db.select({ id: s.reportDocuments.id, templateKey: s.reportDocuments.templateKey, createdAt: s.reportDocuments.createdAt }).from(s.reportDocuments).where(eq(s.reportDocuments.userId, a.userId)).orderBy(desc(s.reportDocuments.createdAt));
-    return { products, reports: reports.map((r) => ({ ...r, title: REPORT_TEMPLATES[r.templateKey]?.title ?? r.templateKey })), subscription: ents.find((e) => e.kind === 'subscription' && (!e.expiresAt || e.expiresAt > new Date())) ?? null };
+    // Report entitlements without a document yet (e.g. a gift claimed before the assessment was taken).
+    const docs = new Set((await ctx.db.select({ e: s.reportDocuments.entitlementId }).from(s.reportDocuments).where(eq(s.reportDocuments.userId, a.userId))).map((r) => r.e));
+    const pendingReports = ents.filter((e) => e.kind === 'product' && !docs.has(e.id)).flatMap((e) => {
+      const tpl = (products.find((p) => p.id === e.refId)?.digitalAsset as { reportTemplate?: string } | null)?.reportTemplate;
+      return tpl ? [{ entitlementId: e.id, templateKey: tpl, title: REPORT_TEMPLATES[tpl]?.title ?? tpl, needs: tpl === 'identity_expanded' ? 'assessment' : 'birth_profile' }] : [];
+    });
+    return { products, reports: reports.map((r) => ({ ...r, title: REPORT_TEMPLATES[r.templateKey]?.title ?? r.templateKey })), pendingReports, subscription: ents.find((e) => e.kind === 'subscription' && (!e.expiresAt || e.expiresAt > new Date())) ?? null };
+  });
+
+  /** Generates the document for a report you are entitled to but which could not be built yet. */
+  app.post('/api/v1/library/:entitlementId/generate', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const a = requireAuth(req);
+    const { entitlementId } = parse(z.object({ entitlementId: z.uuid() }), req.params);
+    const [e] = await ctx.db.select().from(s.entitlements).where(and(eq(s.entitlements.id, entitlementId), eq(s.entitlements.userId, a.userId), isNull(s.entitlements.revokedAt)));
+    if (!e || e.kind !== 'product') throw notFound('Item');
+    const [existingDoc] = await ctx.db.select({ id: s.reportDocuments.id }).from(s.reportDocuments).where(eq(s.reportDocuments.entitlementId, e.id));
+    if (existingDoc) return { reportId: existingDoc.id };
+    const [p] = await ctx.db.select().from(s.products).where(eq(s.products.id, e.refId));
+    const tpl = (p?.digitalAsset as { reportTemplate?: string } | null)?.reportTemplate;
+    if (!tpl) throw badRequest('This item is not a report.');
+    let content;
+    try {
+      content = await generateReport(ctx.db, a.userId, tpl);
+    } catch {
+      throw badRequest(tpl === 'identity_expanded' ? 'Take the personality assessment in Identity Studio first — this report is built from your answers.' : 'Add your birth details first — this report is calculated from them.');
+    }
+    const [doc] = await ctx.db.insert(s.reportDocuments).values({ userId: a.userId, entitlementId: e.id, templateKey: tpl, engineVersion: content.engineVersion, content: content as unknown as Record<string, unknown> }).returning({ id: s.reportDocuments.id });
+    return { reportId: doc.id };
   });
 
   app.get('/api/v1/reports/:id', async (req) => {

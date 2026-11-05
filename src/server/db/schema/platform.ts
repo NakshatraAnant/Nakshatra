@@ -12,7 +12,39 @@ export const xpLedger = pgTable('xp_ledger', {
   /** Idempotency: one award per (user, rule, sourceKey). */
   sourceKey: text('source_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('xp_idem_uq').on(t.userId, t.rule, t.sourceKey), index('xp_user_idx').on(t.userId, t.createdAt)]);
+  /** Audit metadata (reason, actor for reversals). Never personal content. */
+  meta: jsonb('meta').notNull().default({}),
+  /** Set on a reversal entry (negative amount): the entry it cancels. Unique, so an entry is reversed at most once. */
+  reversesId: uuid('reverses_id'),
+}, (t) => [uniqueIndex('xp_idem_uq').on(t.userId, t.rule, t.sourceKey), index('xp_user_idx').on(t.userId, t.createdAt), uniqueIndex('xp_reverses_uq').on(t.reversesId)]);
+
+/** Claimed quest rewards: one claim per (user, quest, period). The XP itself is in xp_ledger (rule quest_reward). */
+export const questClaims = pgTable('quest_claims', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  questKey: text('quest_key').notNull(),
+  /** e.g. 2026-11-05 (daily), 2026-W45 (weekly), once, s1-first-light (season) */
+  periodKey: text('period_key').notNull(),
+  xp: integer('xp').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.questKey, t.periodKey] })]);
+
+/** Daily vibe check-in: one mood word per member per local day. */
+export const vibeCheckins = pgTable('vibe_checkins', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  localDate: date('local_date').notNull(),
+  mood: text('mood').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.localDate] })]);
+
+/** Claimed season milestones (free track). Rewards are granted into user_collectibles. */
+export const seasonClaims = pgTable('season_claims', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  seasonKey: text('season_key').notNull(),
+  milestone: integer('milestone').notNull(),
+  /** free | premium (premium track stays disabled until payments are explicitly enabled) */
+  track: text('track').notNull().default('free'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.seasonKey, t.track, t.milestone] })]);
 
 export const userAchievements = pgTable('user_achievements', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

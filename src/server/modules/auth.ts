@@ -10,6 +10,7 @@ import {
 } from '../lib/crypto';
 import { AppError, badRequest, conflict, notFound, parse, unauthorized } from '../lib/http';
 import { evaluateReferral } from '../services/referrals';
+import { claimPendingGiftsForUser } from '../services/gifts';
 import { CSRF_COOKIE, SESSION_COOKIE, SESSION_DAYS, requireAuth } from '../lib/auth';
 import { notify, sendEmail, NOTIFICATION_CATEGORIES } from '../lib/notify';
 
@@ -25,6 +26,8 @@ export const SignupBody = z.object({
   confirmAdult: z.literal(true, { message: 'Nakshatra is available to adults (18+) only.' }),
   acceptTerms: z.literal(true, { message: 'Please accept the terms and privacy policy.' }),
   referralCode: z.string().trim().max(32).optional(),
+  /** Archetype share link the visitor arrived from (aggregate attribution only). */
+  shareSlug: z.string().trim().min(8).max(32).optional(),
 });
 
 const LoginBody = z.object({ email: Email, password: z.string().min(1).max(200), totp: z.string().optional() });
@@ -118,6 +121,10 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
       await audit(tx, { actorId: u.id, action: 'auth.signup', targetType: 'user', targetId: u.id, ip: req.ip });
       return u.id;
     });
+    if (body.shareSlug) {
+      const hit = await ctx.db.update(s.identityShares).set({ signups: sql`${s.identityShares.signups} + 1` }).where(and(eq(s.identityShares.slug, body.shareSlug), isNull(s.identityShares.revokedAt))).returning({ id: s.identityShares.id });
+      if (hit.length) await track(ctx.db, userId, 'identity_share_signup', {});
+    }
     const token = await issueEmailToken(ctx, userId, 'verify_email', 48);
     await sendEmail(ctx, ctx.db, body.email, 'Verify your Nakshatra email', `Welcome to Nakshatra.\n\nVerify your email: ${ctx.config.APP_ORIGIN}/verify-email?token=${token}\n\nThis link expires in 48 hours.`);
     await createSession(ctx, reply, req, userId, true);
@@ -172,8 +179,11 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     await ctx.db.transaction(async (tx) => {
       await tx.update(s.authTokens).set({ usedAt: new Date() }).where(eq(s.authTokens.id, t.id));
       await tx.update(s.users).set({ emailVerifiedAt: new Date() }).where(eq(s.users.id, t.userId));
+      await track(tx, t.userId, 'email_verified', {});
     });
     await evaluateReferral(ctx, ctx.db, t.userId);
+    // Gifts sent to this address become claimable (and are claimed) once the email is verified.
+    await claimPendingGiftsForUser(ctx, t.userId);
     return reply.send({ ok: true });
   });
 
@@ -242,15 +252,19 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     return reply.send({ ok: true });
   });
 
-  app.post('/api/v1/auth/mfa/setup', async (req) => {
+  app.post('/api/v1/auth/mfa/setup', strict, async (req) => {
     const a = requireAuth(req);
+    // Re-enrolling would silently replace (and switch off) an active second factor; turning it off requires
+    // the password and a current code via /mfa/disable.
+    const [cur] = await ctx.db.select({ on: s.users.mfaEnabled }).from(s.users).where(eq(s.users.id, a.userId));
+    if (cur?.on) throw conflict('Two-step verification is already on. Turn it off with your password and a current code first.');
     const secret = generateTotpSecret();
     await ctx.db.update(s.users).set({ mfaSecret: encryptField(ctx.config.appSecret, secret), mfaEnabled: false }).where(eq(s.users.id, a.userId));
     const uri = `otpauth://totp/Nakshatra:${encodeURIComponent(a.email)}?secret=${secret}&issuer=Nakshatra`;
     return { secret, otpauthUrl: uri, qrDataUrl: await QRCode.toDataURL(uri) };
   });
 
-  app.post('/api/v1/auth/mfa/enable', async (req, reply) => {
+  app.post('/api/v1/auth/mfa/enable', strict, async (req, reply) => {
     const a = requireAuth(req);
     const { code } = parse(z.object({ code: z.string() }), req.body);
     const [u] = await ctx.db.select().from(s.users).where(eq(s.users.id, a.userId));
@@ -262,14 +276,24 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     return reply.send({ ok: true });
   });
 
-  app.post('/api/v1/auth/mfa/disable', async (req, reply) => {
+  app.post('/api/v1/auth/mfa/disable', strict, async (req, reply) => {
     const a = requireAuth(req);
-    const { password } = parse(z.object({ password: z.string() }), req.body);
+    const { password, code } = parse(z.object({ password: z.string().min(1).max(200), code: z.string().max(10) }), req.body);
     const [u] = await ctx.db.select().from(s.users).where(eq(s.users.id, a.userId));
-    if (!(await verifyPassword(password, u.passwordHash))) throw unauthorized('Password is incorrect.');
-    await ctx.db.update(s.users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(s.users.id, a.userId));
+    // Fresh re-authentication: the password AND a current authenticator code.
+    if (!(await verifyPassword(password, u.passwordHash))) {
+      await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disable_failed', ip: req.ip, meta: { reason: 'password' } });
+      throw unauthorized('Password is incorrect.');
+    }
+    if (u.mfaEnabled && (!u.mfaSecret || !verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code))) {
+      await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disable_failed', ip: req.ip, meta: { reason: 'code' } });
+      throw new AppError(401, 'invalid_mfa', 'That authenticator code is not valid.');
+    }
+    await ctx.db.update(s.users).set({ mfaEnabled: false, mfaSecret: null, updatedAt: new Date() }).where(eq(s.users.id, a.userId));
+    // A security change signs out every other session.
+    await ctx.db.update(s.sessions).set({ revokedAt: new Date() }).where(and(eq(s.sessions.userId, a.userId), ne(s.sessions.id, a.sessionId), isNull(s.sessions.revokedAt)));
     await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disabled', ip: req.ip });
-    await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'Two-step verification turned off' });
+    await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'Two-step verification turned off', body: 'Other sessions were signed out. If this wasn’t you, reset your password now.', link: '/settings/security' });
     return reply.send({ ok: true });
   });
 
@@ -285,6 +309,9 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
   // Development mailbox (never registered in production).
   if (!ctx.config.isProd && ctx.config.MAIL_TRANSPORT === 'dev_mailbox') {
     app.get('/api/v1/dev/mailbox', async (req) => {
+      // Contains sign-in links for every account: only ever answer requests from this machine.
+      const peer = req.socket.remoteAddress ?? '';
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer)) throw notFound('Mailbox');
       const q = parse(z.object({ to: z.string().optional() }), req.query);
       const rows = await ctx.db.select().from(s.emailOutbox).orderBy(sql`${s.emailOutbox.createdAt} desc`).limit(50);
       return { notice: 'Development mailbox: these emails were stored locally and not sent.', emails: q.to ? rows.filter((r) => r.toEmail === q.to!.toLowerCase()) : rows };

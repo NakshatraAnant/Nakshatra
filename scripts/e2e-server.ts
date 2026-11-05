@@ -10,7 +10,7 @@ import pino from 'pino';
 const root = resolve(process.cwd(), '.data/e2e');
 rmSync(root, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
-if (!existsSync(resolve(process.cwd(), 'dist/web/index.html'))) {
+if (!existsSync(resolve(process.cwd(), process.env.WEB_DIST_DIR ?? 'dist/web', 'index.html'))) {
   console.error('dist/web is missing. Run `npm run build:web` before the e2e suite.');
   process.exit(1);
 }

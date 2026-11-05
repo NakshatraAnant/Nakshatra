@@ -1,7 +1,8 @@
-import { and, eq, isNull, lt, lte, inArray } from 'drizzle-orm';
+import { and, eq, isNull, lt, lte, inArray, ne, or } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { deliverOutbox, notify, type NotificationCategory } from '../lib/notify';
+import { expireGifts } from './gifts';
 
 /**
  * In-process scheduler for time-based state transitions. Each job is idempotent,
@@ -66,7 +67,28 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
   // 5. Expire stale bond invitations.
   const inv = await ctx.db.update(s.bondInvitations).set({ status: 'expired' }).where(and(eq(s.bondInvitations.status, 'pending'), lt(s.bondInvitations.expiresAt, now))).returning();
   results.expiredInvitations = inv.length;
+
+  // 6. Gifts not claimed in time.
+  results.expiredGifts = await expireGifts(ctx, now);
+
+  // 7. Retention: sign-in links and sessions are security material; keep them only as long as needed.
+  results.retention = await runRetention(ctx, now);
   return results;
+}
+
+/**
+ * Data retention (retention-v1). Bodies of delivered emails are blanked (they contain one-time links),
+ * old development-mailbox mail, expired/used auth tokens and long-expired or revoked sessions are deleted.
+ */
+export async function runRetention(ctx: Ctx, now = new Date()): Promise<number> {
+  const day = 86400000;
+  let n = 0;
+  n += (await ctx.db.update(s.emailOutbox).set({ textBody: '[delivered — content removed by retention policy]' })
+    .where(and(eq(s.emailOutbox.transport, 'smtp'), eq(s.emailOutbox.status, 'sent'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - day)), ne(s.emailOutbox.textBody, '[delivered — content removed by retention policy]'))).returning({ id: s.emailOutbox.id })).length;
+  n += (await ctx.db.delete(s.emailOutbox).where(and(eq(s.emailOutbox.transport, 'dev_mailbox'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - 7 * day)))).returning({ id: s.emailOutbox.id })).length;
+  n += (await ctx.db.delete(s.authTokens).where(lt(s.authTokens.expiresAt, new Date(now.getTime() - 7 * day))).returning({ id: s.authTokens.id })).length;
+  n += (await ctx.db.delete(s.sessions).where(or(lt(s.sessions.expiresAt, new Date(now.getTime() - 30 * day)), lt(s.sessions.revokedAt, new Date(now.getTime() - 30 * day)))).returning({ id: s.sessions.id })).length;
+  return n;
 }
 
 export function startScheduler(ctx: Ctx, intervalMs = 60000): () => void {

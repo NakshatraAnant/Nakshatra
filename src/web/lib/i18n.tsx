@@ -10,7 +10,7 @@ export type Locale = 'en' | 'hi';
 
 const en = {
   'nav.home': 'Home', 'nav.identity': 'Identity', 'nav.thoughts': 'Thoughts', 'nav.circles': 'Circles', 'nav.play': 'Play', 'nav.invite': 'Invite friends',
-  'nav.today': 'Daily sky', 'nav.cosmicId': 'Cosmic ID', 'nav.chart': 'Chart', 'nav.calendar': 'Calendar', 'nav.journey': 'Journey',
+  'nav.today': 'Daily sky', 'nav.cosmicId': 'Cosmic ID', 'nav.chart': 'Chart', 'nav.calendar': 'Calendar', 'nav.journey': 'Journey', 'nav.progress': 'Quests & streaks',
   'nav.bonds': 'Bonds', 'nav.social': 'Community', 'nav.messages': 'Messages', 'nav.dating': 'Dating', 'nav.matchmaking': 'Matchmaking',
   'nav.experts': 'Experts', 'nav.learn': 'Learn', 'nav.shop': 'Shop', 'nav.weddings': 'Weddings', 'nav.rewards': 'Rewards',
   'nav.settings': 'Settings', 'nav.admin': 'Admin', 'nav.notifications': 'Notifications', 'nav.search': 'Search', 'nav.more': 'More',

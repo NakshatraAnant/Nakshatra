@@ -25,7 +25,7 @@ beforeAll(async () => {
     if (/\/payments\/.+\/refund$/.test(url)) return new Response(JSON.stringify({ id: 'rfnd_fixture1', status: 'pending' }), { status: 200 });
     return new Response('{}', { status: 404 });
   });
-  t = await makeApp({ PAYMENT_PROVIDER: 'razorpay', RAZORPAY_KEY_ID: KEY_ID, RAZORPAY_KEY_SECRET: KEY_SECRET, RAZORPAY_WEBHOOK_SECRET: WEBHOOK_SECRET });
+  t = await makeApp({ PAYMENTS_ENABLED: 'true', PAYMENT_PROVIDER: 'razorpay', RAZORPAY_KEY_ID: KEY_ID, RAZORPAY_KEY_SECRET: KEY_SECRET, RAZORPAY_WEBHOOK_SECRET: WEBHOOK_SECRET });
   await seedDemoData(t.ctx);
 });
 afterAll(async () => { setRazorpayFetch(null); await t.close(); });

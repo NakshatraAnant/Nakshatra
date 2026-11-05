@@ -92,3 +92,29 @@ export const ritualResponses = pgTable('ritual_responses', {
   payload: jsonb('payload').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('ritual_responses_uq').on(t.userId, t.ritualKey, t.periodKey, t.circleKey), index('ritual_responses_prompt_idx').on(t.ritualKey, t.periodKey, t.circleKey)]);
+
+/* ---------------- Identity card sharing ---------------- */
+
+/**
+ * Public share links for archetype cards. A share exposes only the archetype, its dimension scores and,
+ * if the owner chose so, their display name — never handle, email, pen name, answers or birth details.
+ * Anonymous previews can be shared too (userId null). Revocable; counts are aggregate only.
+ */
+export const identityShares = pgTable('identity_shares', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** Unguessable public slug used in /s/:slug. */
+  slug: text('slug').notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  archetypeKey: text('archetype_key').notNull(),
+  secondaryKey: text('secondary_key'),
+  scores: jsonb('scores').notNull(),
+  cardStyle: text('card_style').notNull().default('classic'),
+  /** Display name shown on the public page; null keeps the card anonymous. */
+  displayName: text('display_name'),
+  /** Referral code of the sharer (signed-in shares only) for attribution. */
+  referralCode: text('referral_code'),
+  views: integer('views').notNull().default(0),
+  signups: integer('signups').notNull().default(0),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('identity_shares_slug_uq').on(t.slug), index('identity_shares_user_idx').on(t.userId)]);

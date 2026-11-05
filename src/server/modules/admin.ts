@@ -14,6 +14,7 @@ import { setSetting, getSetting } from '../services/settings';
 import { displayNames } from '../services/identity';
 import { deleteAccount } from './account';
 import { refreshRules } from '../services/content';
+import { invalidateModuleCache } from '../services/modules';
 
 const ROLES: Role[] = ['admin', 'moderator', 'support', 'expert', 'creator', 'vendor', 'seller'];
 
@@ -546,6 +547,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     const body = parse(z.object({ enabled: z.boolean(), rolloutPercent: z.number().int().min(0).max(100) }), req.body);
     const [f] = await ctx.db.update(s.featureFlags).set({ ...body, updatedAt: new Date(), updatedBy: a.userId }).where(eq(s.featureFlags.key, key)).returning();
     if (!f) throw notFound('Flag');
+    invalidateModuleCache();
     await audit(ctx.db, { actorId: a.userId, action: 'flag.update', targetType: 'flag', targetId: key, meta: body, ip: ip(req) });
     return { flag: f };
   });

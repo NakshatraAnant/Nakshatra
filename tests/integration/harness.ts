@@ -29,7 +29,8 @@ export interface TestApp { app: FastifyInstance; ctx: Ctx; close: () => Promise<
  * to run the same suite against real PostgreSQL: each test file gets its own throwaway database, dropped afterwards.
  */
 export async function makeApp(overrides: Record<string, string> = {}): Promise<TestApp> {
-  const config = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', PGLITE_DIR: ':memory:', UPLOAD_DIR: './.data/test-uploads', APP_ORIGIN: 'http://localhost:5173', ...overrides });
+  // Tests never depend on the local .env: payments use the labelled no-money simulator, email the dev mailbox.
+  const config = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', PGLITE_DIR: ':memory:', PAYMENT_PROVIDER: 'dev_simulator', MAIL_TRANSPORT: 'dev_mailbox', UPLOAD_DIR: './.data/test-uploads', APP_ORIGIN: 'http://localhost:5173', ...overrides });
   const serverUrl = process.env.TEST_DATABASE_URL;
   let dropDb: (() => Promise<void>) | null = null;
   let databaseUrl: string | undefined;

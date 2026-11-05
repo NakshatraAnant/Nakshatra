@@ -2,6 +2,7 @@ import {
   CHAOS_PAIRS, COMPATIBILITY_QUESTIONS, CONFESSION_PROMPTS, DECODER_QUESTIONS, HONEST_VOTE_PROMPTS, HOT_TAKE_TOPICS,
   PLOT_OPENERS, PREDICTION_QUESTIONS, STATEMENT_PROMPTS, THIS_OR_THAT, type OptionPrompt, type PairPrompt,
 } from './content';
+import { hashSeed } from '../hash';
 import { DIMENSIONS, DIMENSION_INFO, PERSONA_ARCHETYPES, PERSONA_BY_KEY, type Vector } from '../personality';
 
 /**
@@ -78,11 +79,7 @@ export interface GameDefinition {
 
 /* ---------------- deterministic randomness ---------------- */
 
-export function hashSeed(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
+export { hashSeed };
 export function rng(seed: string) {
   let a = hashSeed(seed);
   return () => {
@@ -453,8 +450,21 @@ export function canAct(round: Round, userId: string): boolean {
   if (round.actorId) return round.actorId === userId;
   return round.excludeId !== userId;
 }
-/** Client-safe copy of a round. */
+/**
+ * True when the round's exclusion identifies a hidden author (Who Said It?, Hot Take Arena, Memory Lane).
+ * For these rounds the excluded player must never be identifiable by other players: not by id, nor by
+ * who is still "thinking".
+ */
+export function hidesAuthor(round: Round): boolean {
+  return Boolean(round.secret && 'authorId' in round.secret);
+}
+
+/**
+ * Client-safe copy of a round. Strips server-only secrets and, for hidden-author rounds, the exclusion
+ * (which would otherwise be the author's id). Whether the viewer may act is sent separately as me.canAct.
+ */
 export function publicRound(round: Round): Omit<Round, 'secret'> {
   const { secret: _secret, ...rest } = round;
+  if (hidesAuthor(round)) delete rest.excludeId;
   return rest;
 }

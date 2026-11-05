@@ -9,6 +9,9 @@ import { requireAuth, SESSION_COOKIE } from '../lib/auth';
 import { sha256, verifyPassword } from '../lib/crypto';
 import { NOTIFICATION_CATEGORIES } from '../lib/notify';
 import { textRelevance } from '../services/ranking';
+import { eventVisibleSql } from '../services/events';
+import { enabledModules } from '../services/modules';
+import { IDENTITY_OFFER_SLUGS } from '../../shared/modules';
 import { POLICY_VERSION } from './auth';
 
 /**
@@ -147,7 +150,10 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const { q, scope } = parse(z.object({ q: z.string().trim().min(1).max(80), scope: z.enum(['all', 'people', 'experts', 'courses', 'products', 'events', 'vendors', 'groups', 'thoughts']).default('all') }), req.query);
     const like = `%${q}%`;
-    const want = (x: string) => scope === 'all' || scope === x;
+    // Scopes owned by a switched-off module return nothing (the module's API is off too).
+    const mods = await enabledModules(ctx.db, a.userId);
+    const SCOPE_MODULE: Record<string, string> = { experts: 'experts', courses: 'learning', products: 'premium', vendors: 'weddings', groups: 'community' };
+    const want = (x: string) => (scope === 'all' || scope === x) && (!SCOPE_MODULE[x] || mods[SCOPE_MODULE[x]]);
     const results: Record<string, unknown[]> = {};
     if (want('people')) {
       const rows = await ctx.db.select({ userId: s.profiles.userId, handle: s.profiles.handle, displayName: s.profiles.displayName, avatarUrl: s.profiles.avatarUrl }).from(s.profiles).innerJoin(s.users, eq(s.users.id, s.profiles.userId))
@@ -157,18 +163,18 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     if (want('experts')) results.experts = await ctx.db.select({ userId: s.expertProfiles.userId, displayName: s.expertProfiles.displayName, headline: s.expertProfiles.headline, isSample: s.expertProfiles.isSample }).from(s.expertProfiles).where(and(eq(s.expertProfiles.verificationStatus, 'verified'), sql`(${s.expertProfiles.displayName} ilike ${like} or ${s.expertProfiles.headline} ilike ${like})`)).limit(20);
     if (want('courses')) results.courses = await ctx.db.select({ id: s.courses.id, slug: s.courses.slug, title: s.courses.title, level: s.courses.level }).from(s.courses).where(and(eq(s.courses.status, 'published'), sql`(${s.courses.title} ilike ${like} or ${s.courses.description} ilike ${like})`)).limit(20);
-    if (want('products')) results.products = await ctx.db.select({ id: s.products.id, slug: s.products.slug, title: s.products.title, category: s.products.category, isSample: s.products.isSample }).from(s.products).where(and(eq(s.products.status, 'active'), sql`(${s.products.title} ilike ${like} or ${s.products.description} ilike ${like})`)).limit(20);
-    if (want('events')) results.events = await ctx.db.select({ id: s.events.id, title: s.events.title, startsAt: s.events.startsAt }).from(s.events).where(and(sql`${s.events.endsAt} > now()`, sql`${s.events.title} ilike ${like}`)).limit(20);
+    if (want('products')) results.products = await ctx.db.select({ id: s.products.id, slug: s.products.slug, title: s.products.title, category: s.products.category, isSample: s.products.isSample }).from(s.products).where(and(eq(s.products.status, 'active'), mods.marketplace ? undefined : inArray(s.products.slug, IDENTITY_OFFER_SLUGS), sql`(${s.products.title} ilike ${like} or ${s.products.description} ilike ${like})`)).limit(20);
+    if (want('events')) results.events = await ctx.db.select({ id: s.events.id, title: s.events.title, startsAt: s.events.startsAt }).from(s.events).where(and(sql`${s.events.endsAt} > now()`, sql`${s.events.title} ilike ${like}`, eventVisibleSql(a.userId))).limit(20);
     if (want('vendors')) results.vendors = await ctx.db.select({ id: s.vendors.id, name: s.vendors.name, category: s.vendors.category, city: s.vendors.city, isSample: s.vendors.isSample }).from(s.vendors).where(and(eq(s.vendors.verificationStatus, 'verified'), sql`(${s.vendors.name} ilike ${like} or ${s.vendors.city} ilike ${like})`)).limit(20);
     // Only public community groups are searchable; private groups and circles never appear.
     if (want('groups')) results.groups = await ctx.db.select({ id: s.groups.id, slug: s.groups.slug, name: s.groups.name, visibility: s.groups.visibility }).from(s.groups).where(and(isNull(s.groups.archivedAt), eq(s.groups.visibility, 'public'), sql`${s.groups.kind} <> 'circle'`, sql`(${s.groups.name} ilike ${like} or ${s.groups.description} ilike ${like})`)).limit(20);
-    // Public Thought Drops from public profiles; pseudonymous ones show only the pen name.
+    // Public Thought Drops (post-level visibility); pen-name posts show only the pen name snapshot.
     if (want('thoughts')) {
-      const rows = await ctx.db.select({ id: s.posts.id, kind: s.posts.kind, body: s.posts.body, pseudonymous: s.posts.pseudonymous, authorId: s.posts.authorId, displayName: s.profiles.displayName, handle: s.profiles.handle, pseudonym: s.profiles.pseudonym, createdAt: s.posts.createdAt })
+      const rows = await ctx.db.select({ id: s.posts.id, kind: s.posts.kind, body: s.posts.body, pseudonymous: s.posts.pseudonymous, penName: s.posts.penName, authorId: s.posts.authorId, displayName: s.profiles.displayName, handle: s.profiles.handle, pseudonym: s.profiles.pseudonym, createdAt: s.posts.createdAt })
         .from(s.posts).innerJoin(s.profiles, eq(s.profiles.userId, s.posts.authorId))
-        .where(and(isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), eq(s.posts.visibility, 'public'), sql`(${s.posts.pseudonymous} or ${s.profiles.visibility} = 'public')`, sql`${s.posts.body} ilike ${like}`,
+        .where(and(isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), eq(s.posts.visibility, 'public'), sql`${s.posts.body} ilike ${like}`,
           sql`not exists (select 1 from blocks b where (b.blocker_id = ${a.userId} and b.blocked_id = ${s.posts.authorId}) or (b.blocker_id = ${s.posts.authorId} and b.blocked_id = ${a.userId}))`)).orderBy(sql`${s.posts.createdAt} desc`).limit(20);
-      results.thoughts = rows.map((r) => ({ id: r.id, kind: r.kind, body: r.body.slice(0, 200), createdAt: r.createdAt, author: r.pseudonymous && r.authorId !== a.userId ? { pseudonym: r.pseudonym ?? 'Anonymous member' } : { handle: r.handle, displayName: r.displayName } }));
+      results.thoughts = rows.map((r) => ({ id: r.id, kind: r.kind, body: r.body.slice(0, 200), createdAt: r.createdAt, author: r.pseudonymous && r.authorId !== a.userId ? { pseudonym: r.penName ?? r.pseudonym ?? 'Anonymous member' } : { handle: r.handle, displayName: r.displayName } }));
     }
     const [prefsRow] = await ctx.db.select({ p: s.profiles.fieldVisibility }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
     if ((prefsRow?.p as Record<string, unknown> | undefined)?.searchHistory !== 'off') await ctx.db.insert(s.searchHistory).values({ userId: a.userId, query: q, scope });
@@ -265,7 +271,8 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
 }
 
 export async function deleteAccount(ctx: Ctx, userId: string, reason: string | null) {
-  return ctx.db.transaction(async (tx) => {
+  const diskFiles: string[] = [];
+  const result = await ctx.db.transaction(async (tx) => {
     const [req] = await tx.insert(s.deletionRequests).values({ userId, status: 'requested', reason }).returning();
     const counts: Record<string, number> = {};
     const del = async (name: string, p: Promise<unknown[]>) => { counts[name] = (await p).length; };
@@ -298,12 +305,32 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.delete(s.userLocations).where(eq(s.userLocations.userId, userId));
     await tx.delete(s.searchHistory).where(eq(s.searchHistory.userId, userId));
     await tx.delete(s.cartItems).where(eq(s.cartItems.userId, userId));
+    // Uploaded files (avatars, post images, verification selfies): database copies now, disk copies after commit.
+    const files = await tx.select({ path: s.uploads.path }).from(s.uploads).where(eq(s.uploads.ownerId, userId));
+    if (files.length) await tx.delete(s.storedFiles).where(inArray(s.storedFiles.path, files.map((f) => f.path)));
+    await del('uploads', tx.delete(s.uploads).where(eq(s.uploads.ownerId, userId)).returning({ id: s.uploads.id }));
+    diskFiles.push(...files.map((f) => f.path));
+    // Analytics keep only anonymous aggregates after deletion.
+    await tx.update(s.analyticsEvents).set({ userId: null }).where(eq(s.analyticsEvents.userId, userId));
+    await tx.delete(s.penMutes).where(or(eq(s.penMutes.muterId, userId), eq(s.penMutes.authorId, userId)));
+    await tx.update(s.identityShares).set({ revokedAt: new Date(), displayName: null }).where(eq(s.identityShares.userId, userId));
     await tx.update(s.expertProfiles).set({ verificationStatus: 'suspended', acceptsBookings: false, bio: '', displayName: 'Former expert' }).where(eq(s.expertProfiles.userId, userId));
     await tx.update(s.profiles).set({ handle: `deleted-${userId.slice(0, 8)}`, displayName: 'Deleted user', fullName: null, bio: '', statusText: '', avatarUrl: null, interests: [], visibility: 'private', featuredBadges: [], featuredInsights: [], pseudonym: null, identityLabels: [] }).where(eq(s.profiles.userId, userId));
     await tx.update(s.users).set({ email: `deleted+${userId}@invalid.nakshatra`, passwordHash: 'disabled', mfaSecret: null, mfaEnabled: false, status: 'deleted', deletedAt: new Date() }).where(eq(s.users.id, userId));
     await tx.update(s.deletionRequests).set({ status: 'completed', completedAt: new Date(), summary: counts }).where(eq(s.deletionRequests.id, req.id));
     await audit(tx, { actorId: userId, action: 'privacy.account_deleted', targetType: 'user', targetId: sha256(userId).slice(0, 16) });
     await track(tx, null, 'account_deleted', {});
-    return { ...counts, retained: ['orders', 'payments', 'refunds', 'bookings (accounting records, pseudonymised)'] };
+    return { ...counts, retained: ['orders', 'payments', 'refunds', 'bookings (accounting records, pseudonymised)', 'security audit log entries'] };
   });
+  // Local-disk uploads are removed after the transaction commits (no-op for database storage).
+  if (ctx.config.STORAGE_DRIVER === 'local') {
+    const { rm } = await import('node:fs/promises');
+    const { resolve, normalize } = await import('node:path');
+    const root = resolve(ctx.config.UPLOAD_DIR);
+    for (const p of diskFiles) {
+      const full = resolve(root, normalize(p));
+      if (full.startsWith(root)) await rm(full, { force: true }).catch(() => undefined);
+    }
+  }
+  return result;
 }

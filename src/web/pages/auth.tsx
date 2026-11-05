@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { readAttribution } from './share';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, patch, post, put } from '../lib/api';
 import { useMe } from '../lib/session';
@@ -96,7 +97,8 @@ export function SignUp() {
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      const r = await post<{ user: { onboardingComplete: boolean } }>('auth/signup', { ...form, confirmAdult: true, acceptTerms: true, referralCode: params.get('ref') ?? undefined });
+      const attr = readAttribution();
+      const r = await post<{ user: { onboardingComplete: boolean } }>('auth/signup', { ...form, confirmAdult: true, acceptTerms: true, referralCode: params.get('ref') ?? attr.referralCode, shareSlug: attr.shareSlug });
       await done(r.user);
     } catch (err) {
       const fe: Record<string, string> = {};

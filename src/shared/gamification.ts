@@ -8,7 +8,8 @@ export type XpRule =
   | 'daily_checkin' | 'lesson_completed' | 'daily_lesson_completed' | 'quiz_passed' | 'course_completed'
   | 'bond_created' | 'bond_accepted' | 'post_created' | 'comment_created' | 'challenge_completed'
   | 'event_attended' | 'profile_shared' | 'group_joined'
-  | 'assessment_completed' | 'reply_received' | 'game_completed' | 'ritual_response' | 'circle_activated' | 'referral_activated';
+  | 'assessment_completed' | 'reply_received' | 'game_completed' | 'ritual_response' | 'circle_activated' | 'referral_activated'
+  | 'quest_reward' | 'season_reward' | 'reversal';
 
 /** XP per rule and the repeat policy that defines the idempotency source key. */
 export const XP_RULES: Record<XpRule, { amount: number; repeat: 'once' | 'per_day' | 'per_source'; label: string }> = {
@@ -40,6 +41,11 @@ export const XP_RULES: Record<XpRule, { amount: number; repeat: 'once' | 'per_da
   circle_activated: { amount: 50, repeat: 'per_source', label: 'Your circle came alive' },
   // Granted only after the referred person activates (see services/referrals.ts).
   referral_activated: { amount: 100, repeat: 'per_source', label: 'A friend you invited joined in' },
+  // Quest and season amounts come from their definitions (amountOverride); one award per quest period.
+  quest_reward: { amount: 0, repeat: 'per_source', label: 'Completed a quest' },
+  season_reward: { amount: 0, repeat: 'per_source', label: 'Reached a season milestone' },
+  // Negative entry cancelling one earlier award (staff action, audited).
+  reversal: { amount: 0, repeat: 'per_source', label: 'Correction' },
 };
 
 export function levelForXp(xp: number): { level: number; current: number; next: number; rank: string } {
@@ -103,6 +109,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { key: 'first_game', family: 'community', title: 'Game Night', description: 'Played a full game with others.', metric: 'games_completed', threshold: 1, constellation: [[0, 0], [1, 1], [2, 0]] },
   { key: 'game_regular', family: 'community', title: 'Regular at the Table', description: 'Played five full games.', metric: 'games_completed', threshold: 5, constellation: [[0, 2], [1, 0], [2, 2], [3, 0], [4, 2]] },
   { key: 'circle_founder', family: 'community', title: 'Circle Founder', description: 'Started a circle that came alive (three contributing members).', metric: 'circles_activated', threshold: 1, constellation: [[1, 0], [0, 2], [2, 2], [1, 1]] },
+  // Granted directly by the progression engine (metric 'direct' is never counted by evaluateAchievements).
+  { key: 'steady_week', family: 'reflection', title: 'Steady Week', description: 'Showed up on seven days in a row (one grace day allowed).', metric: 'direct', threshold: 1, constellation: [[0, 1], [1, 0], [2, 1], [3, 0], [4, 1], [5, 0], [6, 1]] },
+  { key: 'identity_explorer', family: 'identity', title: 'Identity Explorer', description: 'Completed three identity exploration quests.', metric: 'direct', threshold: 1, constellation: [[0, 0], [1, 2], [2, 0]] },
+  { key: 'connector', family: 'community', title: 'Connector', description: 'Someone joined Nakshatra from your archetype link.', metric: 'direct', threshold: 1, constellation: [[0, 1], [1, 1], [2, 1]] },
   { key: 'wrapped', family: 'annual', title: 'Year in Stars', description: 'Opened your Cosmic Wrapped.', metric: 'wrapped_viewed', threshold: 1, constellation: [[0, 0], [1, 1], [2, 2], [3, 3]] },
 ];
 
@@ -129,7 +139,7 @@ export const CHALLENGES: ChallengeDef[] = [
   { key: 'diwali_lights', title: 'Festival of lights', description: 'Complete three rituals in the Diwali week.', period: 'season', metric: 'rituals', target: 3, xp: 100, festivalKey: 'diwali', windowDays: 5 },
 ];
 
-export interface CollectibleDef { key: string; kind: 'frame' | 'theme' | 'card'; title: string; unlock: { type: 'level'; level: number } | { type: 'achievement'; key: string } | { type: 'subscription' } | { type: 'purchase'; productSlug: string } }
+export interface CollectibleDef { key: string; kind: 'frame' | 'theme' | 'card' | 'badge'; title: string; unlock: { type: 'level'; level: number } | { type: 'achievement'; key: string } | { type: 'subscription' } | { type: 'purchase'; productSlug: string } | { type: 'season'; season: string; milestone: number } }
 
 export const COLLECTIBLES: CollectibleDef[] = [
   { key: 'theme_midnight', kind: 'theme', title: 'Midnight', unlock: { type: 'level', level: 1 } },
@@ -150,4 +160,10 @@ export const COLLECTIBLES: CollectibleDef[] = [
   { key: 'card_table', kind: 'card', title: 'Game Night', unlock: { type: 'achievement', key: 'game_regular' } },
   { key: 'card_eclipse_ink', kind: 'card', title: 'Eclipse Ink', unlock: { type: 'purchase', productSlug: 'cosmetic-card-styles' } },
   { key: 'card_saffron_foil', kind: 'card', title: 'Saffron Foil', unlock: { type: 'purchase', productSlug: 'cosmetic-card-styles' } },
+  // Season 1 free-track badges (granted on milestone claim; see shared/progression.ts).
+  { key: 'badge_s1_spark', kind: 'badge', title: 'Spark', unlock: { type: 'season', season: 's1-first-light', milestone: 100 } },
+  { key: 'badge_s1_ember', kind: 'badge', title: 'Ember', unlock: { type: 'season', season: 's1-first-light', milestone: 300 } },
+  { key: 'badge_s1_lantern', kind: 'badge', title: 'Lantern', unlock: { type: 'season', season: 's1-first-light', milestone: 600 } },
+  { key: 'badge_s1_beacon', kind: 'badge', title: 'Beacon', unlock: { type: 'season', season: 's1-first-light', milestone: 1000 } },
+  { key: 'badge_s1_first_light', kind: 'badge', title: 'First Light', unlock: { type: 'season', season: 's1-first-light', milestone: 1500 } },
 ];

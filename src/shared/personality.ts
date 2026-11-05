@@ -102,13 +102,63 @@ export const PERSONA_BY_KEY: Record<string, PersonaArchetype> = Object.fromEntri
 
 export type Answers = Record<string, number>;
 
+export type Confidence = 'high' | 'medium' | 'low' | 'inconclusive';
+
+/**
+ * Response quality (quality-v1). Detects answer sheets that carry too little information to place
+ * someone confidently, without changing how scores or archetypes are computed:
+ *  - straight_lined: 90%+ of answers are the same option (e.g. all "Agree"). Because every dimension has
+ *    two reverse-keyed statements, this cancels to the neutral centre — it says nothing about the person.
+ *  - near_centre: every dimension within ±0.2 of neutral (overall profile too flat to discriminate).
+ *  - low_variance: answers barely vary (standard deviation under 0.6 on the 1–5 scale).
+ *  - patterned: the sheet strictly alternates between two options in question order.
+ *  - inconsistent: in 3+ dimensions, statements measuring the same tendency were answered in opposite directions.
+ *  - incomplete: a dimension has fewer than three answers.
+ * straight_lined or near_centre → "inconclusive"; any other flag caps confidence at "low".
+ */
+export interface ResponseQuality { level: 'good' | 'low' | 'insufficient'; flags: ('straight_lined' | 'near_centre' | 'low_variance' | 'patterned' | 'inconsistent' | 'incomplete')[]; message: string | null }
+
+export function assessQuality(answers: Answers, scores: Vector, unknown: Dimension[] = []): ResponseQuality {
+  const vals = QUESTIONS.map((q) => answers[q.id]).filter((v): v is number => typeof v === 'number');
+  const flags: ResponseQuality['flags'] = [];
+  if (vals.length) {
+    const counts = new Map<number, number>();
+    for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+    if (Math.max(...counts.values()) / vals.length >= 0.9) flags.push('straight_lined');
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+    if (sd < 0.6 && !flags.includes('straight_lined')) flags.push('low_variance');
+    const alternating = vals.length >= 10 && counts.size === 2 && vals.every((v, i) => i < 2 || v === vals[i - 2]) && vals[0] !== vals[1];
+    if (alternating) flags.push('patterned');
+  }
+  // Consistency: the four statements of a dimension measure the same tendency. A dimension is contradictory
+  // when, after reverse-keying, at least one answer leans clearly one way and another clearly the other way.
+  // Contradictions in three or more dimensions look like random or careless answering.
+  const contradictory = DIMENSIONS.filter((d) => {
+    const keyed = QUESTIONS.filter((q) => q.dimension === d && typeof answers[q.id] === 'number').map((q) => q.key * (answers[q.id] - 3));
+    return keyed.some((x) => x >= 1) && keyed.some((x) => x <= -1);
+  }).length;
+  if (contradictory >= 3) flags.push('inconsistent');
+  if (DIMENSIONS.every((d) => Math.abs(scores[d]) <= 0.2)) flags.push('near_centre');
+  if (unknown.length) flags.push('incomplete');
+  const insufficient = flags.includes('straight_lined') || flags.includes('near_centre');
+  return {
+    level: insufficient ? 'insufficient' : flags.length ? 'low' : 'good',
+    flags,
+    message: insufficient
+      ? 'Your answers sit almost exactly in the middle on every dimension, so no archetype clearly fits yet. Try answering with your first instinct — strong agreement and disagreement both help.'
+      : flags.length ? 'This match is tentative. A retake with more varied answers would make it clearer.' : null,
+  };
+}
+
 export interface PersonalityResult {
   version: string;
   scores: Vector;
   unknown: Dimension[];
   archetype: string;
   secondary: string;
-  confidence: 'high' | 'medium' | 'low';
+  confidence: Confidence;
+  quality: ResponseQuality;
   /** Distances to every archetype, nearest first (for explanation). */
   distances: { key: string; distance: number }[];
 }
@@ -138,10 +188,13 @@ export function scorePersonality(answers: Answers): PersonalityResult {
     distance: Math.round(Math.sqrt(DIMENSIONS.reduce((s, d) => s + (scores[d] - a.prototype[d]) ** 2, 0)) * 1000) / 1000,
   })).sort((x, y) => x.distance - y.distance || x.i - y.i);
   const gap = distances[1].distance - distances[0].distance;
-  let confidence: PersonalityResult['confidence'] = gap >= 0.25 ? 'high' : gap >= 0.1 ? 'medium' : 'low';
+  let confidence: Confidence = gap >= 0.25 ? 'high' : gap >= 0.1 ? 'medium' : 'low';
   if (unknown.length) confidence = 'low';
+  const quality = assessQuality(answers, scores, unknown);
+  if (quality.level === 'insufficient') confidence = 'inconclusive';
+  else if (quality.level === 'low' && confidence !== 'low') confidence = 'low';
   return {
-    version: PERSONALITY_VERSION, scores, unknown,
+    version: PERSONALITY_VERSION, scores, unknown, quality,
     archetype: distances[0].key, secondary: distances[1].key, confidence,
     distances: distances.map(({ key, distance }) => ({ key, distance })),
   };

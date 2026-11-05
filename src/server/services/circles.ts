@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Executor } from '../db/client';
 import type { Ctx } from '../lib/context';
@@ -43,6 +43,18 @@ export async function circlePoints(db: Executor, circleId: string): Promise<numb
   const [rituals] = await db.select({ n: sql<number>`count(*)::int` }).from(s.ritualResponses).where(eq(s.ritualResponses.circleKey, circleId));
   const [games] = await db.select({ n: sql<number>`count(*)::int` }).from(s.gameSessions).where(and(eq(s.gameSessions.circleId, circleId), eq(s.gameSessions.status, 'completed')));
   return (posts?.n ?? 0) + (rituals?.n ?? 0) + 5 * (games?.n ?? 0);
+}
+
+/** Same as circlePoints for many circles at once (grouped counts, no per-circle queries). */
+export async function circlePointsMany(db: Executor, circleIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>(circleIds.map((id) => [id, 0]));
+  if (!circleIds.length) return out;
+  const n = sql<number>`count(*)::int`;
+  const add = (rows: { id: string | null; n: number }[], w: number) => { for (const r of rows) if (r.id) out.set(r.id, (out.get(r.id) ?? 0) + w * r.n); };
+  add(await db.select({ id: s.posts.groupId, n }).from(s.posts).where(and(inArray(s.posts.groupId, circleIds), isNull(s.posts.deletedAt))).groupBy(s.posts.groupId), 1);
+  add(await db.select({ id: s.ritualResponses.circleKey, n }).from(s.ritualResponses).where(inArray(s.ritualResponses.circleKey, circleIds)).groupBy(s.ritualResponses.circleKey), 1);
+  add(await db.select({ id: s.gameSessions.circleId, n }).from(s.gameSessions).where(and(inArray(s.gameSessions.circleId, circleIds), eq(s.gameSessions.status, 'completed'))).groupBy(s.gameSessions.circleId), 5);
+  return out;
 }
 
 /** Members who have contributed anything in the circle (a post, ritual answer or game move). */

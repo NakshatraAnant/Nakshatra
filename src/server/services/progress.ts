@@ -21,9 +21,10 @@ export async function collectibleStates(db: Executor, userId: string): Promise<C
     ? new Set((await db.select({ slug: s.products.slug }).from(s.entitlements).innerJoin(s.products, sql`${s.products.id}::text = ${s.entitlements.refId}`)
       .where(and(active, eq(s.entitlements.kind, 'product'), inArray(s.products.slug, slugs)))).map((r) => r.slug))
     : new Set<string>();
+  const seasonClaims = new Set((await db.select({ s: s.seasonClaims.seasonKey, m: s.seasonClaims.milestone }).from(s.seasonClaims).where(and(eq(s.seasonClaims.userId, userId), eq(s.seasonClaims.track, 'free')))).map((r) => `${r.s}:${r.m}`));
   return COLLECTIBLES.map((c) => {
     const u = c.unlock;
-    const earned = u.type === 'level' ? level >= u.level : u.type === 'achievement' ? achieved.has(u.key) : false;
+    const earned = u.type === 'level' ? level >= u.level : u.type === 'achievement' ? achieved.has(u.key) : u.type === 'season' ? seasonClaims.has(`${u.season}:${u.milestone}`) : false;
     const viaPlus = u.type === 'subscription' && hasPlus;
     const bought = u.type === 'purchase' && owned.has(u.productSlug);
     return { ...c, unlocked: earned || viaPlus || bought, source: earned ? 'earned' : viaPlus ? 'subscription' : bought ? 'purchased' : null };

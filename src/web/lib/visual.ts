@@ -118,6 +118,7 @@ export const ACHIEVEMENT_ART: Record<string, string> = {
   first_reflection: 'night-ritual', seven_reflections: 'full-week', ritual_seven: 'seven-day-streak', festival_observer: 'dawn-ritual',
   first_lesson: 'first-question', scholar: 'resonated', quiz_ace: 'clear-forecaster', course_complete: 'decoder-ace',
   first_event: 'connector', wrapped: 'full-week',
+  steady_week: 'seven-day-streak', identity_explorer: 'self-explorer', connector: 'card-shared',
 };
 export const achievementArt = (key: string) => (ACHIEVEMENT_ART[key] ? `/visual/rewards/achievement-${ACHIEVEMENT_ART[key]}.svg` : null);
 

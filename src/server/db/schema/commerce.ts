@@ -228,6 +228,36 @@ export const entitlements = pgTable('entitlements', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('entitlements_user_kind_idx').on(t.userId, t.kind, t.refId), uniqueIndex('entitlements_source_uq').on(t.sourceType, t.sourceId, t.refId)]);
 
+/**
+ * Gifted digital items. Created only after the purchase is confirmed (payment succeeded), one per gifted
+ * order item. The entitlement is granted to the recipient when they claim it with a verified account whose
+ * email matches; the purchaser never receives it. Only a hash of the claim token is stored.
+ */
+export const giftClaims = pgTable('gift_claims', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderItemId: uuid('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
+  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  purchaserId: uuid('purchaser_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Lower-cased intended recipient email. */
+  recipientEmail: text('recipient_email').notNull(),
+  recipientUserId: uuid('recipient_user_id').references(() => users.id, { onDelete: 'set null' }),
+  message: text('message').notNull().default(''),
+  tokenHash: text('token_hash').notNull(),
+  /** pending | claimed | expired | refunded | cancelled */
+  status: text('status').notNull().default('pending'),
+  entitlementId: uuid('entitlement_id'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  claimedAt: timestamp('claimed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('gift_claims_item_uq').on(t.orderItemId),
+  uniqueIndex('gift_claims_token_uq').on(t.tokenHash),
+  index('gift_claims_recipient_idx').on(t.recipientEmail, t.status),
+  index('gift_claims_purchaser_idx').on(t.purchaserId),
+]);
+
 export const reportDocuments = pgTable('report_documents', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

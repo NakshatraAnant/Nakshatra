@@ -82,6 +82,16 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   report_submitted: { meaningful: false, description: 'Content or profile reported.' },
   account_deleted: { meaningful: false, description: 'Account deleted.' },
   client_error: { meaningful: false, description: 'Client-side error report.' },
+  gift_claimed: { meaningful: true, description: 'Recipient claimed a gifted item.' },
+  identity_share_created: { meaningful: true, description: 'Archetype card share link created (signed in or anonymous preview).' },
+  identity_share_viewed: { meaningful: false, description: 'Public archetype share page viewed (anonymous; no viewer identifiers).' },
+  identity_share_signup: { meaningful: false, description: 'Account created from an archetype share link.' },
+  preview_signup_clicked: { meaningful: false, description: 'Save-my-archetype clicked on the account-free preview (anonymous).' },
+  email_verified: { meaningful: false, description: 'Email address verified.' },
+  vibe_checked_in: { meaningful: true, description: 'Daily vibe check-in recorded (mood bucket only).' },
+  quest_claimed: { meaningful: false, description: 'Quest reward claimed.' },
+  season_reward_claimed: { meaningful: false, description: 'Season milestone reward claimed.' },
+  game_rematch: { meaningful: true, description: 'A finished game was replayed with the same players.' },
 };
 
 export async function track(db: Executor, userId: string | null, name: keyof typeof EVENT_TAXONOMY, props: Record<string, unknown> = {}) {

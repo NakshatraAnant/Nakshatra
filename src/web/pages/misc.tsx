@@ -200,39 +200,88 @@ function Prose({ title, updated, children }: { title: string; updated: string; c
   );
 }
 
+const LEGAL_REVIEW = 'Draft for review. This text describes how the software behaves today; it has not yet been reviewed by a qualified lawyer and does not claim compliance with any specific law or certification.';
+
 export function Terms() {
   return (
-    <Prose title="Terms of use" updated="24 October 2026">
+    <Prose title="Terms of use" updated="5 November 2026">
+      <p className="text-xs text-fg-3">{LEGAL_REVIEW}</p>
       <h2>What Nakshatra is</h2>
-      <p>Nakshatra computes astrological charts with documented astronomical methods and shows interpretations written by people. Astrology is a cultural and reflective practice; nothing here is medical, legal, financial or psychological advice, and nothing predicts events with certainty.</p>
-      <h2>Your account</h2>
-      <ul><li>You must be 18 or older to use dating, matchmaking and consultations.</li><li>Keep your sign-in details private. You can enable two-factor authentication in Settings.</li><li>You are responsible for content you post. Report anything that breaks the community guidelines.</li></ul>
-      <h2>Community guidelines</h2>
-      <ul><li>No harassment, hate, threats, sexual content involving minors, or non-consensual sharing of images.</li><li>No fear-based selling: experts may not claim that a remedy or purchase is required to avoid harm.</li><li>No impersonation, fake reviews or misleading verification claims.</li></ul>
-      <p>Moderators may hide content, warn, remove you from dating, or suspend accounts. Every action states a reason, and you can appeal from Settings → Appeals; a different moderator reviews it.</p>
-      <h2>Payments, refunds and cancellations</h2>
-      <p>Prices are shown in Indian rupees before payment. Card details are handled only by the payment provider and are never stored by Nakshatra. Consultation cancellations follow the policy shown on each booking; physical goods can be returned under the policy shown on the product page; digital reports are refundable before they are generated.</p>
-      <h2>Experts, creators and vendors</h2>
-      <p>Independent experts, course creators and vendors set their own offerings. Verification badges mean the Nakshatra team reviewed submitted evidence; they are not an endorsement of outcomes. Listings marked “Sample” are demonstration data and cannot be booked or bought as real services.</p>
+      <p>Nakshatra is a personality-led social app. You can take a twenty-statement assessment and get one of twenty-four archetypes, post short Thought Drops (optionally under a pen name), join private circles with people you know, play turn-based social games, answer daily and weekly prompts, and earn points, quests and cosmetic rewards. An optional astrology section (Cosmic ID) calculates a birth chart if you choose to add birth details.</p>
+      <p>Archetypes describe tendencies based on your own answers. They are not a psychological test, diagnosis or prediction. Astrology content is offered as a cultural and reflective framework, not as advice on health, money, law or relationships.</p>
+      <h2>Who can use it</h2>
+      <ul><li>You must be 18 or older to create an account.</li><li>One person per account. Keep your password private; you can turn on two-step verification in Settings → Security.</li><li>You are responsible for what you post.</li></ul>
+      <h2>Community rules</h2>
+      <ul>
+        <li>No harassment, threats, hate, sexual content involving minors, or sharing other people’s private information or images without consent.</li>
+        <li>Pen names are for saying something without the spotlight — not for attacking people. Posts in pen-name contexts may not include phone numbers or email addresses.</li>
+        <li>Game answers and confessions are about yourself, never someone else’s secret.</li>
+        <li>No spam, fake accounts, or attempts to farm points, referrals or gifts.</li>
+      </ul>
+      <p>You can report posts, comments, users and game lines. Moderators may hide content, warn, or suspend accounts. Each action records a reason, and you can appeal from Settings → Appeals.</p>
+      <h2>Pen names</h2>
+      <p>Other members see only your pen name on pen-name posts and on your replies in those threads. Nakshatra keeps the link between a pen name and your account, and authorised moderators can see it when handling reports or legal requests. Pen names are pseudonymous, not anonymous.</p>
+      <h2>Circles and games</h2>
+      <p>Circles are visible only to their members. Circle owners and admins manage invites and membership. Game rounds that hide an author reveal the author only when the round closes, as the game describes.</p>
+      <h2>Points, quests and rewards</h2>
+      <p>Points, levels, quests, streaks, season rewards and play points have no cash value. They cannot be bought, sold, transferred or redeemed for money. We may correct rewards earned through bugs or abuse.</p>
+      <h2>Paid items</h2>
+      <p>Paid items are currently shown as a preview and cannot be bought. If purchasing opens, prices will be shown in Indian rupees before payment, card details will be handled only by the payment provider, and refund rules will be published before the first sale.</p>
+      <h2>Your content</h2>
+      <p>You keep ownership of what you post. You allow Nakshatra to store and show it to the audience you chose. Deleting a post removes it from view.</p>
       <h2>Ending your account</h2>
-      <p>You can export your data or delete your account at any time from Settings → Data. See the <Link to="/legal/privacy" className="text-accent underline">privacy policy</Link> for what is deleted and what must be retained.</p>
+      <p>You can delete your account at any time in Settings. We may suspend accounts that break these rules.</p>
+      <h2>Contact</h2>
+      <p>A contact and grievance address will be published here before public launch.</p>
     </Prose>
   );
 }
 
 export function PrivacyPolicy() {
   return (
-    <Prose title="Privacy policy" updated="24 October 2026">
-      <h2>Birth data is sensitive</h2>
-      <p>Your exact birth date, time and place are private by default. Other people only see what you choose to share, field by field, in Settings → Privacy. Bonds you create can see a level of detail you grant per bond, and you can revoke it.</p>
-      <h2>What we store</h2>
-      <ul><li>Account: email, a salted scrypt hash of your password, sessions (stored as hashes), optional two-factor secret (encrypted).</li><li>Profile and birth details you enter, and the charts calculated from them, including the calculation version used.</li><li>Content you create: posts, messages, journal entries, bookings, orders, course progress.</li><li>Payment records (amount, status, provider reference). Never card numbers.</li><li>Product analytics events that exclude birth data, message content and contact details. A server-side filter enforces this.</li></ul>
-      <h2>No automated profiling with AI</h2>
-      <p>Nakshatra does not use artificial intelligence or machine learning. Rankings of feed posts, experts, dating suggestions and search results use simple, documented rules shown on each page.</p>
+    <Prose title="Privacy policy" updated="5 November 2026">
+      <p className="text-xs text-fg-3">{LEGAL_REVIEW}</p>
+      <h2>What we collect</h2>
+      <ul>
+        <li><strong>Account:</strong> email, a salted scrypt hash of your password (never the password), display name and handle, and an optional encrypted two-step verification secret.</li>
+        <li><strong>Sign-in records:</strong> active sessions (stored as hashes) with IP address and browser description, and security events such as sign-ins and password changes.</li>
+        <li><strong>Identity Studio:</strong> your assessment answers and results, labels you choose, optional pen name, and card style.</li>
+        <li><strong>What you post and do:</strong> Thought Drops, comments, reactions, poll votes, circle membership, game answers, prompt answers, reports you file, follows, blocks and mutes.</li>
+        <li><strong>Progress:</strong> points, quests, streak days, daily vibe check-ins (a mood word you pick), achievements and rewards.</li>
+        <li><strong>Optional astrology:</strong> birth date, time and place, only if you add them, and the charts calculated from them.</li>
+        <li><strong>Invites, shares and gifts:</strong> your referral code, who joined through it, share links you create (with view and sign-up counts), and gifts you send or receive (including the recipient email you enter).</li>
+        <li><strong>Product analytics:</strong> event names with a few non-sensitive details (for example “a game round was played”). Analytics never record message bodies, post text, birth details, email addresses or phone numbers.</li>
+      </ul>
+      <h2>Who sees what</h2>
+      <ul>
+        <li>Public Thought Drops can be read by any signed-in member; followers-only posts by your accepted followers; circle posts only by that circle’s members. Profile visibility controls your profile page.</li>
+        <li>On pen-name posts, other members see only the pen name — including on your replies in that thread and in mute lists.</li>
+        <li>Your archetype, labels and Cosmic ID each have their own visibility setting.</li>
+        <li>Share links you create show only your archetype and its dimensions, plus your display name if you choose. Never your answers, handle, pen name, email or birth details. You can switch a link off.</li>
+        <li>Moderators can see what is needed to handle a report, including the account behind a pen name.</li>
+      </ul>
+      <h2>No AI and no selling of data</h2>
+      <p>Nakshatra does not use artificial intelligence or machine learning. Feed ranking, archetypes and game rules follow documented rules. We do not sell personal data, and we do not use personality results, private posts or birth details to target advertising.</p>
+      <h2>Service providers</h2>
+      <p>Data is stored by our hosting and database providers. Emails are sent through an email delivery provider when one is configured. A payment provider would process payments only if purchasing is opened.</p>
+      <h2>How long we keep things</h2>
+      <ul>
+        <li>The text of delivered emails (which contains one-time links) is removed after a day; one-time links expire within 1–48 hours and their records are deleted a week after expiry.</li>
+        <li>Expired or signed-out sessions are deleted after 30 days.</li>
+        <li>Unclaimed gifts expire after 30 days.</li>
+        <li>Other data is kept while your account exists.</li>
+      </ul>
       <h2>Your choices</h2>
-      <ul><li>Export everything from Settings → Data (JSON).</li><li>Delete your account: profile, birth data, charts, journals, messages you sent, dating and matchmaking profiles are removed. Order and payment records are kept in anonymised form where tax and accounting law require it.</li><li>Turn off search history, hide from search, and control notifications and quiet hours.</li></ul>
-      <h2>Sharing</h2>
-      <p>We do not sell personal data. Data is shared with service providers only when you use a feature that needs them (for example a payment provider) and when they are configured.</p>
+      <ul>
+        <li>Export your data as JSON from Settings → Data.</li>
+        <li>Delete your account from Settings. Your profile is replaced with “Deleted user”; birth data, charts, assessments, prompt answers, uploads, follows, notifications and sessions are deleted; posts, comments and messages you wrote are blanked; game lines are withdrawn; share links are switched off; analytics events are kept only without your account id; circles you own are archived.</li>
+        <li>Records of orders and payments, and security audit entries, are kept for accounting and safety.</li>
+        <li>Withdraw consent for birth data at any time; your birth data and charts are then removed.</li>
+      </ul>
+      <h2>Security</h2>
+      <p>Passwords are hashed with scrypt; session and invitation tokens are stored only as hashes; two-step verification secrets are encrypted at rest. No system is perfectly secure — report a problem through Support.</p>
+      <h2>Contact</h2>
+      <p>A contact and grievance address will be published here before public launch.</p>
     </Prose>
   );
 }

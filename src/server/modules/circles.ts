@@ -13,18 +13,26 @@ import { circleLevel } from '../services/progress';
 import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { blockedPhrases, screenText } from '../services/moderation';
-import { hydratePosts } from './social';
+import { hydratePosts, muteFilters } from './social';
 import { flagEnabled, requireFeature } from '../services/settings';
-import { PERSONA_BY_KEY } from '../../shared/personality';
+import { enabledModules } from '../services/modules';
+import { PERSONA_BY_KEY, type Vector } from '../../shared/personality';
+import { commonGround, type SharedView } from '../../shared/commonGround';
 
-import { ACTIVATION_MEMBERS, CIRCLE_THEMES, INVITE_MAX_USES, INVITE_TTL_DAYS, MAX_OWNED_CIRCLES, circleMembership, circlePoints, contributingMembers, isAdmin, requireCircle } from '../services/circles';
+import { ACTIVATION_MEMBERS, CIRCLE_THEMES, INVITE_MAX_USES, INVITE_TTL_DAYS, MAX_OWNED_CIRCLES, circleMembership, circlePoints, circlePointsMany, contributingMembers, isAdmin, requireCircle } from '../services/circles';
 
 export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Which product areas are switched on for this viewer (feature flags, server-authoritative). */
   app.get('/api/v1/features', async (req) => {
     const uid = req.auth?.userId ?? null;
+    const modules = await enabledModules(ctx.db, uid);
+    // `features` keeps the original shape for older clients; `modules` covers every product module.
     const keys = ['circles', 'play', 'dating', 'matchmaking', 'weddings', 'experts'];
-    return { features: Object.fromEntries(await Promise.all(keys.map(async (k) => [k, await flagEnabled(ctx.db, k, uid)] as const))) };
+    return {
+      features: Object.fromEntries(await Promise.all(keys.map(async (k) => [k, modules[k] ?? (await flagEnabled(ctx.db, k, uid))] as const))),
+      modules,
+      payments: { enabled: ctx.config.PAYMENTS_ENABLED === 'true' || (ctx.config.PAYMENT_PROVIDER === 'dev_simulator' && !ctx.config.isProd), provider: ctx.config.PAYMENT_PROVIDER, testMode: ctx.config.PAYMENT_PROVIDER === 'dev_simulator' },
+    };
   });
 
   app.get('/api/v1/circles', async (req) => {
@@ -34,10 +42,9 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const ids = rows.map((r) => r.g.id);
     const counts = ids.length ? await ctx.db.select({ g: s.groupMembers.groupId, n: sql<number>`count(*)::int` }).from(s.groupMembers).where(and(inArray(s.groupMembers.groupId, ids), eq(s.groupMembers.status, 'active'))).groupBy(s.groupMembers.groupId) : [];
     const live = ids.length ? await ctx.db.select({ c: s.gameSessions.circleId, n: sql<number>`count(*)::int` }).from(s.gameSessions).where(and(inArray(s.gameSessions.circleId, ids), inArray(s.gameSessions.status, ['lobby', 'active']))).groupBy(s.gameSessions.circleId) : [];
-    const circles = [];
-    for (const r of rows) {
-      circles.push({ id: r.g.id, name: r.g.name, description: r.g.description, theme: r.g.theme, role: r.role, memberCount: counts.find((c) => c.g === r.g.id)?.n ?? 0, liveGames: live.find((l) => l.c === r.g.id)?.n ?? 0, level: circleLevel(await circlePoints(ctx.db, r.g.id)) });
-    }
+    // Contribution points for every circle in three grouped queries (was three queries per circle).
+    const points = await circlePointsMany(ctx.db, ids);
+    const circles = rows.map((r) => ({ id: r.g.id, name: r.g.name, description: r.g.description, theme: r.g.theme, role: r.role, memberCount: counts.find((c) => c.g === r.g.id)?.n ?? 0, liveGames: live.find((l) => l.c === r.g.id)?.n ?? 0, level: circleLevel(points.get(r.g.id) ?? 0) }));
     return { circles };
   });
 
@@ -227,6 +234,33 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
+  /* ---------- Common ground (two co-members) ---------- */
+
+  /**
+   * Common Ground card between you and another member of the same circle: shared labels, similar and
+   * different dimensions, and a few conversation starters. Uses only what each person made public
+   * (archetype and labels visibility); returns no ids beyond the circle membership both already share.
+   */
+  app.get('/api/v1/circles/:id/common-ground/:userId', async (req) => {
+    const a = requireAuth(req);
+    const { id, userId } = parse(z.object({ id: z.uuid(), userId: z.uuid() }), req.params);
+    await requireCircle(ctx.db, id, a.userId);
+    if (userId === a.userId) throw badRequest('Pick someone else in the circle.');
+    if (!(await circleMembership(ctx.db, id, userId))) throw notFound('Member');
+    const view = async (uid: string, self: boolean): Promise<SharedView> => {
+      const [p] = await ctx.db.select({ name: s.profiles.displayName, labels: s.profiles.identityLabels, fv: s.profiles.fieldVisibility }).from(s.profiles).where(eq(s.profiles.userId, uid));
+      const fv = (p?.fv ?? {}) as Record<string, string>;
+      const personaOk = self || (fv.persona ?? 'public') === 'public';
+      const labelsOk = self || (fv.labels ?? 'public') === 'public';
+      const [r] = personaOk ? await ctx.db.select({ k: s.assessmentResults.archetypeKey, sc: s.assessmentResults.scores }).from(s.assessmentResults).where(eq(s.assessmentResults.userId, uid)).orderBy(desc(s.assessmentResults.createdAt)).limit(1) : [];
+      return { name: p?.name ?? 'Member', archetype: r?.k ?? null, scores: (r?.sc as Vector | undefined) ?? null, labels: labelsOk ? p?.labels ?? [] : [] };
+    };
+    const me = await view(a.userId, true);
+    const them = await view(userId, false);
+    const cg = commonGround(me, them, [a.userId, userId].sort().join(':'));
+    return { with: { name: them.name, archetype: them.archetype ? PERSONA_BY_KEY[them.archetype]?.name ?? null : null }, ...cg };
+  });
+
   /* ---------- Circle feed and recap ---------- */
 
   app.get('/api/v1/circles/:id/feed', async (req) => {
@@ -234,9 +268,9 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const { before } = parse(z.object({ before: z.iso.datetime().optional() }), req.query);
     await requireCircle(ctx.db, id, a.userId);
-    const muted = new Set((await ctx.db.select({ id: s.mutes.mutedId }).from(s.mutes).where(eq(s.mutes.muterId, a.userId))).map((r) => r.id));
+    const isMuted = await muteFilters(ctx.db, a.userId);
     const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), before ? lt(s.posts.createdAt, new Date(before)) : undefined)).orderBy(desc(s.posts.createdAt)).limit(21);
-    const page = rows.slice(0, 20).filter((r) => !muted.has(r.authorId));
+    const page = rows.slice(0, 20).filter((r) => !isMuted(r));
     return { posts: await hydratePosts(ctx.db, a.userId, page), nextBefore: rows.length > 20 ? rows[19].createdAt.toISOString() : null };
   });
 

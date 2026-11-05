@@ -230,6 +230,7 @@ export function CircleDetail() {
                           <p className="text-sm text-fg">{m.displayName ?? 'Member'} {m.userId === me?.id && <span className="text-fg-3">(you)</span>}</p>
                           <p className="text-xs text-fg-3">{m.role === 'owner' ? 'Owner' : m.role === 'moderator' ? 'Admin' : 'Member'}{m.archetype ? ` · ${m.archetype}` : ''}{m.contributed ? ' · has joined in' : ''}</p>
                         </div>
+                        {m.userId !== me?.id && <CommonGroundButton circleId={d.circle.id} userId={m.userId} name={m.displayName ?? 'Member'} />}
                         {d.me.isAdmin && m.userId !== me?.id && m.role !== 'owner' && (
                           <div className="flex flex-wrap gap-1">
                             {d.me.role === 'owner' && (m.role === 'moderator'
@@ -317,5 +318,33 @@ export function JoinCircle() {
         </Card>
       )}</QueryState>
     </div>
+  );
+}
+
+interface CommonGround { with: { name: string; archetype: string | null }; sameArchetype: boolean; sharedLabels: string[]; similarDimensions: string[]; differentDimensions: string[]; starters: string[]; note: string }
+
+/** Common Ground card with conversation starters, built from what both of you chose to share. */
+function CommonGroundButton({ circleId, userId, name }: { circleId: string; userId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ['common-ground', circleId, userId], queryFn: () => get<CommonGround>(`circles/${circleId}/common-ground/${userId}`), enabled: open });
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>Common ground</Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={`You and ${name}`}>
+        <QueryState q={q}>{(c) => (
+          <div className="space-y-4 text-sm">
+            {c.sameArchetype && <Badge tone="accent">Same archetype{c.with.archetype ? `: ${c.with.archetype}` : ''}</Badge>}
+            {c.sharedLabels.length > 0 && <p><span className="text-fg-3">You both said:</span> {c.sharedLabels.join(' · ')}</p>}
+            {c.similarDimensions.length > 0 && <p><span className="text-fg-3">Alike on:</span> {c.similarDimensions.join(', ')}</p>}
+            {c.differentDimensions.length > 0 && <p><span className="text-fg-3">Different on:</span> {c.differentDimensions.join(', ')}</p>}
+            <div>
+              <p className="font-semibold">Conversation starters</p>
+              <ul className="mt-2 space-y-2">{c.starters.map((x) => <li key={x} className="rounded-[var(--radius-sm)] border border-line px-3 py-2">{x}</li>)}</ul>
+            </div>
+            <p className="text-xs text-fg-3">{c.note}</p>
+          </div>
+        )}</QueryState>
+      </Dialog>
+    </>
   );
 }

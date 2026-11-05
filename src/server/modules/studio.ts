@@ -1,17 +1,19 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
 import { badRequest, conflict, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
+import { randomToken } from '../lib/crypto';
 import { awardXp, evaluateAchievements } from '../lib/rewards';
 import {
   AssessmentError, DIMENSIONS, DIMENSION_INFO, IDENTITY_LABELS, PERSONA_BY_KEY, PERSONALITY_VERSION, QUESTIONS,
-  explainScores, scorePersonality, type Answers, type Vector,
+  assessQuality, explainScores, scorePersonality, type Answers, type Vector,
 } from '../../shared/personality';
 import { deriveArchetype } from '../../astro';
+import { ACHIEVEMENTS } from '../../shared/gamification';
 import { ARCHETYPES } from '../../content/archetypes';
 import { currentChart, relationOf } from '../services/identity';
 import { collectibleStates } from '../services/progress';
@@ -22,13 +24,16 @@ import { evaluateReferral } from '../services/referrals';
 export const IDENTITY_FIELDS = { persona: 'public', labels: 'public', cosmic: 'connections' } as const;
 type Vis = 'public' | 'connections' | 'private';
 
-export function personaView(r: { archetypeKey: string; secondaryKey: string | null; scores: unknown; confidence: string; version: string; createdAt: Date }) {
+export function personaView(r: { archetypeKey: string; secondaryKey: string | null; scores: unknown; confidence: string; version: string; createdAt: Date; answers?: unknown }) {
   const a = PERSONA_BY_KEY[r.archetypeKey];
   const scores = r.scores as Vector;
+  const quality = r.answers ? assessQuality(r.answers as Answers, scores) : null;
+  // Results saved before quality-v1 are re-labelled honestly on read.
+  const confidence = quality?.level === 'insufficient' ? 'inconclusive' : quality?.level === 'low' && r.confidence !== 'low' ? 'low' : r.confidence;
   return {
     key: a.key, name: a.name, signature: a.signature, traits: a.traits, inCircles: a.inCircles, growth: a.growth,
     secondary: r.secondaryKey ? { key: r.secondaryKey, name: PERSONA_BY_KEY[r.secondaryKey]?.name } : null,
-    confidence: r.confidence, version: r.version, takenAt: r.createdAt,
+    confidence, quality, version: r.version, takenAt: r.createdAt,
     dimensions: DIMENSIONS.map((d) => ({ key: d, ...DIMENSION_INFO[d], score: scores[d] })),
     explanation: explainScores(scores).slice(0, 2).map((e) => e.text),
   };
@@ -75,7 +80,7 @@ export async function studioRoutes(app: FastifyInstance, ctx: Ctx) {
     const { answers } = parse(AnswersBody, req.body);
     const r = score(answers);
     await track(ctx.db, null, 'personality_preview_completed', { confidence: r.confidence });
-    return { result: personaView({ archetypeKey: r.archetype, secondaryKey: r.secondary, scores: r.scores, confidence: r.confidence, version: r.version, createdAt: new Date() }), unknown: r.unknown };
+    return { result: personaView({ archetypeKey: r.archetype, secondaryKey: r.secondary, scores: r.scores, confidence: r.confidence, version: r.version, createdAt: new Date(), answers }), unknown: r.unknown };
   });
 
   app.post('/api/v1/personality/assessment', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
@@ -176,5 +181,97 @@ export async function studioRoutes(app: FastifyInstance, ctx: Ctx) {
       labels: show('labels') ? prof.identityLabels : [],
       cosmic,
     };
+  });
+
+  /**
+   * Identity Evolution Timeline (private to you): every saved result with how each dimension moved since
+   * the previous one, your recent vibe check-ins, and milestones (achievements, first circle). Nothing
+   * here is visible to anyone else.
+   */
+  app.get('/api/v1/identity/timeline', async (req) => {
+    const a = requireAuth(req);
+    const rows = await ctx.db.select().from(s.assessmentResults).where(eq(s.assessmentResults.userId, a.userId)).orderBy(s.assessmentResults.createdAt).limit(50);
+    const results = rows.map((r, i) => {
+      const scores = r.scores as Vector;
+      const prev = i ? (rows[i - 1].scores as Vector) : null;
+      const view = personaView(r);
+      return {
+        id: r.id, takenAt: r.createdAt, key: r.archetypeKey, name: PERSONA_BY_KEY[r.archetypeKey]?.name, confidence: view.confidence,
+        changedArchetype: Boolean(i && rows[i - 1].archetypeKey !== r.archetypeKey),
+        dimensions: DIMENSIONS.map((d) => ({ key: d, name: DIMENSION_INFO[d].name, score: scores[d], delta: prev ? Math.round((scores[d] - prev[d]) * 100) / 100 : null })),
+      };
+    });
+    const vibes = await ctx.db.select({ date: s.vibeCheckins.localDate, mood: s.vibeCheckins.mood }).from(s.vibeCheckins).where(eq(s.vibeCheckins.userId, a.userId)).orderBy(desc(s.vibeCheckins.localDate)).limit(90);
+    const achievements = await ctx.db.select({ key: s.userAchievements.achievementKey, at: s.userAchievements.awardedAt }).from(s.userAchievements).where(eq(s.userAchievements.userId, a.userId));
+    const [firstCircle] = await ctx.db.select({ at: s.groupMembers.createdAt, name: s.groups.name }).from(s.groupMembers).innerJoin(s.groups, eq(s.groups.id, s.groupMembers.groupId))
+      .where(and(eq(s.groupMembers.userId, a.userId), eq(s.groups.kind, 'circle'))).orderBy(s.groupMembers.createdAt).limit(1);
+    const titles = new Map(ACHIEVEMENTS.map((x) => [x.key, x.title]));
+    const milestones = [
+      ...achievements.map((x) => ({ at: x.at, kind: 'achievement', title: titles.get(x.key) ?? x.key })),
+      ...(firstCircle ? [{ at: firstCircle.at, kind: 'circle', title: `Joined your first circle: ${firstCircle.name}` }] : []),
+    ].sort((x, y) => +new Date(y.at) - +new Date(x.at));
+    return { results: results.reverse(), vibes, milestones, note: 'Only you can see your timeline. Archetypes describe tendencies at a moment in time — change is normal.' };
+  });
+
+  /* ---------- Public archetype shares (/s/:slug) ---------- */
+
+  /**
+   * Creates a public share link for an archetype card. Signed in: built from your latest saved result;
+   * your display name is included only if you ask. Signed out: the server scores the submitted preview
+   * answers itself (a client cannot claim an archetype it did not earn) and nothing identifies you.
+   */
+  app.post('/api/v1/share/identity', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req) => {
+    const body = parse(z.object({ showName: z.boolean().default(false), cardStyle: z.string().max(40).optional(), answers: AnswersBody.shape.answers.optional() }), req.body ?? {});
+    let row: { archetypeKey: string; secondaryKey: string | null; scores: Record<string, number>; userId: string | null; displayName: string | null; referralCode: string | null; cardStyle: string };
+    if (req.auth && !req.auth.mfaPending) {
+      const a = requireAuth(req);
+      const [latest] = await ctx.db.select().from(s.assessmentResults).where(eq(s.assessmentResults.userId, a.userId)).orderBy(desc(s.assessmentResults.createdAt)).limit(1);
+      if (!latest) throw badRequest('Take the assessment first, then share your archetype.');
+      if (assessQuality(latest.answers as Answers, latest.scores as Vector).level === 'insufficient') throw badRequest('Your answers were too evenly balanced to show a clear archetype, so there is nothing reliable to share yet. Retake it with your first instinct.');
+      const [p] = await ctx.db.select({ displayName: s.profiles.displayName, cardStyle: s.profiles.cardStyle }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
+      const [u] = await ctx.db.select({ code: s.users.referralCode }).from(s.users).where(eq(s.users.id, a.userId));
+      let style = p.cardStyle;
+      if (body.cardStyle) {
+        const st = (await collectibleStates(ctx.db, a.userId)).find((c) => c.kind === 'card' && c.key === `card_${body.cardStyle}`);
+        if (!st?.unlocked) throw badRequest('That card style is not unlocked.');
+        style = body.cardStyle;
+      }
+      row = { archetypeKey: latest.archetypeKey, secondaryKey: latest.secondaryKey, scores: latest.scores as Record<string, number>, userId: a.userId, displayName: body.showName ? p.displayName : null, referralCode: u.code, cardStyle: style };
+    } else {
+      if (!body.answers) throw badRequest('Answer the statements first.');
+      const r = score(body.answers);
+      if (r.confidence === 'inconclusive') throw badRequest('Your answers were too evenly balanced to show a clear archetype, so there is nothing reliable to share yet. Retake it with your first instinct.');
+      row = { archetypeKey: r.archetype, secondaryKey: r.secondary, scores: r.scores, userId: null, displayName: null, referralCode: null, cardStyle: 'classic' };
+    }
+    const slug = randomToken(9);
+    await ctx.db.insert(s.identityShares).values({ slug, ...row });
+    await track(ctx.db, row.userId, 'identity_share_created', { signedIn: Boolean(row.userId), named: Boolean(row.displayName), archetype: row.archetypeKey });
+    const url = `${ctx.config.APP_ORIGIN}/s/${slug}${row.referralCode ? `?ref=${encodeURIComponent(row.referralCode)}` : ''}`;
+    return { share: { slug, url, displayName: row.displayName, archetype: PERSONA_BY_KEY[row.archetypeKey]?.name } };
+  });
+
+  app.get('/api/v1/share/mine', async (req) => {
+    const a = requireAuth(req);
+    const rows = await ctx.db.select().from(s.identityShares).where(and(eq(s.identityShares.userId, a.userId), isNull(s.identityShares.revokedAt))).orderBy(desc(s.identityShares.createdAt)).limit(20);
+    return { shares: rows.map((r) => ({ slug: r.slug, url: `${ctx.config.APP_ORIGIN}/s/${r.slug}`, named: Boolean(r.displayName), views: r.views, signups: r.signups, createdAt: r.createdAt })) };
+  });
+
+  /** Public, unauthenticated view of a share: archetype only (+ display name if the owner chose it). */
+  app.get('/api/v1/share/:slug', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (req) => {
+    const { slug } = parse(z.object({ slug: z.string().min(8).max(32) }), req.params);
+    const [sh] = await ctx.db.select().from(s.identityShares).where(and(eq(s.identityShares.slug, slug), isNull(s.identityShares.revokedAt)));
+    if (!sh || !PERSONA_BY_KEY[sh.archetypeKey]) throw notFound('Share');
+    await ctx.db.update(s.identityShares).set({ views: sql`${s.identityShares.views} + 1` }).where(eq(s.identityShares.id, sh.id));
+    await track(ctx.db, null, 'identity_share_viewed', { archetype: sh.archetypeKey });
+    const v = personaView({ archetypeKey: sh.archetypeKey, secondaryKey: sh.secondaryKey, scores: sh.scores, confidence: 'medium', version: PERSONALITY_VERSION, createdAt: sh.createdAt });
+    return { share: { slug: sh.slug, displayName: sh.displayName, cardStyle: sh.cardStyle, referralCode: sh.referralCode, persona: { key: v.key, name: v.name, signature: v.signature, traits: v.traits, inCircles: v.inCircles, growth: v.growth, secondary: v.secondary, dimensions: v.dimensions, explanation: v.explanation } } };
+  });
+
+  app.delete('/api/v1/share/:slug', async (req) => {
+    const a = requireAuth(req);
+    const { slug } = parse(z.object({ slug: z.string().min(8).max(32) }), req.params);
+    const res = await ctx.db.update(s.identityShares).set({ revokedAt: new Date() }).where(and(eq(s.identityShares.slug, slug), eq(s.identityShares.userId, a.userId))).returning();
+    if (!res.length) throw notFound('Share');
+    return { ok: true };
   });
 }

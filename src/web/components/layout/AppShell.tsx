@@ -7,8 +7,16 @@ import { isStaff, useMe } from '../../lib/session';
 import { Icon, Logo, type IconName } from '../ui/icons';
 import { Avatar, IconButton, cx } from '../ui/primitives';
 import { Drawer } from '../ui/overlays';
-import { MaskIcon } from '../visual';
+import { MaskIcon } from '../MaskIcon';
 import { uiIcon } from '../../lib/visual';
+import { ModuleUnavailable, useModules } from '../../lib/modules';
+import { PageTransition } from '../motion';
+
+function PublicGate({ children }: { children: ReactNode }) {
+  const loc = useLocation();
+  const mods = useModules();
+  return mods.pageAllowed(loc.pathname) ? <>{children}</> : <ModuleUnavailable />;
+}
 
 /** pkg: an Ink & Ember icon (public/visual/icons) used instead of the built-in icon set. */
 interface NavItem { to: string; key: I18nKey; icon: IconName; staff?: boolean; pkg?: string }
@@ -27,7 +35,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/circles', key: 'nav.circles', icon: 'bonds', pkg: 'circles' },
     { to: '/play', key: 'nav.play', icon: 'rewards', pkg: 'play' },
   ] },
-  { label: 'Astrology', items: [
+  { label: 'Optional · astrology', items: [
     { to: '/cosmic-id', key: 'nav.cosmicId', icon: 'star' },
     { to: '/today', key: 'nav.today', icon: 'today' },
     { to: '/chart', key: 'nav.chart', icon: 'chart' },
@@ -35,9 +43,9 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/bonds', key: 'nav.bonds', icon: 'heart' },
   ] },
   { label: 'More', items: [
+    { to: '/progress', key: 'nav.progress', icon: 'rewards' },
     { to: '/journey', key: 'nav.journey', icon: 'journey' },
     { to: '/invite', key: 'nav.invite', icon: 'share', pkg: 'gift' },
-    { to: '/learn', key: 'nav.learn', icon: 'learn' },
     { to: '/shop', key: 'nav.shop', icon: 'shop' },
   ] },
   { label: 'Nakshatra Labs', labs: true, items: [
@@ -47,6 +55,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/matchmaking', key: 'nav.matchmaking', icon: 'rings' },
     { to: '/experts', key: 'nav.experts', icon: 'expert' },
     { to: '/weddings', key: 'nav.weddings', icon: 'wedding' },
+    { to: '/learn', key: 'nav.learn', icon: 'learn' },
   ] },
   { label: 'Account', items: [
     { to: '/journey/rewards', key: 'nav.rewards', icon: 'rewards' },
@@ -66,9 +75,10 @@ function NavIcon({ item, size, className }: { item: NavItem; size: number; class
   return item.pkg ? <MaskIcon src={uiIcon(item.pkg)} size={size} className={className} /> : <Icon name={item.icon} size={size} className={className} />;
 }
 
-function useCounts(enabled: boolean) {
+function useCounts(enabled: boolean, messagesOn: boolean) {
+  // Polling pauses while the tab is hidden (TanStack Query default) and messages are polled only if that module is on.
   const notifications = useQuery({ queryKey: ['notif-count'], queryFn: () => get<{ unreadCount: number }>('notifications?unread=true'), refetchInterval: 60_000, enabled });
-  const messages = useQuery({ queryKey: ['msg-count'], queryFn: () => get<{ unread: number }>('conversations/unread-count'), refetchInterval: 30_000, enabled });
+  const messages = useQuery({ queryKey: ['msg-count'], queryFn: () => get<{ unread: number }>('conversations/unread-count'), refetchInterval: 30_000, enabled: enabled && messagesOn });
   return { notifications: notifications.data?.unreadCount ?? 0, messages: messages.data?.unread ?? 0 };
 }
 
@@ -80,13 +90,15 @@ function Count({ n }: { n: number }) {
 export function AppShell() {
   const { t } = useI18n();
   const me = useMe().data?.user;
-  const counts = useCounts(Boolean(me));
+  const mods = useModules();
+  const counts = useCounts(Boolean(me), mods.enabled('messages'));
+  const visible = (i: NavItem) => (!i.staff || isStaff(me)) && mods.pageAllowed(i.to);
+  const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter(visible) })).filter((g) => g.items.length);
   const [more, setMore] = useState(false);
   const [q, setQ] = useState('');
   const nav = useNavigate();
   const loc = useLocation();
   const qc = useQueryClient();
-  const staff = isStaff(me);
 
   const signOut = async () => {
     await post('auth/logout');
@@ -114,18 +126,18 @@ export function AppShell() {
           <span className="font-display text-2xl tracking-tight text-fg">Nakshatra</span>
         </Link>
         <nav aria-label="Primary" className="flex-1 space-y-5 overflow-y-auto scrollbar-thin">
-          {GROUPS.map((g) => g.labs ? (
+          {groups.map((g) => g.labs ? (
             <details key={g.label} className="group/labs" open={g.items.some((i) => loc.pathname.startsWith(i.to)) || undefined}>
               <summary className="mb-1 flex cursor-pointer list-none items-center gap-2 rounded-[var(--radius-sm)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-3 hover:text-fg-2">
                 <Icon name="chevronRight" size={12} className="transition-transform group-open/labs:rotate-90" />{g.label}
               </summary>
-              <p className="px-3 pb-1 text-[11px] leading-snug text-fg-3">Early access: working features that need more members before they shine.</p>
+              <p className="px-3 pb-1 text-[11px] leading-snug text-fg-3">Earlier experiments, switched on by an admin.</p>
               <div className="flex flex-col gap-0.5">{g.items.map((i) => link(i))}</div>
             </details>
           ) : (
             <div key={g.label}>
               <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-3">{g.label}</p>
-              <div className="flex flex-col gap-0.5">{g.items.filter((i) => !i.staff || staff).map((i) => link(i))}</div>
+              <div className="flex flex-col gap-0.5">{g.items.map((i) => link(i))}</div>
             </div>
           ))}
         </nav>
@@ -148,25 +160,25 @@ export function AppShell() {
             <label className="relative block">
               <span className="sr-only">{t('nav.search')}</span>
               <Icon name="search" size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people, experts, courses, products…" className="h-10 w-full rounded-full border border-line bg-surface-2 pl-9 pr-4 text-sm placeholder:text-fg-3 focus:border-accent/60" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people, Thought Drops, circles…" className="h-10 w-full rounded-full border border-line bg-surface-2 pl-9 pr-4 text-sm placeholder:text-fg-3 focus:border-accent/60" />
             </label>
           </form>
           <div className="ml-auto flex items-center gap-1">
             <IconButton icon="search" label={t('nav.search')} className="md:hidden" onClick={() => nav('/search')} />
-            <Link to="/messages" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden" aria-label={`${t('nav.messages')}${counts.messages ? `, ${counts.messages} unread` : ''}`}>
+            {mods.enabled('messages') && <Link to="/messages" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden" aria-label={`${t('nav.messages')}${counts.messages ? `, ${counts.messages} unread` : ''}`}>
               <Icon name="messages" size={20} />
               {counts.messages > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
-            </Link>
+            </Link>}
             <Link to="/notifications" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg" aria-label={`${t('nav.notifications')}${counts.notifications ? `, ${counts.notifications} unread` : ''}`}>
               <Icon name="bell" size={20} />
               {counts.notifications > 0 && <span className="absolute right-1 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-[10px] font-bold leading-4 text-accent-ink numeric">{counts.notifications > 9 ? '9+' : counts.notifications}</span>}
             </Link>
-            <Link to="/shop/cart" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg" aria-label="Cart"><Icon name="cart" size={20} /></Link>
+            {mods.payments.enabled && <Link to="/shop/cart" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg" aria-label="Cart"><Icon name="cart" size={20} /></Link>}
           </div>
         </header>
 
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-16 md:pt-10">
-          <Outlet />
+          <PageTransition k={loc.pathname}>{mods.pageAllowed(loc.pathname) ? <Outlet /> : <ModuleUnavailable />}</PageTransition>
         </main>
       </div>
 
@@ -183,10 +195,10 @@ export function AppShell() {
 
       <Drawer open={more} onClose={() => setMore(false)} title="Menu">
         <div className="space-y-5">
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <div key={g.label}>
               <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-3">{g.label}</p>
-              <div className="grid grid-cols-2 gap-1">{g.items.filter((i) => !i.staff || staff).map((i) => link(i, () => setMore(false)))}</div>
+              <div className="grid grid-cols-2 gap-1">{g.items.map((i) => link(i, () => setMore(false)))}</div>
             </div>
           ))}
           <button type="button" onClick={signOut} className="flex w-full items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-sm text-danger hover:bg-surface-2"><Icon name="logout" size={18} />{t('action.signOut')}</button>
@@ -207,13 +219,13 @@ export function PublicShell({ children }: { children: ReactNode }) {
           <Link to="/personality" className="rounded-full bg-accent px-4 py-2 font-semibold text-accent-ink">Find your archetype</Link>
         </nav>
       </header>
-      <main id="main" className="mx-auto max-w-6xl px-4 pb-16 md:px-8">{children}</main>
+      <main id="main" className="mx-auto max-w-6xl px-4 pb-16 md:px-8"><PublicGate>{children}</PublicGate></main>
       <footer className="mx-auto max-w-6xl border-t border-line px-4 py-8 text-xs text-fg-3 md:px-8">
         <div className="flex flex-wrap gap-4">
           <Link to="/legal/terms" className="hover:text-fg-2">Terms</Link>
           <Link to="/legal/privacy" className="hover:text-fg-2">Privacy</Link>
           <Link to="/about/methodology" className="hover:text-fg-2">Methodology</Link>
-          <span>Astrology is presented as a cultural and reflective framework, not a scientific predictor.</span>
+          <span>Archetypes describe tendencies from your own answers; they are not a psychological test. Astrology, where you add it, is a cultural and reflective framework.</span>
         </div>
       </footer>
     </div>

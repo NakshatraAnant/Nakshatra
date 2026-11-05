@@ -1,0 +1,131 @@
+{
+  "p1_postAuthorAsSeenByB": {
+    "pseudonym": "Night Kite"
+  },
+  "p1_mutedListAfterMutingPseudonymousAuthor": [
+    {
+      "userId": "94b0e740-d592-4d0b-b0c2-0ea68d16c170",
+      "handle": "aaravrealname8507",
+      "displayName": "Aarav Realname",
+      "avatarUrl": null
+    }
+  ],
+  "p1_DEANONYMISED": true,
+  "p2_commentAuthors": [
+    {
+      "userId": "94b0e740-d592-4d0b-b0c2-0ea68d16c170",
+      "handle": "aaravrealname8507",
+      "displayName": "Aarav Realname",
+      "avatarUrl": null
+    }
+  ],
+  "p2_DEANONYMISED": true,
+  "p3_who_said_it_round": {
+    "prompt": "bravo line who_said_it",
+    "excludeId": "938ef840-e1c4-410b-8435-2668d798c1fa",
+    "actualAuthor": "938ef840-e1c4-410b-8435-2668d798c1fa",
+    "LEAKS_AUTHOR": true,
+    "waitingOn": [
+      "Aarav Realname:true",
+      "Bina:false",
+      "Chirag:true"
+    ]
+  },
+  "p3_hot_take_arena_round": {
+    "prompt": "alpha line hot_take_arena",
+    "excludeId": "94b0e740-d592-4d0b-b0c2-0ea68d16c170",
+    "actualAuthor": "94b0e740-d592-4d0b-b0c2-0ea68d16c170",
+    "LEAKS_AUTHOR": true,
+    "waitingOn": [
+      "Aarav Realname:false",
+      "Bina:true",
+      "Chirag:true"
+    ]
+  },
+  "p4_outsiderSeesPrivateCircleEvent": {
+    "title": "Secret circle dinner",
+    "location": "12 Private Lane",
+    "groupId": "2bb78984-34d9-48ca-a942-5b2209202d82"
+  },
+  "p4_outsiderCanRsvp": 200,
+  "p5_mfaEnabledBefore": true,
+  "p5_mfaEnabledAfterSetupCallNoPassword": false,
+  "p6_duplicateSignup": {
+    "status": 409,
+    "message": "An account with this email already exists. Try signing in instead."
+  },
+  "p7a_giftToMemberWithoutAssessment": {
+    "simulateStatus": 500,
+    "orderStatus": "pending_payment",
+    "paymentStatus": "created"
+  },
+  "p7b_giftToNonMember": {
+    "simulateStatus": 200,
+    "buyerLibraryReports": [
+      "identity_expanded"
+    ]
+  },
+  "p9_allNeutral": "calm_in_the_chaos / high",
+  "p9_allAgree5": "calm_in_the_chaos / high",
+  "p9_allDisagree1": "calm_in_the_chaos / high",
+  "p9_determinism": true,
+  "p9_uniformRandomDistributionPct": {
+    "midnight_philosopher": 0.74,
+    "chaos_diplomat": 0.5,
+    "unbothered_overthinker": 2.35,
+    "lore_keeper": 1.95,
+    "soft_launch_romantic": 8.03,
+    "human_plot_twist": 0.8,
+    "professional_disappearing_act": 2.06,
+    "emotional_archivist": 2.48,
+    "delulu_strategist": 3.4,
+    "accidental_therapist": 2.03,
+    "quiet_instigator": 2.33,
+    "social_battery_economist": 5.54,
+    "group_chat_mayor": 2.71,
+    "spreadsheet_optimist": 2.35,
+    "main_character_trainee": 0.92,
+    "calm_in_the_chaos": 24.4,
+    "side_quest_collector": 2.12,
+    "kind_truth_teller": 3.49,
+    "cosy_contrarian": 5.62,
+    "loyal_night_owl": 7.09,
+    "hype_engineer": 1.66,
+    "gentle_detective": 7.11,
+    "plan_b_poet": 7.3,
+    "steady_signal": 3
+  },
+  "p9_unreachedUnderUniform": [],
+  "p9_confidencePct": {
+    "high": 18.2,
+    "medium": 37,
+    "low": 44.8
+  },
+  "p9_latticeSharePct": {
+    "midnight_philosopher": 2.3,
+    "chaos_diplomat": 2.19,
+    "unbothered_overthinker": 4.44,
+    "lore_keeper": 3.56,
+    "soft_launch_romantic": 5.6,
+    "human_plot_twist": 2.76,
+    "professional_disappearing_act": 4.92,
+    "emotional_archivist": 4.48,
+    "delulu_strategist": 5.63,
+    "accidental_therapist": 2.72,
+    "quiet_instigator": 3.91,
+    "social_battery_economist": 3.07,
+    "group_chat_mayor": 2.96,
+    "spreadsheet_optimist": 4.63,
+    "main_character_trainee": 1.88,
+    "calm_in_the_chaos": 7.31,
+    "side_quest_collector": 3.77,
+    "kind_truth_teller": 4.29,
+    "cosy_contrarian": 5.93,
+    "loyal_night_owl": 7.97,
+    "hype_engineer": 2.68,
+    "gentle_detective": 4.12,
+    "plan_b_poet": 3.67,
+    "steady_signal": 5.21
+  },
+  "p9_latticeUnreachable": []
+}

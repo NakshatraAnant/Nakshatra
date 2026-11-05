@@ -1,7 +1,49 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "api", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:api"], "port": 4400, "autoPort": false, "env": { "PORT": "4400" } },
-    { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:web"], "port": 5173, "env": { "NAKSHATRA_API": "http://127.0.0.1:4400" } }
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:api"
+      ],
+      "port": 4400,
+      "autoPort": false,
+      "env": {
+        "PORT": "4400"
+      }
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:web"
+      ],
+      "port": 5173,
+      "env": {
+        "NAKSHATRA_API": "http://127.0.0.1:4400"
+      }
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--enable-source-maps",
+        "dist/server/main.js"
+      ],
+      "port": 4500,
+      "autoPort": false,
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "4500",
+        "HOST": "127.0.0.1",
+        "APP_ORIGIN": "http://localhost:4500",
+        "PAYMENT_PROVIDER": "none",
+        "PAYMENTS_ENABLED": "false",
+        "MAIL_TRANSPORT": "dev_mailbox"
+      }
+    }
   ]
 }

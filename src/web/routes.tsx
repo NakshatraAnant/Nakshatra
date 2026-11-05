@@ -2,6 +2,7 @@ import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import { createBrowserRouter, Outlet, useRouteError, Link, Navigate } from 'react-router';
 import { AppShell, PublicShell } from './components/layout/AppShell';
 import { ToastProvider } from './components/ui/overlays';
+import { CelebrationProvider } from './components/motion';
 import { LoadingBlock } from './components/ui/feedback';
 import { I18nProvider } from './lib/i18n';
 import { RequireAuth, useMe, usePreferenceEffects } from './lib/session';
@@ -48,6 +49,9 @@ const thoughts = () => import('./pages/thoughts');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
+const share = () => import('./pages/share');
+const gifts = () => import('./pages/gifts');
+const progress = () => import('./pages/progress');
 
 function Root() {
   const me = useMe();
@@ -55,7 +59,9 @@ function Root() {
   return (
     <I18nProvider locale={me.data?.user?.profile?.language ?? 'en'}>
       <ToastProvider>
-        <Outlet />
+        <CelebrationProvider>
+          <Outlet />
+        </CelebrationProvider>
       </ToastProvider>
     </I18nProvider>
   );
@@ -98,6 +104,8 @@ export const router = createBrowserRouter([
       { path: '/discover', element: pub(page(discover, 'Discover')) },
       { path: '/personality', element: pub(page(studio, 'PersonalityPreview')) },
       { path: '/i/:handle', element: pub(page(studio, 'PublicIdentity')) },
+      { path: '/s/:slug', element: pub(page(share, 'SharedIdentity')) },
+      { path: '/gifts/claim/:token', element: pub(page(gifts, 'GiftClaim')) },
       { path: '/c/join/:token', element: pub(page(circles, 'JoinCircle')) },
       { path: '/signin', element: pub(page(auth, 'SignIn')) },
       { path: '/signup', element: pub(page(auth, 'SignUp')) },
@@ -130,6 +138,7 @@ export const router = createBrowserRouter([
           { path: '/play', element: page(play, 'PlayPage') },
           { path: '/play/:id', element: page(play, 'GameSession') },
           { path: '/invite', element: page(home, 'InvitePage') },
+          { path: '/progress', element: page(progress, 'ProgressPage') },
           { path: '/today', element: page(today, 'Today') },
           { path: '/cosmic-id', element: page(identity, 'CosmicId') },
           { path: '/chart', element: page(chart, 'ChartPage') },

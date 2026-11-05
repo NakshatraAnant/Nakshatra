@@ -58,7 +58,7 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not post', 'error'),
   });
-  const visText = where === 'public' ? 'Anyone who can see public profiles on Nakshatra' : where === 'followers' ? 'Only people who follow you' : `Only members of ${circleName ?? circles.data?.circles.find((c) => `circle:${c.id}` === where)?.name ?? 'this circle'}`;
+  const visText = where === 'public' ? 'Any signed-in Nakshatra member — even if your profile is private (that only hides your profile page)' : where === 'followers' ? 'Only people who follow you' : `Only members of ${circleName ?? circles.data?.circles.find((c) => `circle:${c.id}` === where)?.name ?? 'this circle'}`;
   return (
     <Card className="space-y-3">
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Post type">

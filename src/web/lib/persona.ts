@@ -1,10 +1,11 @@
-import { hashSeed } from '../../shared/play/engine';
+import { hashSeed } from '../../shared/hash';
 
 /** Shapes returned by /identity/me and /personality endpoints (see src/server/modules/studio.ts). */
 export interface Dim { key: string; name: string; low: string; high: string; score: number }
 export interface Persona {
   key: string; name: string; signature: string; traits: string[]; inCircles: string; growth: string;
-  secondary: { key: string; name: string } | null; confidence: 'high' | 'medium' | 'low'; version: string; takenAt: string;
+  secondary: { key: string; name: string } | null; confidence: 'high' | 'medium' | 'low' | 'inconclusive'; version: string; takenAt: string;
+  quality?: { level: 'good' | 'low' | 'insufficient'; flags: string[]; message: string | null } | null;
   dimensions: Dim[]; explanation: string[];
 }
 

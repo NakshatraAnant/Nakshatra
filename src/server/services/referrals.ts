@@ -58,7 +58,9 @@ export async function evaluateReferral(ctx: Ctx, db: Executor, referredId: strin
     return 'rejected';
   }
   const deadline = new Date(referred.createdAt.getTime() + REFERRAL_WINDOW_DAYS * 86400000);
-  if (new Date() > deadline) {
+  // A referral already held back only by the monthly cap was activated in time; the window no longer applies.
+  const heldByCap = ref.decisionReason?.startsWith('Monthly referral reward limit') ?? false;
+  if (!heldByCap && new Date() > deadline) {
     await decide('rejected', `Not activated within ${REFERRAL_WINDOW_DAYS} days`);
     return 'rejected';
   }

@@ -103,7 +103,8 @@ function PrivacySettings() {
   const qc = useQueryClient();
   const toast = useToast();
   const q = useQuery({ queryKey: ['profile'], queryFn: () => get<{ profile: { visibility: string; fieldVisibility: Record<string, string>; interests: string[] } }>('profile') });
-  const blocks = useQuery({ queryKey: ['blocks'], queryFn: () => get<{ blocked: { userId: string; displayName?: string }[]; muted: { userId: string; displayName?: string }[] }>('blocks') });
+  const blocks = useQuery({ queryKey: ['blocks'], queryFn: () => get<{ blocked: { userId: string; displayName?: string }[]; muted: { userId: string; displayName?: string }[]; mutedPenNames: { ref: string; penName: string }[] }>('blocks') });
+  const unmutePen = useMutation({ mutationFn: (ref: string) => del(`pen-mutes/${ref}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }) });
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => patch('profile', body), onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile'] }); qc.invalidateQueries({ queryKey: ['me'] }); toast('Privacy updated', 'success'); } });
   const unblock = useMutation({ mutationFn: (id: string) => del(`blocks/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }) });
   const unmute = useMutation({ mutationFn: (id: string) => del(`mutes/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }) });
@@ -125,7 +126,7 @@ function PrivacySettings() {
         </Card>
         <div className="space-y-5">
           <Card className="space-y-3"><h2 className="font-display text-2xl">Interests</h2><p className="text-sm text-fg-2">Used only to order your feed and suggest courses.</p><Input aria-label="Interests" value={interests} onChange={(e) => setInterests(e.target.value)} /><Button size="sm" onClick={() => save.mutate({ interests: interests.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12) })}>Save interests</Button></Card>
-          <Card><h2 className="font-display text-2xl">Blocked & muted</h2><QueryState q={blocks}>{(b) => (<ul className="mt-3 space-y-2 text-sm">{b.blocked.map((u) => <li key={u.userId} className="flex justify-between"><span>{u.displayName} <Badge>blocked</Badge></span><button type="button" className="text-accent" onClick={() => unblock.mutate(u.userId)}>Unblock</button></li>)}{b.muted.map((u) => <li key={u.userId} className="flex justify-between"><span>{u.displayName} <Badge>muted</Badge></span><button type="button" className="text-accent" onClick={() => unmute.mutate(u.userId)}>Unmute</button></li>)}{!b.blocked.length && !b.muted.length && <li className="text-fg-3">No one.</li>}</ul>)}</QueryState></Card>
+          <Card><h2 className="font-display text-2xl">Blocked & muted</h2><QueryState q={blocks}>{(b) => (<ul className="mt-3 space-y-2 text-sm">{b.blocked.map((u) => <li key={u.userId} className="flex justify-between"><span>{u.displayName} <Badge>blocked</Badge></span><button type="button" className="text-accent" onClick={() => unblock.mutate(u.userId)}>Unblock</button></li>)}{b.muted.map((u) => <li key={u.userId} className="flex justify-between"><span>{u.displayName} <Badge>muted</Badge></span><button type="button" className="text-accent" onClick={() => unmute.mutate(u.userId)}>Unmute</button></li>)}{b.mutedPenNames.map((p) => <li key={p.ref} className="flex justify-between"><span>{p.penName} <Badge>pen name muted</Badge></span><button type="button" className="text-accent" onClick={() => unmutePen.mutate(p.ref)}>Unmute</button></li>)}{!b.blocked.length && !b.muted.length && !b.mutedPenNames.length && <li className="text-fg-3">No one.</li>}</ul>)}</QueryState></Card>
           <Consents />
         </div>
       </div>
@@ -193,11 +194,12 @@ function SecuritySettings() {
   const [mfa, setMfa] = useState<{ secret: string; qrDataUrl: string } | null>(null);
   const [code, setCode] = useState('');
   const [disablePw, setDisablePw] = useState('');
+  const [disableCode, setDisableCode] = useState('');
   const change = useMutation({ mutationFn: () => post('auth/change-password', pw), onSuccess: () => { setPw({ currentPassword: '', newPassword: '' }); toast('Password changed. Other sessions were signed out.', 'success'); qc.invalidateQueries({ queryKey: ['sessions'] }); }, onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error') });
   const revoke = useMutation({ mutationFn: (id: string) => del(`auth/sessions/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['sessions'] }) });
   const setup = useMutation({ mutationFn: () => post<{ secret: string; qrDataUrl: string }>('auth/mfa/setup'), onSuccess: setMfa });
   const enable = useMutation({ mutationFn: () => post('auth/mfa/enable', { code }), onSuccess: () => { setMfa(null); setCode(''); qc.invalidateQueries({ queryKey: ['me'] }); toast('Two-step verification is on', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
-  const disable = useMutation({ mutationFn: () => post('auth/mfa/disable', { password: disablePw }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['me'] }); toast('Two-step verification turned off', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
+  const disable = useMutation({ mutationFn: () => post('auth/mfa/disable', { password: disablePw, code: disableCode }), onSuccess: () => { setDisablePw(''); setDisableCode(''); qc.invalidateQueries({ queryKey: ['me'] }); qc.invalidateQueries({ queryKey: ['sessions'] }); toast('Two-step verification turned off', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
   const resend = useMutation({ mutationFn: () => post('auth/resend-verification'), onSuccess: () => toast('Verification email sent', 'success') });
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -218,8 +220,9 @@ function SecuritySettings() {
           <h2 className="font-display text-2xl">Two-step verification</h2>
           {me?.mfaEnabled ? (<>
             <p className="text-sm text-success">On — an authenticator code is required when you sign in.</p>
-            <Field label="Password to turn off">{(id) => <Input id={id} type="password" value={disablePw} onChange={(e) => setDisablePw(e.target.value)} />}</Field>
-            <Button size="sm" variant="danger" onClick={() => disable.mutate()}>Turn off</Button>
+            <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={disablePw} onChange={(e) => setDisablePw(e.target.value)} />}</Field>
+            <Field label="Current 6-digit code" hint="From your authenticator app. Turning this off signs out your other sessions.">{(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={disableCode} onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))} />}</Field>
+            <Button size="sm" variant="danger" disabled={!disablePw || disableCode.length !== 6} loading={disable.isPending} onClick={() => disable.mutate()}>Turn off</Button>
           </>) : mfa ? (<>
             <img src={mfa.qrDataUrl} alt="QR code for your authenticator app" className="w-40" />
             <p className="text-xs text-fg-3">Or enter this key manually: <code className="break-all">{mfa.secret}</code></p>

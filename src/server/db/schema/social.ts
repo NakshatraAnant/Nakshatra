@@ -101,13 +101,24 @@ export const blocks = pgTable('blocks', {
   blockerId: uuid('blocker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   blockedId: uuid('blocked_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })]);
+}, (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] }), index('blocks_blocked_idx').on(t.blockedId)]);
 
 export const mutes = pgTable('mutes', {
   muterId: uuid('muter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   mutedId: uuid('muted_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.muterId, t.mutedId] })]);
+}, (t) => [primaryKey({ columns: [t.muterId, t.mutedId] }), index('mutes_muted_idx').on(t.mutedId)]);
+
+/**
+ * Mutes made from a pen-name post. They hide only that author's pen-name posts and are listed by pen name.
+ * The real author id stays server-side: the muted list exposes an opaque HMAC handle, never the user id.
+ */
+export const penMutes = pgTable('pen_mutes', {
+  muterId: uuid('muter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  penName: text('pen_name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.muterId, t.authorId] })]);
 
 /* ---------------- Social graph & content ---------------- */
 
@@ -167,7 +178,9 @@ export const posts = pgTable('posts', {
   /** Shown under the author's pseudonym; author id is never serialised to other members. */
   pseudonymous: boolean('pseudonymous').notNull().default(false),
   editedAt: timestamp('edited_at', { withTimezone: true }),
-}, (t) => [index('posts_author_created_idx').on(t.authorId, t.createdAt), index('posts_created_idx').on(t.createdAt), index('posts_group_idx').on(t.groupId)]);
+  /** Pen name at the time of posting, so renaming a pen name never relabels or links older posts. */
+  penName: text('pen_name'),
+}, (t) => [index('posts_author_created_idx').on(t.authorId, t.createdAt), index('posts_created_idx').on(t.createdAt), index('posts_group_idx').on(t.groupId), index('posts_group_created_idx').on(t.groupId, t.createdAt)]);
 
 export const pollOptions = pgTable('poll_options', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -200,7 +213,9 @@ export const comments = pgTable('comments', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   hiddenByModeration: boolean('hidden_by_moderation').notNull().default(false),
-}, (t) => [index('comments_post_idx').on(t.postId, t.createdAt)]);
+  /** The pen-name author replying in their own pen-name thread: shown under the pen name, never the real identity. */
+  asPseudonym: boolean('as_pseudonym').notNull().default(false),
+}, (t) => [index('comments_post_idx').on(t.postId, t.createdAt), index('comments_author_idx').on(t.authorId)]);
 
 export const savedPosts = pgTable('saved_posts', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -300,7 +315,7 @@ export const reports = pgTable('reports', {
   resolution: text('resolution'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-}, (t) => [index('reports_status_queue_idx').on(t.status, t.queue), index('reports_target_user_idx').on(t.targetUserId)]);
+}, (t) => [index('reports_status_queue_idx').on(t.status, t.queue), index('reports_target_user_idx').on(t.targetUserId), index('reports_target_idx').on(t.targetType, t.targetId, t.status)]);
 
 export const moderationActions = pgTable('moderation_actions', {
   id: uuid('id').primaryKey().defaultRandom(),

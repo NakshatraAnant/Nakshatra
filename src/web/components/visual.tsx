@@ -50,10 +50,8 @@ export function ArchetypeArt({ archetypeKey, part = 'sigil', size, scores, decor
 }
 
 /** One-colour UI icon from the package (currentColor masters), recoloured with CSS via mask so it follows text colour. */
-export function MaskIcon({ src, size = 20, label, className }: { src: string; size?: number; label?: string; className?: string }) {
-  const style = { width: size, height: size, maskImage: `url(${src})`, WebkitMaskImage: `url(${src})` } as CSSProperties;
-  return <span role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true} className={cx('mask-icon inline-block shrink-0 bg-current', className)} style={style} />;
-}
+export { MaskIcon } from './MaskIcon';
+import { MaskIcon } from './MaskIcon';
 
 /** Pseudonymous author avatar: dashed ring + eye-off. Never shows archetype art, accent or level. */
 export function PseudonymAvatar({ size = 32 }: { size?: number }) {

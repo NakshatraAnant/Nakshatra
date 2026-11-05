@@ -23,7 +23,8 @@ const TRANSITIONS: Record<string, PaymentStatus[]> = {
   succeeded: ['refunded', 'partially_refunded'],
   partially_refunded: ['refunded', 'partially_refunded'],
   refunded: [],
-  cancelled: [],
+  // A provider can confirm a payment after our order expired; the order handler then refunds it.
+  cancelled: ['succeeded'],
 };
 
 export function canTransition(from: string, to: PaymentStatus): boolean {

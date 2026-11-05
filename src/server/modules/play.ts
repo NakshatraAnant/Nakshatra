@@ -16,7 +16,7 @@ import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { requireFeature } from '../services/settings';
 import {
-  GAMES, GAME_BY_KEY, GameError, canAct, pendingActors, publicRound, settlePrediction,
+  GAMES, GAME_BY_KEY, GameError, canAct, hidesAuthor, pendingActors, publicRound, settlePrediction,
   type Memory, type Participant, type PlayContext, type Reveal, type Round, type Submission, type Summary,
 } from '../../shared/play/engine';
 import type { Vector } from '../../shared/personality';
@@ -294,6 +294,37 @@ export async function playRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true, status: result.status, roundIndex: result.roundIndex };
   });
 
+  /**
+   * Rematch: a player of a finished game opens a new lobby of the same game in the same circle and the
+   * other players are invited (notified). Nobody is joined without acting — they choose to join.
+   */
+  app.post('/api/v1/play/sessions/:id/rematch', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const { sess, me } = await loadSession(ctx, id, a.userId);
+    if (!me) throw forbidden('Only players of this game can ask for a rematch.');
+    if (sess.status !== 'completed' && sess.status !== 'abandoned') throw badRequest('Finish this game first.');
+    const def = GAME_BY_KEY[sess.gameKey];
+    if (sess.circleId) {
+      if (!(await circleMembership(ctx.db, sess.circleId, a.userId))) throw notFound('Circle');
+      const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.gameSessions).where(and(eq(s.gameSessions.circleId, sess.circleId), inArray(s.gameSessions.status, ['lobby', 'active'])));
+      if (n >= MAX_LIVE_SESSIONS_PER_CIRCLE) throw badRequest('This circle already has five games in progress. Finish one first.');
+    }
+    const next = await ctx.db.transaction(async (tx) => {
+      const [row] = await tx.insert(s.gameSessions).values({ gameKey: def.key, gameVersion: def.version, circleId: sess.circleId, hostId: a.userId, state: { rematchOf: sess.id } }).returning();
+      await tx.insert(s.gameParticipants).values({ sessionId: row.id, userId: a.userId, allowReuse: me.allowReuse, shareIdentity: me.shareIdentity });
+      return row;
+    });
+    const host = (await displayNames(ctx.db, [a.userId])).get(a.userId);
+    const others = (await ctx.db.select({ u: s.gameParticipants.userId }).from(s.gameParticipants).where(eq(s.gameParticipants.sessionId, sess.id))).map((r) => r.u).filter((u) => u !== a.userId);
+    for (const u of others) {
+      if (sess.circleId && !(await circleMembership(ctx.db, sess.circleId, u))) continue;
+      await notify(ctx, ctx.db, { userId: u, category: 'games', title: `${host?.displayName ?? 'Someone'} wants a rematch of ${def.name}`, body: 'Join the lobby if you’re up for it.', link: `/play/${next.id}`, dedupeKey: `rematch:${next.id}` });
+    }
+    await track(ctx.db, a.userId, 'game_rematch', { game: def.key });
+    return { session: { id: next.id }, invited: others.length };
+  });
+
   /** Withdraw your line before the round closes (submission rounds only). */
   app.post('/api/v1/play/sessions/:id/withdraw', async (req) => {
     const a = requireAuth(req);
@@ -338,14 +369,17 @@ export async function playRoutes(app: FastifyInstance, ctx: Ctx) {
     const subs = round ? await roundSubs(ctx.db, id, sess.roundIndex) : [];
     const activeIds = parts.filter((p) => !p.leftAt).map((p) => p.userId);
     const pending = round ? pendingActors(round, activeIds, subs) : [];
+    // In hidden-author rounds the author is the one player who never has to act, so per-player
+    // waiting state would reveal them. Only the aggregate count is shared.
+    const secretRound = Boolean(round && hidesAuthor(round));
     const mySub = subs.find((x) => x.userId === a.userId);
     const [circle] = sess.circleId ? await ctx.db.select({ name: s.groups.name }).from(s.groups).where(eq(s.groups.id, sess.circleId)) : [];
     return {
       session: { id: sess.id, status: sess.status, gameKey: sess.gameKey, circleId: sess.circleId, circleName: circle?.name ?? null, hostId: sess.hostId, roundIndex: sess.roundIndex, totalRounds: state.rounds?.length ?? 0, createdAt: sess.createdAt, completedAt: sess.completedAt },
       game: { key: def.key, name: def.name, tagline: def.tagline, howToPlay: def.howToPlay, safety: def.safety, consents: def.consents ?? [], minPlayers: def.minPlayers, maxPlayers: def.maxPlayers, category: def.category },
       me: { joined: Boolean(me && !me.leftAt), isHost: sess.hostId === a.userId, allowReuse: me?.allowReuse ?? false, shareIdentity: me?.shareIdentity ?? false, canAct: Boolean(round && me && !me.leftAt && canAct(round, a.userId)), submission: mySub ? { id: mySub.id, payload: mySub.payload } : null },
-      players: parts.map((p) => ({ userId: p.userId, name: names.get(p.userId)?.displayName ?? 'Player', score: p.score, left: Boolean(p.leftAt), waitingOn: pending.includes(p.userId) })),
-      round: round ? { index: sess.roundIndex, ...publicRound(round), submitted: subs.length, waitingFor: pending.length } : null,
+      players: parts.map((p) => ({ userId: p.userId, name: names.get(p.userId)?.displayName ?? 'Player', score: p.score, left: Boolean(p.leftAt), waitingOn: !secretRound && pending.includes(p.userId) })),
+      round: round ? { index: sess.roundIndex, ...publicRound(round), submitted: subs.length, waitingFor: pending.length, hidesAuthor: secretRound } : null,
       history: (state.rounds ?? []).map((r, i) => ({ index: i, title: r.title, prompt: r.prompt, reveal: state.reveals?.[String(i)] ?? null })).filter((h) => h.reveal),
       summary: state.summary ?? null,
       payouts: state.payouts ? Object.entries(state.payouts).map(([userId, pts]) => ({ name: names.get(userId)?.displayName ?? 'Player', playPoints: pts })) : null,
