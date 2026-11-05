@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { api, quickUser, seededAccount, signIn, watchErrors } from './helpers';
+import { api, quickUser, seededAccount, signIn, watchErrors } from '../helpers';
 
 test('Journey F: product → variant → cart → checkout → dev payment → order → refund request → admin approval → refunded', async ({ browser }) => {
   const ctxC = await browser.newContext();

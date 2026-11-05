@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { api, quickUser, watchErrors } from './helpers';
+import { api, quickUser, watchErrors } from '../helpers';
 
 
 /** Waits for Discover to settle, then passes on other people until the wanted card is on top. */

@@ -195,11 +195,15 @@ function SecuritySettings() {
   const [code, setCode] = useState('');
   const [disablePw, setDisablePw] = useState('');
   const [disableCode, setDisableCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [regen, setRegen] = useState({ password: '', code: '' });
+  const remaining = useQuery({ queryKey: ['mfa-recovery'], queryFn: () => get<{ remaining: number }>('auth/mfa/recovery-codes'), enabled: !!me?.mfaEnabled });
   const change = useMutation({ mutationFn: () => post('auth/change-password', pw), onSuccess: () => { setPw({ currentPassword: '', newPassword: '' }); toast('Password changed. Other sessions were signed out.', 'success'); qc.invalidateQueries({ queryKey: ['sessions'] }); }, onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error') });
   const revoke = useMutation({ mutationFn: (id: string) => del(`auth/sessions/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['sessions'] }) });
   const setup = useMutation({ mutationFn: () => post<{ secret: string; qrDataUrl: string }>('auth/mfa/setup'), onSuccess: setMfa });
-  const enable = useMutation({ mutationFn: () => post('auth/mfa/enable', { code }), onSuccess: () => { setMfa(null); setCode(''); qc.invalidateQueries({ queryKey: ['me'] }); toast('Two-step verification is on', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
+  const enable = useMutation({ mutationFn: () => post<{ recoveryCodes: string[] }>('auth/mfa/enable', { code }), onSuccess: (r) => { setMfa(null); setCode(''); setCodes(r.recoveryCodes); qc.invalidateQueries({ queryKey: ['mfa-recovery'] }); qc.invalidateQueries({ queryKey: ['me'] }); toast('Two-step verification is on', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
   const disable = useMutation({ mutationFn: () => post('auth/mfa/disable', { password: disablePw, code: disableCode }), onSuccess: () => { setDisablePw(''); setDisableCode(''); qc.invalidateQueries({ queryKey: ['me'] }); qc.invalidateQueries({ queryKey: ['sessions'] }); toast('Two-step verification turned off', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
+  const regenerate = useMutation({ mutationFn: () => post<{ recoveryCodes: string[] }>('auth/mfa/recovery-codes', regen), onSuccess: (r) => { setRegen({ password: '', code: '' }); setCodes(r.recoveryCodes); qc.invalidateQueries({ queryKey: ['mfa-recovery'] }); toast('New recovery codes created — the old ones no longer work', 'success'); }, onError: (e) => toast((e as Error).message, 'error') });
   const resend = useMutation({ mutationFn: () => post('auth/resend-verification'), onSuccess: () => toast('Verification email sent', 'success') });
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -220,9 +224,23 @@ function SecuritySettings() {
           <h2 className="font-display text-2xl">Two-step verification</h2>
           {me?.mfaEnabled ? (<>
             <p className="text-sm text-success">On — an authenticator code is required when you sign in.</p>
+            {codes && <RecoveryCodes codes={codes} onDone={() => setCodes(null)} />}
+            <div className="rounded-lg border border-line p-3 text-sm">
+              <p className="text-fg">Recovery codes: {remaining.data ? <strong>{remaining.data.remaining} unused</strong> : '…'}</p>
+              {remaining.data && remaining.data.remaining <= 3 && <p className="mt-1 text-warning">You are running low. Create a new set below.</p>}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-fg-2">Create new recovery codes</summary>
+                <div className="mt-3 space-y-3">
+                  <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={regen.password} onChange={(e) => setRegen({ ...regen, password: e.target.value })} />}</Field>
+                  <Field label="Current 6-digit code" hint="Your old recovery codes stop working.">{(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={regen.code} onChange={(e) => setRegen({ ...regen, code: e.target.value.replace(/\D/g, '') })} />}</Field>
+                  <Button size="sm" variant="secondary" disabled={!regen.password || regen.code.length !== 6} loading={regenerate.isPending} onClick={() => regenerate.mutate()}>Create new codes</Button>
+                </div>
+              </details>
+            </div>
+            <h3 className="pt-2 text-sm font-semibold text-fg">Turn off</h3>
             <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={disablePw} onChange={(e) => setDisablePw(e.target.value)} />}</Field>
-            <Field label="Current 6-digit code" hint="From your authenticator app. Turning this off signs out your other sessions.">{(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={disableCode} onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))} />}</Field>
-            <Button size="sm" variant="danger" disabled={!disablePw || disableCode.length !== 6} loading={disable.isPending} onClick={() => disable.mutate()}>Turn off</Button>
+            <Field label="Authenticator or recovery code" hint="A current 6-digit code, or an unused recovery code if you lost your device. Turning this off signs out your other sessions.">{(id, d) => <Input id={id} aria-describedby={d} autoComplete="one-time-code" spellCheck={false} maxLength={20} value={disableCode} onChange={(e) => setDisableCode(e.target.value.trim())} />}</Field>
+            <Button size="sm" variant="danger" disabled={!disablePw || disableCode.length < 6} loading={disable.isPending} onClick={() => disable.mutate()}>Turn off</Button>
           </>) : mfa ? (<>
             <img src={mfa.qrDataUrl} alt="QR code for your authenticator app" className="w-40" />
             <p className="text-xs text-fg-3">Or enter this key manually: <code className="break-all">{mfa.secret}</code></p>
@@ -235,6 +253,29 @@ function SecuritySettings() {
         <h2 className="font-display text-2xl">Active sessions</h2>
         <QueryState q={sessions}>{(d) => <ul className="mt-3 space-y-3">{d.sessions.map((s) => <li key={s.id} className="flex items-start justify-between gap-3 text-sm"><div><p className="text-fg">{s.userAgent?.slice(0, 60) ?? 'Unknown device'} {s.current && <Badge tone="accent">This device</Badge>}</p><p className="text-xs text-fg-3">Signed in {relative(s.createdAt)} · last active {relative(s.lastSeenAt)}</p></div>{!s.current && <Button size="sm" variant="ghost" onClick={() => revoke.mutate(s.id)}>Sign out</Button>}</li>)}</ul>}</QueryState>
       </Card>
+    </div>
+  );
+}
+
+function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+  const toast = useToast();
+  const text = `Nakshatra recovery codes (each works once)\n\n${codes.join('\n')}\n`;
+  const copy = async () => { try { await navigator.clipboard.writeText(text); toast('Copied', 'success'); } catch { toast('Copy failed — select the codes and copy them manually', 'error'); } };
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'nakshatra-recovery-codes.txt'; a.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <div role="region" aria-label="Your recovery codes" className="space-y-3 rounded-lg border border-warning/50 bg-warning/5 p-3">
+      <p className="text-sm text-fg"><strong>Save these recovery codes now.</strong> They are shown only once. If you lose your authenticator, each code lets you sign in one time.</p>
+      <ul className="grid grid-cols-2 gap-1 font-mono text-sm" data-testid="recovery-codes">{codes.map((c) => <li key={c}>{c}</li>)}</ul>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" onClick={copy}>Copy</Button>
+        <Button size="sm" variant="secondary" onClick={download}>Download .txt</Button>
+        <Button size="sm" onClick={onDone}>I have saved them</Button>
+      </div>
     </div>
   );
 }

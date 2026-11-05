@@ -24,6 +24,8 @@ process.env.UPLOAD_DIR = resolve(root, 'uploads');
 process.env.PAYMENT_PROVIDER = 'dev_simulator';
 process.env.MAIL_TRANSPORT = 'dev_mailbox';
 process.env.LOG_LEVEL = 'warn';
+// Same module configuration as a real launch unless the legacy journeys are being run.
+process.env.MODULE_SCOPE = process.env.E2E_MODULE_SCOPE === 'all' ? 'all' : 'launch';
 delete process.env.DATABASE_URL;
 
 const { loadConfig } = await import('../src/server/config');

@@ -6,6 +6,9 @@ export interface Persona {
   key: string; name: string; signature: string; traits: string[]; inCircles: string; growth: string;
   secondary: { key: string; name: string } | null; confidence: 'high' | 'medium' | 'low' | 'inconclusive'; version: string; takenAt: string;
   quality?: { level: 'good' | 'low' | 'insufficient'; flags: string[]; message: string | null } | null;
+  blend?: { secondaryKey: string; secondaryName?: string; primaryWeight: number } | null;
+  strength?: number | null;
+  model?: { version: string; current: boolean; note: string | null };
   dimensions: Dim[]; explanation: string[];
 }
 

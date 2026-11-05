@@ -44,6 +44,8 @@ export function SignIn() {
   const [password, setPassword] = useState('');
   const [totp, setTotp] = useState('');
   const [mfa, setMfa] = useState(false);
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const done = useAuthSuccess();
@@ -52,7 +54,7 @@ export function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      const r = await post<{ user?: { onboardingComplete: boolean }; mfaRequired?: boolean }>('auth/login', { email, password, totp: mfa ? totp : undefined });
+      const r = await post<{ user?: { onboardingComplete: boolean }; mfaRequired?: boolean }>('auth/login', { email, password, totp: mfa && !useRecovery ? totp : undefined, recoveryCode: mfa && useRecovery ? recoveryCode : undefined });
       if (r.mfaRequired) setMfa(true);
       else if (r.user) await done(r.user);
     } catch (err) {
@@ -66,7 +68,9 @@ export function SignIn() {
         {error && <Notice tone="danger">{error}</Notice>}
         <Field label="Email">{(id) => <Input id={id} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
         <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
-        {mfa && <Field label="Authenticator code" hint="Enter the 6-digit code from your authenticator app.">{(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totp} onChange={(e) => setTotp(e.target.value.replace(/\D/g, ''))} autoFocus />}</Field>}
+        {mfa && !useRecovery && <Field label="Authenticator code" hint="Enter the 6-digit code from your authenticator app.">{(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totp} onChange={(e) => setTotp(e.target.value.replace(/\D/g, ''))} autoFocus />}</Field>}
+        {mfa && useRecovery && <Field label="Recovery code" hint="One of the codes you saved when you turned on two-step verification. Each code works once.">{(id, d) => <Input id={id} aria-describedby={d} autoComplete="off" spellCheck={false} maxLength={20} value={recoveryCode} onChange={(e) => setRecoveryCode(e.target.value)} autoFocus />}</Field>}
+        {mfa && <button type="button" className="self-start text-sm text-fg-2 underline underline-offset-2 hover:text-fg" onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? 'Use my authenticator app instead' : 'Lost your authenticator? Use a recovery code'}</button>}
         <Button type="submit" size="lg" loading={busy} block>{t('action.signIn')}</Button>
         <div className="flex justify-between text-sm">
           <Link to="/forgot-password" className="text-fg-2 hover:text-fg">Forgot password?</Link>

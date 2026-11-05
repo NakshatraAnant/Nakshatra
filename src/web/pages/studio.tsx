@@ -14,14 +14,32 @@ import { ShareLinkPanel } from './share';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
+/** In-progress answers are kept on this device only, so a closed tab or a phone call doesn't lose them. */
+const DRAFT_KEY = 'nk.assessment.draft';
+interface Draft { answers: Record<string, number>; page: number; savedAt: number }
+function readDraft(): Draft | null {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as Draft | null;
+    // Drafts older than 30 days are dropped.
+    return d && typeof d.page === 'number' && d.answers && Date.now() - d.savedAt < 30 * 864e5 ? d : null;
+  } catch { return null; }
+}
+function writeDraft(d: Draft | null) {
+  try { if (d) localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); else localStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable: progress simply isn't kept */ }
+}
+
 /**
  * The 20-question assessment, five statements per step. Answers stay in component
  * state until submitted; nothing is sent until the person finishes.
  */
 export function Assessment({ onDone, submitLabel = 'See my archetype', initial }: { onDone: (answers: Record<string, number>) => Promise<unknown>; submitLabel?: string; initial?: Record<string, number> | null }) {
   const q = useQuery({ queryKey: ['personality-questions'], queryFn: () => get<QuestionsResp>('personality/questions'), staleTime: Infinity });
-  const [answers, setAnswers] = useState<Record<string, number>>(initial ?? {});
-  const [page, setPage] = useState(0);
+  const [draft] = useState(() => (initial ? null : readDraft()));
+  const [answers, setAnswersRaw] = useState<Record<string, number>>(initial ?? draft?.answers ?? {});
+  const [page, setPageRaw] = useState(draft?.page ?? 0);
+  const [resumed, setResumed] = useState(!!draft && Object.keys(draft.answers).length > 0);
+  const setAnswers = (a: Record<string, number>) => { setAnswersRaw(a); writeDraft({ answers: a, page, savedAt: Date.now() }); };
+  const setPage = (p: number) => { setPageRaw(p); writeDraft({ answers, page: p, savedAt: Date.now() }); };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const top = useRef<HTMLDivElement>(null);
@@ -33,11 +51,17 @@ export function Assessment({ onDone, submitLabel = 'See my archetype', initial }
       const answered = Object.keys(answers).length;
       const finish = async () => {
         setBusy(true); setError(null);
-        try { await onDone(answers); } catch (e) { setError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.'); }
+        try { await onDone(answers); writeDraft(null); } catch (e) { setError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.'); }
         setBusy(false);
       };
       return (
         <div ref={top}>
+          {resumed && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-fg-2" role="status">
+              <span>Picked up where you left off.</span>
+              <button type="button" className="underline underline-offset-2 hover:text-fg" onClick={() => { setAnswersRaw({}); setPageRaw(0); writeDraft(null); setResumed(false); }}>Start over</button>
+            </div>
+          )}
           <div className="mb-5 flex items-center gap-3">
             <div className="h-1.5 flex-1 rounded-full bg-surface-3" role="progressbar" aria-valuemin={0} aria-valuemax={d.questions.length} aria-valuenow={answered} aria-label="Questions answered">
               <div className="h-1.5 rounded-full bg-accent transition-[width] duration-300" style={{ width: `${(answered / d.questions.length) * 100}%` }} />
@@ -116,15 +140,21 @@ export function PersonaResult({ persona, actions }: { persona: Persona; style?: 
       <div className="reveal-rest-wrap">
         <div className="reveal-rest flex flex-wrap items-center gap-2">
           <Badge tone="accent">Calculated from your answers</Badge>
-          <Badge tone={persona.confidence === 'inconclusive' ? 'warning' : 'neutral'}>{CONFIDENCE[persona.confidence]}</Badge>
+          <Badge tone={persona.confidence === 'inconclusive' ? 'warning' : 'neutral'}>{persona.blend && persona.confidence !== 'inconclusive' ? 'A blend of two archetypes' : CONFIDENCE[persona.confidence]}</Badge>
+          {persona.model && !persona.model.current && <Badge tone="neutral">Earlier model</Badge>}
         </div>
+        {persona.model?.note && <p className="reveal-rest mt-3 text-sm text-fg-3">{persona.model.note}</p>}
         {persona.quality?.message && <p className="reveal-rest mt-3 rounded-[var(--radius)] border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-fg-2" role="note">{persona.quality.message}</p>}
         <h1 id="persona-name" className="reveal-name mt-3 font-display text-5xl leading-[1] md:text-7xl text-pretty">{persona.name}</h1>
         <p className="reveal-name mt-3 font-display text-2xl italic text-fg-2 text-pretty">{persona.signature}</p>
         <ul className="reveal-rest mt-4 flex flex-wrap gap-2">{persona.traits.map((t) => <li key={t} className="rounded-full border px-3 py-1 text-sm text-fg" style={{ borderColor: `${accent}66` }}>{t}</li>)}</ul>
         <p className="mt-4 text-fg-2"><span className="text-fg">In circles:</span> {persona.inCircles}</p>
         <p className="mt-1 text-fg-2"><span className="text-fg">Growth edge:</span> {persona.growth}</p>
-        {persona.secondary && <p className="mt-1 text-sm text-fg-3">Secondary archetype: {persona.secondary.name}</p>}
+        {persona.blend ? (
+          <p className="mt-3 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-fg-2" data-testid="persona-blend">
+            You sit almost exactly between <span className="text-fg">{persona.name}</span> and <span className="text-fg">{persona.blend.secondaryName}</span> ({Math.round(persona.blend.primaryWeight * 100)}% / {Math.round((1 - persona.blend.primaryWeight) * 100)}%). Both describe you; the first leads by a hair.
+          </p>
+        ) : persona.secondary && <p className="mt-1 text-sm text-fg-3">Secondary archetype: {persona.secondary.name}</p>}
         {actions && <div className="mt-6">{actions}</div>}
       </div>
     </section>
@@ -137,7 +167,7 @@ export function WhyThisResult({ persona }: { persona: Persona }) {
       <div>
         <h2 className="font-display text-2xl">Why this result</h2>
         <ul className="mt-2 space-y-1 text-sm text-fg-2">{persona.explanation.map((e) => <li key={e}>• {e}</li>)}</ul>
-        <p className="mt-3 text-xs text-fg-3">Your answers place you on five dimensions from −1 to +1. Your archetype is the one whose profile sits closest to yours ({persona.version}). Retake any time — people change.</p>
+        <p className="mt-3 text-xs text-fg-3">Your answers place you on five dimensions from −1 to +1. Your archetype is the one whose profile points the same way as yours; how strongly you lean sets how confident the match is ({persona.version}). Retaking saves a new result and keeps your earlier ones in your timeline.</p>
       </div>
       <DimensionBars dims={persona.dimensions} />
     </Card>

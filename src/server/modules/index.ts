@@ -30,6 +30,7 @@ import { ritualRoutes } from './rituals';
 import { referralRoutes } from './referrals';
 import { giftRoutes } from './gifts';
 import { progressionRoutes } from './progression';
+import { insightRoutes } from './insights';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Provider webhooks: signature-verified and idempotent (see lib/payments.ts). */
@@ -99,5 +100,6 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await referralRoutes(app, ctx);
   await giftRoutes(app, ctx);
   await progressionRoutes(app, ctx);
+  await insightRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

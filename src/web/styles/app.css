@@ -86,6 +86,7 @@
   --color-celestial: var(--celestial);
   --color-success: var(--success);
   --color-danger: var(--danger);
+  --color-warning: var(--warning);
 }
 
 :root {

@@ -1,5 +1,8 @@
 /**
- * Nakshatra personality model, version personality-v1.
+ * Nakshatra personality model. Current scoring: personality-v2 (see scorePersonality).
+ * personality-v1 (below, scorePersonalityV1) is kept so stored v1 results can be explained and audited.
+ *
+ * personality-v1:
  *
  * Five dimensions, each scored from -1 to +1 from four Likert questions
  * (1 = strongly disagree … 5 = strongly agree). Some items are reverse-keyed.
@@ -15,7 +18,8 @@
  * This describes tendencies people recognise in themselves. It is not a
  * validated psychometric instrument, a diagnosis, or a prediction.
  */
-export const PERSONALITY_VERSION = 'personality-v1';
+export const PERSONALITY_VERSION = 'personality-v2';
+export const PERSONALITY_VERSIONS = ['personality-v1', 'personality-v2'] as const;
 
 export type Dimension = 'energy' | 'compass' | 'voice' | 'tempo' | 'horizon';
 export const DIMENSIONS: Dimension[] = ['energy', 'compass', 'voice', 'tempo', 'horizon'];
@@ -159,8 +163,14 @@ export interface PersonalityResult {
   secondary: string;
   confidence: Confidence;
   quality: ResponseQuality;
-  /** Distances to every archetype, nearest first (for explanation). */
+  /** Distances to every archetype, nearest first (for explanation). v2: 1 − match. */
   distances: { key: string; distance: number }[];
+  /** v2: set when the top two archetypes are nearly tied. */
+  blend: { primary: string; secondary: string; primaryWeight: number } | null;
+  /** Length of the score vector (0 … √5): how strongly the answers lean overall. */
+  strength: number;
+  /** Gap between the best and second-best match. */
+  margin: number;
 }
 
 export class AssessmentError extends Error {}
@@ -173,7 +183,8 @@ export function validateAnswers(answers: Answers): void {
   if (Object.keys(answers).length < 15) throw new AssessmentError('Answer at least 15 of the 20 questions.');
 }
 
-export function scorePersonality(answers: Answers): PersonalityResult {
+/** personality-v1 (nearest prototype by Euclidean distance). Retained for audit of stored v1 results only. */
+export function scorePersonalityV1(answers: Answers): PersonalityResult {
   validateAnswers(answers);
   const scores = {} as Vector;
   const unknown: Dimension[] = [];
@@ -194,9 +205,115 @@ export function scorePersonality(answers: Answers): PersonalityResult {
   if (quality.level === 'insufficient') confidence = 'inconclusive';
   else if (quality.level === 'low' && confidence !== 'low') confidence = 'low';
   return {
-    version: PERSONALITY_VERSION, scores, unknown, quality,
+    version: 'personality-v1', scores, unknown, quality,
     archetype: distances[0].key, secondary: distances[1].key, confidence,
     distances: distances.map(({ key, distance }) => ({ key, distance })),
+    blend: null, strength: Math.round(Math.sqrt(DIMENSIONS.reduce((s, d) => s + scores[d] ** 2, 0)) * 1000) / 1000, margin: Math.round(gap * 1000) / 1000,
+  };
+}
+
+/** Dimension scores: Σ key·(answer − 3) / (2 · answered); a dimension with < 3 answers is unknown (0). */
+export function dimensionScores(answers: Answers): { scores: Vector; unknown: Dimension[] } {
+  const scores = {} as Vector;
+  const unknown: Dimension[] = [];
+  for (const d of DIMENSIONS) {
+    const qs = QUESTIONS.filter((q) => q.dimension === d && answers[q.id] !== undefined);
+    if (qs.length < 3) { scores[d] = 0; unknown.push(d); continue; }
+    const raw = qs.reduce((sum, q) => sum + q.key * (answers[q.id] - 3), 0) / (2 * qs.length);
+    scores[d] = Math.round(raw * 1000) / 1000;
+  }
+  return { scores, unknown };
+}
+
+/**
+ * personality-v2 — why v1 was replaced:
+ * v1 picked the prototype nearest in Euclidean distance. Prototypes have very different lengths
+ * (Calm in the Chaos ≈ 0.63 from the centre, most others ≈ 1.3–1.6), so any weak or mixed answer sheet —
+ * which lands near the centre — was closest to the shortest prototype. About a quarter of random
+ * sheets became Calm in the Chaos.
+ *
+ * v2 separates WHAT direction someone leans from HOW STRONGLY they lean:
+ *  - match(a) = cos(scores, prototype_a) + offset_a. Direction only, so prototype length no longer matters.
+ *  - offset_a is a small fixed per-archetype calibration (|offset| ≤ 0.12) that equalises how much of the
+ *    answer space each archetype owns. Offsets were fitted once, offline, against a simulated reference
+ *    population (scripts/assessment-distribution.ts) and are part of this version — they never change at
+ *    runtime and never depend on real users' data.
+ *  - strength = length of the score vector (0 … √5). Confidence uses strength AND the margin between the
+ *    best two matches. Weak or near-tied results are labelled as such instead of being presented as clear.
+ *  - When the top two matches are nearly tied, the result is a blend of both (primary keeps its name).
+ * Deterministic: the same answers always give the same result; ties break by catalogue order.
+ */
+export const V2_OFFSETS: Record<string, number> = {
+  midnight_philosopher: 0.0455,
+  chaos_diplomat: 0.1177,
+  unbothered_overthinker: -0.0064,
+  lore_keeper: -0.0199,
+  soft_launch_romantic: -0.0564,
+  human_plot_twist: 0.07,
+  professional_disappearing_act: -0.0644,
+  emotional_archivist: -0.0294,
+  delulu_strategist: -0.0352,
+  accidental_therapist: 0.0699,
+  quiet_instigator: 0.0373,
+  social_battery_economist: 0.0289,
+  group_chat_mayor: 0.0919,
+  spreadsheet_optimist: -0.0028,
+  main_character_trainee: 0.12,
+  calm_in_the_chaos: -0.1097,
+  side_quest_collector: 0.063,
+  kind_truth_teller: -0.0023,
+  cosy_contrarian: -0.0693,
+  loyal_night_owl: -0.12,
+  hype_engineer: 0.0834,
+  gentle_detective: 0.0493,
+  plan_b_poet: 0.073,
+  steady_signal: -0.0453,
+};
+
+export const V2_THRESHOLDS = {
+  /** Below this strength the direction is too unstable to name a single archetype confidently. */
+  weakStrength: 0.45,
+  mediumStrength: 0.7,
+  highStrength: 1.0,
+  mediumMargin: 0.03,
+  highMargin: 0.06,
+  /** Top-two margin under this → blended result. */
+  blendMargin: 0.02,
+} as const;
+
+function norm(x: Vector): number { return Math.sqrt(DIMENSIONS.reduce((s, d) => s + x[d] ** 2, 0)); }
+
+export function archetypeMatches(scores: Vector, offsets: Record<string, number> = V2_OFFSETS): { key: string; i: number; match: number }[] {
+  const n = norm(scores);
+  return PERSONA_ARCHETYPES.map((a, i) => {
+    const cos = n === 0 ? 0 : DIMENSIONS.reduce((s, d) => s + scores[d] * a.prototype[d], 0) / (n * norm(a.prototype));
+    return { key: a.key, i, match: cos + (offsets[a.key] ?? 0) };
+  }).sort((x, y) => y.match - x.match || x.i - y.i);
+}
+
+export function scorePersonality(answers: Answers): PersonalityResult {
+  validateAnswers(answers);
+  const { scores, unknown } = dimensionScores(answers);
+  const ranked = archetypeMatches(scores);
+  const strength = norm(scores);
+  const margin = ranked[0].match - ranked[1].match;
+  const T = V2_THRESHOLDS;
+  let confidence: Confidence = strength >= T.highStrength && margin >= T.highMargin ? 'high'
+    : strength >= T.mediumStrength && margin >= T.mediumMargin ? 'medium' : 'low';
+  if (strength < T.weakStrength || unknown.length) confidence = 'low';
+  const quality = assessQuality(answers, scores, unknown);
+  if (quality.level === 'insufficient') confidence = 'inconclusive';
+  else if (quality.level === 'low' && confidence !== 'low') confidence = 'low';
+  const blended = confidence !== 'inconclusive' && margin < T.blendMargin;
+  const w0 = Math.exp(ranked[0].match * 8);
+  const w1 = Math.exp(ranked[1].match * 8);
+  return {
+    version: PERSONALITY_VERSION, scores, unknown, quality,
+    archetype: ranked[0].key, secondary: ranked[1].key, confidence,
+    distances: ranked.map((r) => ({ key: r.key, distance: Math.round((1 - r.match) * 1000) / 1000 })),
+    blend: blended ? { primary: ranked[0].key, secondary: ranked[1].key, primaryWeight: Math.round((w0 / (w0 + w1)) * 100) / 100 } : null,
+    strength: Math.round(strength * 1000) / 1000,
+    margin: Math.round(margin * 1000) / 1000,
   };
 }
 

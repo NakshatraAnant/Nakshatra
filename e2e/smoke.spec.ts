@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { api, quickUser, seededAccount, signIn } from './helpers';
+import { quickUser, seededAccount, signIn } from './helpers';
 
 const PUBLIC = ['/', '/personality', '/discover', '/signin', '/signup', '/forgot-password', '/legal/terms', '/legal/privacy', '/about/methodology', '/dev/mailbox'];
 const MEMBER = [
@@ -38,8 +38,7 @@ test('every public route renders', async ({ page }) => {
 test('every member route renders without errors', async ({ page }) => {
   test.setTimeout(600_000);
   const u = await quickUser(page, 'Smoke');
-  const experts = await api(page, 'GET', 'experts');
-  const extra = [`/u/${u.handle}`, `/experts/${experts.experts[0].userId}`];
+  const extra = [`/u/${u.handle}`];
   expect(await visitAll(page, [...MEMBER, ...extra])).toEqual([]);
 });
 

@@ -129,3 +129,12 @@ export const consentRecords = pgTable('consent_records', {
   policyVersion: text('policy_version').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('consent_user_purpose_idx').on(t.userId, t.purpose)]);
+
+/** One-time MFA recovery codes. Only an HMAC of each code is stored; a used code is kept (used_at) for audit. */
+export const mfaRecoveryCodes = pgTable('mfa_recovery_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('mfa_recovery_codes_hash_uq').on(t.codeHash), index('mfa_recovery_codes_user_idx').on(t.userId)]);

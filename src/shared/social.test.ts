@@ -14,7 +14,7 @@ describe('personality scoring', () => {
   it('is deterministic and versioned', () => {
     const a = scorePersonality(lean(1));
     expect(scorePersonality(lean(1))).toEqual(a);
-    expect(a.version).toBe('personality-v1');
+    expect(a.version).toBe('personality-v2');
   });
 
   it('maps fully agreeing with high-keyed items to +1 on every dimension', () => {

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { DAILY_LESSONS } from '../src/content/daily';
-import { api, quickUser, watchErrors } from './helpers';
+import { DAILY_LESSONS } from '../../src/content/daily';
+import { api, quickUser, watchErrors } from '../helpers';
 
 test('Journey C + H: enroll → complete lesson → pass quiz → achievement → XP awarded once → progress persists', async ({ page }) => {
   const w = watchErrors(page);

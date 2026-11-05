@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DIMENSIONS, PERSONA_ARCHETYPES, QUESTIONS, scorePersonality, type Answers, type Vector } from './personality';
+import { DIMENSIONS, PERSONA_ARCHETYPES, QUESTIONS, archetypeMatches, scorePersonality, scorePersonalityV1, type Answers, type Vector } from './personality';
+import { simulatePopulation, summariseResults } from './assessmentSim';
 
 const all = (v: number): Answers => Object.fromEntries(QUESTIONS.map((q) => [q.id, v]));
 
@@ -25,8 +26,8 @@ function bestPointFor(key: string): Vector {
   const rec = (i: number, acc: number[]) => {
     if (i === DIMENSIONS.length) {
       const v = Object.fromEntries(DIMENSIONS.map((d, j) => [d, acc[j]])) as Vector;
-      const ds = PERSONA_ARCHETYPES.map((a) => ({ k: a.key, d: Math.sqrt(DIMENSIONS.reduce((s, dd) => s + (v[dd] - a.prototype[dd]) ** 2, 0)) })).sort((x, y) => x.d - y.d);
-      if (ds[0].k === key && (!best || ds[1].d - ds[0].d > best.gap)) best = { v, gap: ds[1].d - ds[0].d };
+      const ds = archetypeMatches(v);
+      if (ds[0].key === key && (!best || ds[0].match - ds[1].match > best.gap)) best = { v, gap: ds[0].match - ds[1].match };
       return;
     }
     for (const l of levels) rec(i + 1, [...acc, l]);
@@ -89,5 +90,59 @@ describe('personality scoring — response quality (quality-v1)', () => {
     }
     // Before quality-v1, ~24% of random sheets became Calm in the Chaos and many were labelled clear or good matches.
     expect(calmConfident / n).toBeLessThan(0.03);
+  });
+});
+
+describe('personality-v2 — archetype balance and honest confidence', () => {
+  it.each(PERSONA_ARCHETYPES.map((a) => a.key))('%s: a decisive sheet matching it gives a confident, unblended result', (key) => {
+    const r = scorePersonality(sheetFor(bestPointFor(key)));
+    expect(r.archetype).toBe(key);
+    expect(['high', 'medium']).toContain(r.confidence);
+    expect(r.blend).toBeNull();
+  });
+
+  it('answering exactly like the prototype (rounded to the answer scale) lands on that archetype for every archetype', () => {
+    const hits = PERSONA_ARCHETYPES.filter((a) => {
+      const target = Object.fromEntries(DIMENSIONS.map((d) => [d, Math.round(a.prototype[d] * 4) / 4])) as Vector;
+      return scorePersonality(sheetFor(target)).archetype === a.key;
+    });
+    expect(hits.map((h) => h.key)).toEqual(PERSONA_ARCHETYPES.map((a) => a.key));
+  });
+
+  it.each([['uniform', 7], ['persons', 11], ['mild', 13]] as const)('%s population: every archetype between 2.5%% and 6.5%% (uniform share 4.2%%)', (kind, seed) => {
+    const s = summariseResults(simulatePopulation(kind, 6000, seed).map(scorePersonality));
+    expect(s.minShare).toBeGreaterThan(0.025);
+    expect(s.maxShare).toBeLessThan(0.065);
+  });
+
+  it('v1 bias is reproduced (so stored v1 results stay explainable) and removed in v2', () => {
+    const sheets = simulatePopulation('mild', 4000, 21);
+    const v1 = summariseResults(sheets.map(scorePersonalityV1));
+    const v2 = summariseResults(sheets.map(scorePersonality));
+    expect(v1.share.calm_in_the_chaos).toBeGreaterThan(20);
+    expect(v2.share.calm_in_the_chaos).toBeLessThan(6.5);
+    expect(scorePersonalityV1(sheets[0]).version).toBe('personality-v1');
+  });
+
+  it('random answering is almost never presented as a confident match', () => {
+    const s = summariseResults(simulatePopulation('uniform', 6000, 99).map(scorePersonality));
+    expect(s.confidence.high + s.confidence.medium).toBeLessThan(12);
+  });
+
+  it('a near-tie is reported as a blend of the two closest archetypes', () => {
+    const tied = simulatePopulation('persons', 3000, 5).map(scorePersonality).find((r) => r.blend && r.confidence !== 'inconclusive');
+    expect(tied).toBeTruthy();
+    expect(tied!.blend!.primary).toBe(tied!.archetype);
+    expect(tied!.blend!.secondary).toBe(tied!.secondary);
+    expect(tied!.margin).toBeLessThan(0.02);
+    expect(tied!.blend!.primaryWeight).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('strength scales with how strongly someone answers; direction alone picks the archetype', () => {
+    const strong = sheetFor({ energy: 1, compass: 0.5, voice: 1, tempo: 0.25, horizon: 0 });
+    const weak = sheetFor({ energy: 0.5, compass: 0.25, voice: 0.5, tempo: 0, horizon: 0 });
+    const a = scorePersonality(strong); const b = scorePersonality(weak);
+    expect(a.strength).toBeGreaterThan(b.strength);
+    expect(a.archetype).toBe('group_chat_mayor');
   });
 });

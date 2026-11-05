@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.E2E_PORT ?? 4410);
+/** The suite runs against the launch configuration (legacy modules off). E2E_MODULE_SCOPE=all runs the legacy journeys in e2e/legacy instead. */
+const LEGACY = process.env.E2E_MODULE_SCOPE === 'all';
+const LEGACY_DIR = /[\\/]legacy[\\/]/;
 
 export default defineConfig({
   testDir: './e2e',
@@ -24,11 +27,15 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testIgnore: [/mobile\.spec/, /g-wedding\.spec/] },
-    // The four-user wedding journey runs in its own project (fresh worker + browser): after ~15 min of software-WebGL
-    // work in one headless browser it intermittently stalled loading a route chunk, while passing alone and after E/F.
-    { name: 'desktop-isolated', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testMatch: /g-wedding\.spec/ },
+    { name: 'desktop', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testIgnore: [/mobile\.spec/, /widths\.spec/, LEGACY_DIR, ...(LEGACY ? [/legacy-modules\.spec/, /h-progress\.spec/] : [])] },
+    // Layout checks at the supported phone/tablet/desktop widths.
+    { name: 'widths', use: { ...devices['Desktop Edge'] }, testMatch: /widths\.spec/ },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /mobile\.spec/ },
+    ...(LEGACY ? [
+      { name: 'legacy', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testMatch: LEGACY_DIR, testIgnore: /g-wedding\.spec/ },
+      // The four-user wedding journey runs in its own worker + browser (software WebGL stalls after long runs).
+      { name: 'legacy-isolated', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testMatch: /g-wedding\.spec/ },
+    ] : []),
   ],
   webServer: {
     command: 'npx tsx scripts/e2e-server.ts',

@@ -11,6 +11,7 @@ import {
 import { AppError, badRequest, conflict, notFound, parse, unauthorized } from '../lib/http';
 import { evaluateReferral } from '../services/referrals';
 import { claimPendingGiftsForUser } from '../services/gifts';
+import { clearRecoveryCodes, consumeRecoveryCode, issueRecoveryCodes, looksLikeRecoveryCode, recoveryCodesRemaining } from '../services/mfaRecovery';
 import { CSRF_COOKIE, SESSION_COOKIE, SESSION_DAYS, requireAuth } from '../lib/auth';
 import { notify, sendEmail, NOTIFICATION_CATEGORIES } from '../lib/notify';
 
@@ -30,11 +31,17 @@ export const SignupBody = z.object({
   shareSlug: z.string().trim().min(8).max(32).optional(),
 });
 
-const LoginBody = z.object({ email: Email, password: z.string().min(1).max(200), totp: z.string().optional() });
+const LoginBody = z.object({ email: Email, password: z.string().min(1).max(200), totp: z.string().max(10).optional(), recoveryCode: z.string().max(40).optional() });
 
 function slugHandle(name: string): string {
   const base = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 16) || 'star';
   return `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+async function recoveryCodeUsed(ctx: Ctx, userId: string, ip: string) {
+  const remaining = await recoveryCodesRemaining(ctx.db, userId);
+  await audit(ctx.db, { actorId: userId, action: 'auth.mfa_recovery_used', ip, meta: { remaining } });
+  await notify(ctx, ctx.db, { userId, category: 'security', title: 'A recovery code was used to sign in', body: `${remaining} recovery code${remaining === 1 ? '' : 's'} left. If this wasn’t you, change your password and create new codes in Settings → Security.`, link: '/settings/security' });
 }
 
 export async function createSession(ctx: Ctx, reply: FastifyReply, req: FastifyRequest, userId: string, mfaPassed: boolean) {
@@ -147,11 +154,14 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     let mfaPassed = !u.mfaEnabled;
     if (u.mfaEnabled) {
-      if (!body.totp) return reply.code(200).send({ mfaRequired: true });
-      if (!verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret!), body.totp)) {
-        await audit(ctx.db, { actorId: u.id, action: 'auth.mfa_failed', ip: req.ip });
-        throw new AppError(401, 'invalid_mfa', 'That authenticator code is not valid.');
+      if (!body.totp && !body.recoveryCode) return reply.code(200).send({ mfaRequired: true });
+      const totpOk = !!body.totp && verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret!), body.totp);
+      const recoveryOk = !totpOk && !!body.recoveryCode && await consumeRecoveryCode(ctx, ctx.db, u.id, body.recoveryCode);
+      if (!totpOk && !recoveryOk) {
+        await audit(ctx.db, { actorId: u.id, action: 'auth.mfa_failed', ip: req.ip, meta: { method: body.recoveryCode ? 'recovery_code' : 'totp' } });
+        throw new AppError(401, 'invalid_mfa', body.recoveryCode ? 'That recovery code is not valid or has already been used.' : 'That authenticator code is not valid.');
       }
+      if (recoveryOk) await recoveryCodeUsed(ctx, u.id, req.ip);
       mfaPassed = true;
     }
     await createSession(ctx, reply, req, u.id, mfaPassed);
@@ -271,25 +281,28 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!u.mfaSecret || !verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code)) throw badRequest('That code is not valid. Check the time on your device and try again.');
     await ctx.db.update(s.users).set({ mfaEnabled: true }).where(eq(s.users.id, a.userId));
     await ctx.db.update(s.sessions).set({ mfaPassed: true }).where(eq(s.sessions.id, a.sessionId));
+    const recoveryCodes = await issueRecoveryCodes(ctx, ctx.db, a.userId);
     await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_enabled', ip: req.ip });
-    await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'Two-step verification turned on' });
-    return reply.send({ ok: true });
+    await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'Two-step verification turned on', body: 'Keep your recovery codes somewhere safe — they are the only way back in if you lose your authenticator.' });
+    return reply.send({ ok: true, recoveryCodes });
   });
 
   app.post('/api/v1/auth/mfa/disable', strict, async (req, reply) => {
     const a = requireAuth(req);
-    const { password, code } = parse(z.object({ password: z.string().min(1).max(200), code: z.string().max(10) }), req.body);
+    const { password, code } = parse(z.object({ password: z.string().min(1).max(200), code: z.string().max(40) }), req.body);
     const [u] = await ctx.db.select().from(s.users).where(eq(s.users.id, a.userId));
-    // Fresh re-authentication: the password AND a current authenticator code.
+    // Fresh re-authentication: the password AND a current authenticator code (or an unused recovery code, for a lost device).
     if (!(await verifyPassword(password, u.passwordHash))) {
       await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disable_failed', ip: req.ip, meta: { reason: 'password' } });
       throw unauthorized('Password is incorrect.');
     }
-    if (u.mfaEnabled && (!u.mfaSecret || !verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code))) {
+    const disableTotpOk = !!u.mfaSecret && verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code);
+    if (u.mfaEnabled && !disableTotpOk && !(looksLikeRecoveryCode(code) && await consumeRecoveryCode(ctx, ctx.db, a.userId, code))) {
       await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disable_failed', ip: req.ip, meta: { reason: 'code' } });
       throw new AppError(401, 'invalid_mfa', 'That authenticator code is not valid.');
     }
     await ctx.db.update(s.users).set({ mfaEnabled: false, mfaSecret: null, updatedAt: new Date() }).where(eq(s.users.id, a.userId));
+    await clearRecoveryCodes(ctx.db, a.userId);
     // A security change signs out every other session.
     await ctx.db.update(s.sessions).set({ revokedAt: new Date() }).where(and(eq(s.sessions.userId, a.userId), ne(s.sessions.id, a.sessionId), isNull(s.sessions.revokedAt)));
     await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_disabled', ip: req.ip });
@@ -299,11 +312,42 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
 
   app.post('/api/v1/auth/mfa/verify', strict, async (req, reply) => {
     const a = requireAuth(req, { allowMfaPending: true });
-    const { code } = parse(z.object({ code: z.string() }), req.body);
+    const { code } = parse(z.object({ code: z.string().max(40) }), req.body);
     const [u] = await ctx.db.select().from(s.users).where(eq(s.users.id, a.userId));
-    if (!u.mfaSecret || !verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code)) throw new AppError(401, 'invalid_mfa', 'That authenticator code is not valid.');
+    const totpOk = !!u.mfaSecret && verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code);
+    const recoveryOk = !totpOk && looksLikeRecoveryCode(code) && await consumeRecoveryCode(ctx, ctx.db, a.userId, code);
+    if (!totpOk && !recoveryOk) {
+      await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_failed', ip: req.ip });
+      throw new AppError(401, 'invalid_mfa', 'That code is not valid.');
+    }
+    if (recoveryOk) await recoveryCodeUsed(ctx, a.userId, req.ip);
     await ctx.db.update(s.sessions).set({ mfaPassed: true }).where(eq(s.sessions.id, a.sessionId));
     return reply.send({ user: await meFor(ctx, a.userId) });
+  });
+
+  app.get('/api/v1/auth/mfa/recovery-codes', async (req, reply) => {
+    const a = requireAuth(req);
+    return reply.send({ remaining: await recoveryCodesRemaining(ctx.db, a.userId) });
+  });
+
+  /** New set of recovery codes. Needs the password and a current authenticator code; old codes stop working. */
+  app.post('/api/v1/auth/mfa/recovery-codes', strict, async (req, reply) => {
+    const a = requireAuth(req);
+    const { password, code } = parse(z.object({ password: z.string().min(1).max(200), code: z.string().max(10) }), req.body);
+    const [u] = await ctx.db.select().from(s.users).where(eq(s.users.id, a.userId));
+    if (!u.mfaEnabled || !u.mfaSecret) throw conflict('Turn on two-step verification first.');
+    if (!(await verifyPassword(password, u.passwordHash))) {
+      await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_recovery_regen_failed', ip: req.ip, meta: { reason: 'password' } });
+      throw unauthorized('Password is incorrect.');
+    }
+    if (!verifyTotp(decryptField(ctx.config.appSecret, u.mfaSecret), code)) {
+      await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_recovery_regen_failed', ip: req.ip, meta: { reason: 'code' } });
+      throw new AppError(401, 'invalid_mfa', 'That authenticator code is not valid.');
+    }
+    const recoveryCodes = await issueRecoveryCodes(ctx, ctx.db, a.userId);
+    await audit(ctx.db, { actorId: a.userId, action: 'auth.mfa_recovery_regenerated', ip: req.ip });
+    await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'New recovery codes created', body: 'Your previous recovery codes no longer work.', link: '/settings/security' });
+    return reply.send({ recoveryCodes });
   });
 
   // Development mailbox (never registered in production).

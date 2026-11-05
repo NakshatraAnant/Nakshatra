@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { api, quickUser, seededAccount, signIn, watchErrors } from './helpers';
+import { api, quickUser, seededAccount, signIn, watchErrors } from '../helpers';
 
 async function bookSlot(page: Page, expertId: string, which: 'first' | 'last' = 'first') {
   await page.goto(`/experts/${expertId}`);

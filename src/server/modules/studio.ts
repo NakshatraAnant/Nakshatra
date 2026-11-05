@@ -28,12 +28,19 @@ export function personaView(r: { archetypeKey: string; secondaryKey: string | nu
   const a = PERSONA_BY_KEY[r.archetypeKey];
   const scores = r.scores as Vector;
   const quality = r.answers ? assessQuality(r.answers as Answers, scores) : null;
+  // v2 results are recomputed from the stored answers for the blend/strength detail (deterministic, same version).
+  // Older results keep the archetype they were given; they are labelled with the model that produced them.
+  const current = r.version === PERSONALITY_VERSION;
+  const detail = current && r.answers ? (() => { try { return scorePersonality(r.answers as Answers); } catch { return null; } })() : null;
+  const blend = detail?.blend ? { secondaryKey: detail.blend.secondary, secondaryName: PERSONA_BY_KEY[detail.blend.secondary]?.name, primaryWeight: detail.blend.primaryWeight } : null;
   // Results saved before quality-v1 are re-labelled honestly on read.
   const confidence = quality?.level === 'insufficient' ? 'inconclusive' : quality?.level === 'low' && r.confidence !== 'low' ? 'low' : r.confidence;
   return {
     key: a.key, name: a.name, signature: a.signature, traits: a.traits, inCircles: a.inCircles, growth: a.growth,
     secondary: r.secondaryKey ? { key: r.secondaryKey, name: PERSONA_BY_KEY[r.secondaryKey]?.name } : null,
     confidence, quality, version: r.version, takenAt: r.createdAt,
+    blend, strength: detail?.strength ?? null,
+    model: { version: r.version, current, note: current ? null : 'Scored with an earlier version of the archetype model. Your result is kept as it was; retake to be scored with the current model.' },
     dimensions: DIMENSIONS.map((d) => ({ key: d, ...DIMENSION_INFO[d], score: scores[d] })),
     explanation: explainScores(scores).slice(0, 2).map((e) => e.text),
   };

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { api, quickUser, seededAccount, signIn, watchErrors } from './helpers';
+import { api, quickUser, seededAccount, signIn, watchErrors } from '../helpers';
 
 test('Journey G: project → invite partner with permissions → task → vendor inquiry → quotation → accept → deposit → booked; permissions enforced', async ({ browser }) => {
   const ctxO = await browser.newContext();
