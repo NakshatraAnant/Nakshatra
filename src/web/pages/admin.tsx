@@ -8,11 +8,12 @@ import { Badge, Button, Card, Field, Input, PageHeader, Select, Switch, Textarea
 import { QueryState, Notice } from '../components/ui/feedback';
 import { ConfirmDialog, Dialog, useToast } from '../components/ui/overlays';
 import { DataTable, StatTile } from '../components/ui/data';
+import { AssessmentAdmin, FunnelAdmin } from './adminInsights';
 
 const SECTIONS: [string, string][] = [
   ['overview', 'Overview'], ['users', 'Users'], ['moderation', 'Moderation'], ['appeals', 'Appeals'], ['verification', 'Verification'], ['refunds', 'Refunds & disputes'],
   ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
-  ['config', 'Calculation configs'], ['templates', 'Notification templates'], ['analytics', 'Analytics'], ['audit', 'Audit log'], ['flags', 'Flags & settings'],
+  ['config', 'Calculation configs'], ['templates', 'Notification templates'], ['analytics', 'Analytics'], ['funnel', 'Funnel'], ['assessment', 'Assessment model'], ['audit', 'Audit log'], ['flags', 'Flags & settings'],
   ['support', 'Support'], ['privacy', 'Privacy requests'],
 ];
 
@@ -42,6 +43,8 @@ export function AdminPage() {
           {section === 'config' && <Configs />}
           {section === 'templates' && <Templates />}
           {section === 'analytics' && <Analytics />}
+          {section === 'funnel' && <FunnelAdmin />}
+          {section === 'assessment' && <AssessmentAdmin />}
           {section === 'audit' && <Audit />}
           {section === 'flags' && <Flags />}
           {section === 'support' && <Support />}

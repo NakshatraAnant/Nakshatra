@@ -92,7 +92,16 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   quest_claimed: { meaningful: false, description: 'Quest reward claimed.' },
   season_reward_claimed: { meaningful: false, description: 'Season milestone reward claimed.' },
   game_rematch: { meaningful: true, description: 'A finished game was replayed with the same players.' },
+  assessment_started: { meaningful: false, description: 'First assessment answer given (anonymous unless signed in).' },
+  result_viewed: { meaningful: false, description: 'Archetype result shown (anonymous unless signed in).' },
+  share_card_created: { meaningful: true, description: 'Archetype card image downloaded or shared (anonymous unless signed in).' },
+  connection_made: { meaningful: true, description: 'Member followed (or asked to follow) someone.' },
+  discovery_opt_in: { meaningful: false, description: 'Member turned Discover → People listing on or off.' },
+  return_visit: { meaningful: false, description: 'Member came back on a later day than their previous visit.' },
 };
+
+/** Events a browser may report itself (POST /api/v1/discover/events). Everything else is recorded by the server. */
+export const CLIENT_EVENTS = ['landing_viewed', 'cosmic_id_card_downloaded', 'cosmic_id_preview_signup_clicked', 'assessment_started', 'result_viewed', 'share_card_created', 'preview_signup_clicked', 'offer_viewed'] as const;
 
 export async function track(db: Executor, userId: string | null, name: keyof typeof EVENT_TAXONOMY, props: Record<string, unknown> = {}) {
   const def = EVENT_TAXONOMY[name];

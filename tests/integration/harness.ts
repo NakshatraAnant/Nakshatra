@@ -65,7 +65,7 @@ export class Client {
   cookies = new Map<string, string>();
   constructor(private app: FastifyInstance) {}
 
-  private cookieHeader() {
+  cookieHeader() {
     return [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
   }
 

@@ -9,7 +9,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 export type Locale = 'en' | 'hi';
 
 const en = {
-  'nav.home': 'Home', 'nav.identity': 'Identity', 'nav.thoughts': 'Thoughts', 'nav.circles': 'Circles', 'nav.play': 'Play', 'nav.invite': 'Invite friends',
+  'nav.home': 'Home', 'nav.discover': 'Discover', 'nav.create': 'Create', 'nav.profile': 'Profile', 'nav.identity': 'Identity', 'nav.thoughts': 'Thoughts', 'nav.circles': 'Circles', 'nav.play': 'Play', 'nav.invite': 'Invite friends',
   'nav.today': 'Daily sky', 'nav.cosmicId': 'Cosmic ID', 'nav.chart': 'Chart', 'nav.calendar': 'Calendar', 'nav.journey': 'Journey', 'nav.progress': 'Quests & streaks',
   'nav.bonds': 'Bonds', 'nav.social': 'Community', 'nav.messages': 'Messages', 'nav.dating': 'Dating', 'nav.matchmaking': 'Matchmaking',
   'nav.experts': 'Experts', 'nav.learn': 'Learn', 'nav.shop': 'Shop', 'nav.weddings': 'Weddings', 'nav.rewards': 'Rewards',
@@ -29,7 +29,7 @@ const en = {
 type Key = keyof typeof en;
 
 const hi: Partial<Record<Key, string>> = {
-  'nav.home': 'होम', 'nav.identity': 'पहचान', 'nav.thoughts': 'विचार', 'nav.circles': 'सर्कल', 'nav.play': 'खेल', 'nav.invite': 'दोस्तों को बुलाएँ',
+  'nav.home': 'होम', 'nav.discover': 'खोजें', 'nav.create': 'बनाएँ', 'nav.profile': 'प्रोफ़ाइल', 'nav.identity': 'पहचान', 'nav.thoughts': 'विचार', 'nav.circles': 'सर्कल', 'nav.play': 'खेल', 'nav.invite': 'दोस्तों को बुलाएँ',
   'nav.today': 'आज', 'nav.cosmicId': 'कॉस्मिक आईडी', 'nav.chart': 'कुंडली', 'nav.calendar': 'पंचांग', 'nav.journey': 'यात्रा',
   'nav.bonds': 'संबंध', 'nav.social': 'समुदाय', 'nav.messages': 'संदेश', 'nav.dating': 'डेटिंग', 'nav.matchmaking': 'रिश्ते',
   'nav.experts': 'विशेषज्ञ', 'nav.learn': 'सीखें', 'nav.shop': 'दुकान', 'nav.weddings': 'विवाह', 'nav.rewards': 'पुरस्कार',

@@ -57,6 +57,20 @@
       "when": 1793919526350,
       "tag": "0007_mfa_recovery_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793921313578,
+      "tag": "0008_post_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793921489544,
+      "tag": "0009_people_discovery",
+      "breakpoints": true
     }
   ]
 }

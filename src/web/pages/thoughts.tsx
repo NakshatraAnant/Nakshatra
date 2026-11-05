@@ -7,16 +7,19 @@ import { EmptyState, LoadingBlock, Notice, QueryState } from '../components/ui/f
 import { Dialog, Segmented, useToast } from '../components/ui/overlays';
 import { MaskIcon, PseudonymAvatar } from '../components/visual';
 import { postTypeIcon } from '../lib/visual';
+import { PhotoCarousel, PhotoPicker, VoiceRecorder } from '../components/MediaComposer';
 
 export const THOUGHT_TYPES = [
   { value: 'thought', label: 'Thought', hint: 'Something on your mind.' },
   { value: 'question', label: 'Question', hint: 'Ask people for answers.' },
   { value: 'dilemma', label: 'Dilemma', hint: 'Help me decide…' },
   { value: 'poll', label: 'Poll', hint: '2–4 options to vote on.' },
+  { value: 'image', label: 'Photo', hint: 'Say something about your photos (optional).' },
+  { value: 'voice', label: 'Voice', hint: 'Add a caption (optional).' },
   { value: 'confession', label: 'Confession', hint: 'A light, harmless truth about you.' },
 ] as const;
 type ThoughtType = (typeof THOUGHT_TYPES)[number]['value'];
-const TYPE_LABEL: Record<string, string> = { thought: 'Thought', question: 'Question', dilemma: 'Dilemma', poll: 'Poll', confession: 'Confession', prompt: 'Prompt', text: 'Post', cosmic_card: 'Cosmic card', image: 'Image' };
+const TYPE_LABEL: Record<string, string> = { thought: 'Thought', question: 'Question', dilemma: 'Dilemma', poll: 'Poll', confession: 'Confession', prompt: 'Prompt', text: 'Post', cosmic_card: 'Cosmic card', image: 'Photo', voice: 'Voice note' };
 const REACTIONS = [{ k: 'star', label: 'Relate' }, { k: 'sun', label: 'Agree' }, { k: 'moon', label: 'Hmm' }, { k: 'heart', label: 'Love' }] as const;
 const SOCIAL_TOPICS = ['life', 'friendship', 'work', 'study', 'music', 'film', 'food', 'travel', 'tech', 'sport', 'fun', 'relationships'];
 
@@ -25,6 +28,7 @@ export interface ThoughtPost {
   author: { userId?: string; handle?: string; displayName?: string; pseudonym?: string };
   reactions: Record<string, number>; myReaction: string | null; commentCount: number; saved: boolean;
   poll: { id: string; label: string; votes: number }[] | null; myVote: string | null; isMine: boolean; reasons: string[];
+  imageUrl?: string | null; imageUrls?: string[] | null; audioUrl?: string | null; audioSeconds?: number | null;
 }
 
 function ago(iso: string) {
@@ -39,6 +43,8 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
   const [body, setBody] = useState(prefill);
   const [options, setOptions] = useState(['', '']);
   const [topic, setTopic] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [voice, setVoice] = useState<{ url: string; seconds: number } | null>(null);
   const circles = useQuery({ queryKey: ['circles'], queryFn: () => get<{ circles: { id: string; name: string }[] }>('circles'), enabled: !circleId });
   const id = useQuery({ queryKey: ['identity-me'], queryFn: () => get<{ pseudonym: string | null }>('identity/me') });
   const [where, setWhere] = useState(circleId ? `circle:${circleId}` : 'public');
@@ -47,10 +53,15 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
   const m = useMutation({
     mutationFn: () => {
       const [vis, gid] = where.startsWith('circle:') ? ['group', where.slice(7)] : [where, undefined];
-      return post('posts', { kind: type, body, visibility: vis, groupId: gid, topics: topic ? [topic] : [], pseudonymous: pseudo, pollOptions: type === 'poll' ? options.filter(Boolean) : undefined });
+      return post('posts', {
+        kind: type, body, visibility: vis, groupId: gid, topics: topic ? [topic] : [], pseudonymous: pseudo,
+        pollOptions: type === 'poll' ? options.filter(Boolean) : undefined,
+        ...(type === 'image' ? (photos.length > 1 ? { imageUrls: photos } : { imageUrl: photos[0] }) : {}),
+        ...(type === 'voice' && voice ? { audioUrl: voice.url, audioSeconds: voice.seconds } : {}),
+      });
     },
     onSuccess: () => {
-      setBody(''); setOptions(['', '']); setPseudo(false);
+      setBody(''); setOptions(['', '']); setPseudo(false); setPhotos([]); setVoice(null);
       void qc.invalidateQueries({ queryKey: ['thoughts'] });
       void qc.invalidateQueries({ queryKey: ['circle-feed'] });
       toast('Posted', 'success');
@@ -72,6 +83,8 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
         <Textarea rows={3} value={body} maxLength={limit} onChange={(e) => setBody(e.target.value)} placeholder={THOUGHT_TYPES.find((t) => t.value === type)!.hint} />
       </label>
       <div className="flex justify-end text-[11px] text-fg-3 numeric">{body.length}/{limit}</div>
+      {type === 'image' && <PhotoPicker urls={photos} onChange={setPhotos} />}
+      {type === 'voice' && <VoiceRecorder value={voice} onChange={setVoice} />}
       {type === 'poll' && (
         <div className="grid gap-2 sm:grid-cols-2">
           {options.map((o, i) => <Input key={i} aria-label={`Option ${i + 1}`} value={o} maxLength={80} placeholder={`Option ${i + 1}`} onChange={(e) => setOptions(options.map((x, j) => (j === i ? e.target.value : x)))} />)}
@@ -97,7 +110,7 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
       )}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <p className="text-xs text-fg-2"><span className="text-fg">Visible to:</span> {visText}{pseudo ? ' · shown under your pen name' : ''}</p>
-        <Button loading={m.isPending} disabled={!body.trim() || (type === 'poll' && options.filter(Boolean).length < 2)} onClick={() => m.mutate()}>Post</Button>
+        <Button loading={m.isPending} disabled={type === 'image' ? !photos.length : type === 'voice' ? !voice : !body.trim() || (type === 'poll' && options.filter(Boolean).length < 2)} onClick={() => m.mutate()}>Post</Button>
       </div>
     </Card>
   );
@@ -148,7 +161,15 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
         </div>
       ) : p.kind === 'confession'
         ? <p className="mt-3 whitespace-pre-wrap font-display text-2xl italic leading-snug text-fg text-pretty">“{p.body}”</p>
-        : <p className="mt-3 whitespace-pre-wrap text-[17px] leading-[1.45] text-fg text-pretty">{p.body}</p>}
+        : p.body ? <p className="mt-3 whitespace-pre-wrap text-[17px] leading-[1.45] text-fg text-pretty">{p.body}</p> : null}
+      {p.imageUrls && p.imageUrls.length > 1 ? <PhotoCarousel urls={p.imageUrls} label={`${TYPE_LABEL[p.kind] ?? 'Post'} photos`} />
+        : p.imageUrl ? <img src={p.imageUrl} alt="Photo shared with this post" loading="lazy" className="mt-3 max-h-[480px] w-full rounded-[var(--radius)] object-cover" /> : null}
+      {p.audioUrl && (
+        <div className="mt-3 flex items-center gap-3">
+          <audio controls preload="none" src={p.audioUrl} className="h-10 max-w-full" aria-label={`Voice note, ${p.audioSeconds ?? ''} seconds`} />
+          {p.audioSeconds ? <span className="text-xs text-fg-3 numeric">{p.audioSeconds}s</span> : null}
+        </div>
+      )}
       {p.poll && (
         <ul className="mt-3 space-y-1.5">
           {p.poll.map((o) => {

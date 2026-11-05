@@ -166,6 +166,7 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     await createSession(ctx, reply, req, u.id, mfaPassed);
     await audit(ctx.db, { actorId: u.id, action: 'auth.login', ip: req.ip });
+    if (u.createdAt.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)) await track(ctx.db, u.id, 'return_visit');
     await notify(ctx, ctx.db, { userId: u.id, category: 'security', title: 'New sign-in to your account', body: `Signed in from ${String(req.headers['user-agent'] ?? 'a browser').slice(0, 60)}. If this wasn’t you, revoke the session in Settings → Security.`, link: '/settings/security' });
     return reply.send({ user: await meFor(ctx, u.id) });
   });

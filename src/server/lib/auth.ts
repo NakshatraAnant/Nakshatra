@@ -3,6 +3,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { DB } from '../db/client';
 import { sessions, userRoles, users } from '../db/schema';
 import { sha256 } from './crypto';
+import { track } from './context';
 import { AppError, forbidden, unauthorized } from './http';
 
 export const SESSION_COOKIE = 'nk_session';
@@ -40,6 +41,8 @@ export async function resolveSession(db: DB, token: string | undefined): Promise
   // Touch last-seen at most every 10 minutes.
   if (Date.now() - row.s.lastSeenAt.getTime() > 600000) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.s.id));
+    // A request on a later (UTC) day than this session's previous activity is a return visit.
+    if (row.s.lastSeenAt.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)) await track(db, row.u.id, 'return_visit');
   }
   return {
     userId: row.u.id,

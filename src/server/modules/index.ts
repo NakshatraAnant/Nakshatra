@@ -31,6 +31,7 @@ import { referralRoutes } from './referrals';
 import { giftRoutes } from './gifts';
 import { progressionRoutes } from './progression';
 import { insightRoutes } from './insights';
+import { peopleRoutes } from './people';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Provider webhooks: signature-verified and idempotent (see lib/payments.ts). */
@@ -101,5 +102,6 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await giftRoutes(app, ctx);
   await progressionRoutes(app, ctx);
   await insightRoutes(app, ctx);
+  await peopleRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

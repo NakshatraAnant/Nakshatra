@@ -44,6 +44,27 @@
         "PAYMENTS_ENABLED": "false",
         "MAIL_TRANSPORT": "dev_mailbox"
       }
+    },
+    {
+      "name": "verify",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--enable-source-maps",
+        "dist/server/main.js"
+      ],
+      "port": 4520,
+      "autoPort": false,
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "4520",
+        "HOST": "127.0.0.1",
+        "APP_ORIGIN": "http://localhost:4520",
+        "PGLITE_DIR": ".data/pglite-disposable",
+        "UPLOAD_DIR": ".data/uploads-disposable",
+        "PAYMENT_PROVIDER": "none",
+        "PAYMENTS_ENABLED": "false",
+        "MAIL_TRANSPORT": "dev_mailbox"
+      }
     }
   ]
 }

@@ -10,7 +10,7 @@ import { requireAuth } from '../lib/auth';
 import { hmac } from '../lib/crypto';
 import { notify } from '../lib/notify';
 import { awardXp, evaluateAchievements } from '../lib/rewards';
-import { createStorage, IMAGE_TYPES } from '../lib/storage';
+import { AUDIO_TYPES, createStorage, IMAGE_TYPES, VOICE_MAX_BYTES } from '../lib/storage';
 import { rankFeed, type FeedCandidate } from '../services/ranking';
 import { bigThreeFor, displayNames, isBlockedEitherWay } from '../services/identity';
 import { DateTime } from 'luxon';
@@ -110,7 +110,7 @@ export async function hydratePosts(db: Executor, viewerId: string, rows: (typeof
   const votes = pollIds.length ? await db.select({ optionId: s.pollVotes.optionId, n: sql<number>`count(*)::int` }).from(s.pollVotes).where(inArray(s.pollVotes.postId, pollIds)).groupBy(s.pollVotes.optionId) : [];
   const myVotes = pollIds.length ? await db.select().from(s.pollVotes).where(and(inArray(s.pollVotes.postId, pollIds), eq(s.pollVotes.userId, viewerId))) : [];
   return rows.map((r) => ({
-    id: r.id, kind: r.kind, body: r.body, imageUrl: r.imageUrl, card: r.card, topics: r.topics, visibility: r.visibility, groupId: r.groupId,
+    id: r.id, kind: r.kind, body: r.body, imageUrl: r.imageUrl, imageUrls: r.imageUrls?.length ? r.imageUrls : null, audioUrl: r.audioUrl, audioSeconds: r.audioSeconds, card: r.card, topics: r.topics, visibility: r.visibility, groupId: r.groupId,
     createdAt: r.createdAt, expiresAt: r.expiresAt, editedAt: r.editedAt, pseudonymous: r.pseudonymous,
     author: r.pseudonymous && r.authorId !== viewerId ? { pseudonym: r.penName ?? pens.get(r.authorId) ?? 'Anonymous member' } : { userId: r.authorId, ...names.get(r.authorId), ...(r.pseudonymous ? { pseudonym: r.penName ?? undefined } : {}) },
     reactions: Object.fromEntries(reactions.filter((x) => x.postId === r.id).map((x) => [x.kind, x.n])),
@@ -136,7 +136,8 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const [target] = await ctx.db.select().from(s.profiles).innerJoin(s.users, eq(s.users.id, s.profiles.userId)).where(and(eq(s.profiles.userId, userId), eq(s.users.status, 'active')));
     if (!target) throw notFound('User');
     const status = target.profiles.visibility === 'public' ? 'accepted' : 'pending';
-    await ctx.db.insert(s.follows).values({ followerId: a.userId, followeeId: userId, status }).onConflictDoNothing();
+    const added = await ctx.db.insert(s.follows).values({ followerId: a.userId, followeeId: userId, status }).onConflictDoNothing().returning({ f: s.follows.followerId });
+    if (added.length) await track(ctx.db, a.userId, 'connection_made', { kind: status === 'pending' ? 'follow_request' : 'follow' });
     const names = await displayNames(ctx.db, [a.userId]);
     await notify(ctx, ctx.db, { userId, category: 'social', title: status === 'pending' ? `${names.get(a.userId)?.displayName} asked to follow you` : `${names.get(a.userId)?.displayName} followed you`, link: status === 'pending' ? '/social/requests' : `/u/${names.get(a.userId)?.handle}`, dedupeKey: `follow:${a.userId}` });
     return { status };
@@ -237,10 +238,14 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
 
   /* ---------- Posts ---------- */
   const PostBody = z.object({
-    kind: z.enum(['text', 'image', 'cosmic_card', 'poll', 'story', ...THOUGHT_KINDS]),
+    kind: z.enum(['text', 'image', 'cosmic_card', 'poll', 'story', 'voice', ...THOUGHT_KINDS]),
     pseudonymous: z.boolean().default(false),
     body: z.string().trim().max(2000).default(''),
     imageUrl: z.string().startsWith('/uploads/public/').optional(),
+    /** Photo carousel: 2–4 of your own uploads. */
+    imageUrls: z.array(z.string().startsWith('/uploads/public/')).min(2).max(4).optional(),
+    audioUrl: z.string().startsWith('/uploads/public/').optional(),
+    audioSeconds: z.number().int().min(1).max(60).optional(),
     topics: z.array(z.enum(TOPICS as [string, ...string[]])).max(4).default([]),
     visibility: z.enum(['public', 'followers', 'group']).default('followers'),
     groupId: z.uuid().optional(),
@@ -258,15 +263,32 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     return { url: `/uploads/${saved.path}` };
   });
 
+  /** Voice note upload (≤ 60 s, ≤ 1.5 MB). Type is detected from the bytes, not the browser's claim. */
+  app.post('/api/v1/posts/audio', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    if (!a.emailVerified) throw forbidden('Verify your email to post.');
+    const file = await req.file();
+    if (!file) throw badRequest('No recording uploaded');
+    const saved = await storage.save(await file.toBuffer(), { allowed: AUDIO_TYPES, isPrivate: false, maxBytes: VOICE_MAX_BYTES });
+    await ctx.db.insert(s.uploads).values({ ownerId: a.userId, purpose: 'post_audio', path: saved.path, mime: saved.mime, bytes: saved.bytes });
+    return { url: `/uploads/${saved.path}`, mime: saved.mime };
+  });
+
   app.post('/api/v1/posts', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
     const a = requireAuth(req);
     if (!a.emailVerified) throw forbidden('Verify your email to post publicly.');
     const body = parse(PostBody, req.body);
     if (body.kind === 'poll' && !body.pollOptions) throw badRequest('Polls need 2–4 options.');
+    if (body.imageUrls && !body.imageUrl) body.imageUrl = body.imageUrls[0];
     if (body.kind === 'image' && !body.imageUrl) throw badRequest('Attach an image.');
-    if (body.imageUrl) {
-      const [own] = await ctx.db.select({ id: s.uploads.id }).from(s.uploads).where(and(eq(s.uploads.ownerId, a.userId), eq(s.uploads.path, body.imageUrl.slice('/uploads/'.length))));
-      if (!own) throw badRequest('Upload the image first.');
+    if (body.kind === 'voice' && (!body.audioUrl || !body.audioSeconds)) throw badRequest('Record a voice note first.');
+    if (body.audioUrl && body.kind !== 'voice') throw badRequest('Voice notes are posted as a voice Thought Drop.');
+    // Every attached file must be the author's own upload of the right kind.
+    const attached = [...new Set([...(body.imageUrl ? [body.imageUrl] : []), ...(body.imageUrls ?? [])])].map((u) => ({ path: u.slice('/uploads/'.length), purpose: 'post' }));
+    if (body.audioUrl) attached.push({ path: body.audioUrl.slice('/uploads/'.length), purpose: 'post_audio' });
+    if (attached.length) {
+      const own = await ctx.db.select({ path: s.uploads.path, purpose: s.uploads.purpose }).from(s.uploads).where(and(eq(s.uploads.ownerId, a.userId), inArray(s.uploads.path, attached.map((x) => x.path))));
+      if (attached.some((x) => !own.some((o) => o.path === x.path && o.purpose === x.purpose))) throw badRequest(body.audioUrl ? 'Upload the recording first.' : 'Upload the image first.');
     }
     if (TEXT_KINDS.includes(body.kind) && !body.body) throw badRequest('Write something first.');
     if ((THOUGHT_KINDS as readonly string[]).includes(body.kind) && body.body.length > 500) throw badRequest('Thought Drops are up to 500 characters.');
@@ -300,6 +322,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const post = await ctx.db.transaction(async (tx) => {
       const [p] = await tx.insert(s.posts).values({
         authorId: a.userId, groupId: body.groupId ?? null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
+        imageUrls: body.imageUrls ?? [], audioUrl: body.audioUrl ?? null, audioSeconds: body.audioUrl ? body.audioSeconds! : null,
         topics: body.topics, visibility: body.visibility, expiresAt, pseudonymous: body.pseudonymous, penName,
       }).returning();
       if (body.kind === 'poll') await tx.insert(s.pollOptions).values(body.pollOptions!.map((label, position) => ({ postId: p.id, label, position })));

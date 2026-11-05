@@ -22,18 +22,27 @@ function PublicGate({ children }: { children: ReactNode }) {
 interface NavItem { to: string; key: I18nKey; icon: IconName; staff?: boolean; pkg?: string }
 
 /**
- * Navigation follows the product's centre: identity first, then consented connection.
- * Modules that need many active users before they are useful (feed, dating,
- * matchmaking, experts, weddings) sit in a collapsed, clearly labelled Labs group:
- * still reachable, no longer competing with the core journey.
+ * Six primary destinations — Home, Discover, Create, Circles, Play, Profile — the same on desktop and
+ * phone. Everything else sits in clearly labelled secondary groups. Legacy modules appear in Labs only
+ * when an admin has switched them on.
  */
+const PRIMARY: NavItem[] = [
+  { to: '/home', key: 'nav.home', icon: 'sparkle', pkg: 'home' },
+  { to: '/explore', key: 'nav.discover', icon: 'search', pkg: 'search' },
+  { to: '/create', key: 'nav.create', icon: 'plus', pkg: 'compose' },
+  { to: '/circles', key: 'nav.circles', icon: 'bonds', pkg: 'circles' },
+  { to: '/play', key: 'nav.play', icon: 'rewards', pkg: 'play' },
+  { to: '/identity', key: 'nav.profile', icon: 'id', pkg: 'profile' },
+];
+
 const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
-  { label: 'Nakshatra', items: [
-    { to: '/home', key: 'nav.home', icon: 'sparkle', pkg: 'home' },
-    { to: '/identity', key: 'nav.identity', icon: 'id', pkg: 'profile' },
+  { label: 'Nakshatra', items: PRIMARY },
+  { label: 'You', items: [
+    { to: '/progress', key: 'nav.progress', icon: 'rewards' },
     { to: '/thoughts', key: 'nav.thoughts', icon: 'social', pkg: 'network' },
-    { to: '/circles', key: 'nav.circles', icon: 'bonds', pkg: 'circles' },
-    { to: '/play', key: 'nav.play', icon: 'rewards', pkg: 'play' },
+    { to: '/invite', key: 'nav.invite', icon: 'share', pkg: 'gift' },
+    { to: '/journey', key: 'nav.journey', icon: 'journey' },
+    { to: '/shop', key: 'nav.shop', icon: 'shop' },
   ] },
   { label: 'Optional · astrology', items: [
     { to: '/cosmic-id', key: 'nav.cosmicId', icon: 'star' },
@@ -41,12 +50,6 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/chart', key: 'nav.chart', icon: 'chart' },
     { to: '/calendar', key: 'nav.calendar', icon: 'calendar' },
     { to: '/bonds', key: 'nav.bonds', icon: 'heart' },
-  ] },
-  { label: 'More', items: [
-    { to: '/progress', key: 'nav.progress', icon: 'rewards' },
-    { to: '/journey', key: 'nav.journey', icon: 'journey' },
-    { to: '/invite', key: 'nav.invite', icon: 'share', pkg: 'gift' },
-    { to: '/shop', key: 'nav.shop', icon: 'shop' },
   ] },
   { label: 'Nakshatra Labs', labs: true, items: [
     { to: '/social', key: 'nav.social', icon: 'social' },
@@ -64,12 +67,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
   ] },
 ];
 
-const MOBILE: NavItem[] = [
-  { to: '/home', key: 'nav.home', icon: 'sparkle', pkg: 'home' },
-  { to: '/thoughts', key: 'nav.thoughts', icon: 'social', pkg: 'network' },
-  { to: '/play', key: 'nav.play', icon: 'rewards', pkg: 'play' },
-  { to: '/circles', key: 'nav.circles', icon: 'bonds', pkg: 'circles' },
-];
+const MOBILE = PRIMARY;
 
 function NavIcon({ item, size, className }: { item: NavItem; size: number; className?: string }) {
   return item.pkg ? <MaskIcon src={uiIcon(item.pkg)} size={size} className={className} /> : <Icon name={item.icon} size={size} className={className} />;
@@ -165,6 +163,7 @@ export function AppShell() {
           </form>
           <div className="ml-auto flex items-center gap-1">
             <IconButton icon="search" label={t('nav.search')} className="md:hidden" onClick={() => nav('/search')} />
+            <IconButton icon="menu" label={t('nav.more')} className="md:hidden" aria-haspopup="dialog" onClick={() => setMore(true)} />
             {mods.enabled('messages') && <Link to="/messages" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden" aria-label={`${t('nav.messages')}${counts.messages ? `, ${counts.messages} unread` : ''}`}>
               <Icon name="messages" size={20} />
               {counts.messages > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
@@ -183,14 +182,15 @@ export function AppShell() {
       </div>
 
       <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 flex border-t border-line bg-canvas/95 px-2 pt-1.5 backdrop-blur-md safe-bottom md:hidden" style={{ zIndex: 'var(--z-nav)' as never }}>
-        {MOBILE.map((i) => (
-          <NavLink key={i.to} to={i.to} className={({ isActive }) => cx('flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-sm)] py-1.5 text-[11px]', isActive ? (i.to === '/play' ? 'font-semibold text-accent' : 'font-semibold text-fg') : 'text-fg-3')}>
-            <NavIcon item={i} size={22} />{t(i.key)}
+        {MOBILE.filter(visible).map((i) => i.to === '/create' ? (
+          <NavLink key={i.to} to={i.to} aria-label={t(i.key)} className="flex min-h-11 flex-1 flex-col items-center justify-center py-1">
+            {({ isActive }) => <span className={cx('flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink shadow-sm motion-press', isActive && 'ring-2 ring-accent/40 ring-offset-2 ring-offset-canvas')}><NavIcon item={i} size={20} /></span>}
+          </NavLink>
+        ) : (
+          <NavLink key={i.to} to={i.to} className={({ isActive }) => cx('flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-sm)] py-1.5 text-[10.5px]', isActive ? 'font-semibold text-fg' : 'text-fg-3')}>
+            <NavIcon item={i} size={21} /><span className="max-w-full truncate">{t(i.key)}</span>
           </NavLink>
         ))}
-        <button type="button" onClick={() => setMore(true)} className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] text-fg-3" aria-haspopup="dialog">
-          <Icon name="menu" size={22} />{t('nav.more')}
-        </button>
       </nav>
 
       <Drawer open={more} onClose={() => setMore(false)} title="Menu">

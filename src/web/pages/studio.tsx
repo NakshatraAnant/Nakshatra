@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, get, patch, post } from '../lib/api';
@@ -9,7 +9,7 @@ import { useToast } from '../components/ui/overlays';
 import { ArchetypeArt, Art, ResponsiveArt } from '../components/visual';
 import { clearPendingAnswers, renderPersonaCard, savePendingAnswers, type Persona } from '../lib/persona';
 import { ARCHETYPE_VISUALS, archetypeAccent, archetypeArt, cardStyleFrame, envArt } from '../lib/visual';
-import { shareOrDownload } from '../lib/cosmic';
+import { publicEvent, shareOrDownload } from '../lib/cosmic';
 import { ShareLinkPanel } from './share';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
@@ -38,7 +38,10 @@ export function Assessment({ onDone, submitLabel = 'See my archetype', initial }
   const [answers, setAnswersRaw] = useState<Record<string, number>>(initial ?? draft?.answers ?? {});
   const [page, setPageRaw] = useState(draft?.page ?? 0);
   const [resumed, setResumed] = useState(!!draft && Object.keys(draft.answers).length > 0);
-  const setAnswers = (a: Record<string, number>) => { setAnswersRaw(a); writeDraft({ answers: a, page, savedAt: Date.now() }); };
+  const setAnswers = (a: Record<string, number>) => {
+    if (!Object.keys(answers).length && Object.keys(a).length === 1) publicEvent('assessment_started');
+    setAnswersRaw(a); writeDraft({ answers: a, page, savedAt: Date.now() });
+  };
   const setPage = (p: number) => { setPageRaw(p); writeDraft({ answers, page: p, savedAt: Date.now() }); };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +134,7 @@ const CONFIDENCE: Record<string, string> = { high: 'Clear match', medium: 'Good 
 export function PersonaResult({ persona, actions }: { persona: Persona; style?: string; actions?: React.ReactNode }) {
   const scores = useMemo(() => Object.fromEntries(persona.dimensions.map((d) => [d.key, d.score])), [persona]);
   const accent = archetypeAccent(persona.key);
+  useEffect(() => { publicEvent('result_viewed'); }, [persona.key, persona.takenAt]);
   return (
     <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,420px)_1fr]" aria-labelledby="persona-name">
       <div className="relative mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-[var(--radius-xl)] border border-line">
@@ -207,6 +211,7 @@ function PersonaShare({ persona, style, labels }: { persona: Persona; style: str
     try {
       const blob = await renderPersonaCard(cardArt(persona.key, style), { ...persona, labels }, format);
       const how = await shareOrDownload(blob, `nakshatra-${persona.key}-${format}.png`, `I'm ${persona.name}. What are you?`);
+      publicEvent('share_card_created');
       toast(how === 'shared' ? 'Shared' : 'Card downloaded', 'success');
     } catch (e) { toast((e as Error).message, 'error'); }
     setBusy(null);
@@ -369,7 +374,7 @@ export function PersonalityPreview() {
         <Notice tone="info" title="This preview is not saved">We scored your answers and stored nothing. Save to keep your archetype, join circles and play with friends.</Notice>
         <PersonaResult persona={result.persona} actions={
           <div className="flex flex-wrap gap-2">
-            <Button size="lg" onClick={() => { savePendingAnswers(result.answers); nav(me ? '/onboarding' : '/signup?from=personality'); }}>Save my archetype</Button>
+            <Button size="lg" onClick={() => { publicEvent('preview_signup_clicked'); savePendingAnswers(result.answers); nav(me ? '/onboarding' : '/signup?from=personality'); }}>Save my archetype</Button>
             <Button size="lg" variant="secondary" onClick={() => setResult(null)}>Start again</Button>
             <div className="basis-full pt-2"><ShareLinkPanel archetypeName={result.persona.name} answers={result.answers} signedIn={false} /></div>
           </div>

@@ -180,6 +180,11 @@ export const posts = pgTable('posts', {
   editedAt: timestamp('edited_at', { withTimezone: true }),
   /** Pen name at the time of posting, so renaming a pen name never relabels or links older posts. */
   penName: text('pen_name'),
+  /** Photo carousel (2–4 of the author's own uploads); imageUrl stays the first/only image for older clients. */
+  imageUrls: text('image_urls').array().notNull().default(sql`'{}'::text[]`),
+  /** Voice note (author's own upload, ≤ 60 s). */
+  audioUrl: text('audio_url'),
+  audioSeconds: integer('audio_seconds'),
 }, (t) => [index('posts_author_created_idx').on(t.authorId, t.createdAt), index('posts_created_idx').on(t.createdAt), index('posts_group_idx').on(t.groupId), index('posts_group_created_idx').on(t.groupId, t.createdAt)]);
 
 export const pollOptions = pgTable('poll_options', {

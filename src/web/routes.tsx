@@ -46,6 +46,7 @@ const landing = () => import('./pages/landing');
 const discover = () => import('./pages/discover');
 const studio = () => import('./pages/studio');
 const thoughts = () => import('./pages/thoughts');
+const explore = () => import('./pages/explore');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -131,6 +132,8 @@ export const router = createBrowserRouter([
         children: [
           { path: '/home', element: page(home, 'HomePage') },
           { path: '/identity', element: page(studio, 'IdentityStudio') },
+          { path: '/explore', element: page(explore, 'ExplorePage') },
+          { path: '/create', element: page(explore, 'CreatePage') },
           { path: '/thoughts', element: page(thoughts, 'ThoughtsPage') },
           { path: '/thoughts/:id', element: page(thoughts, 'ThoughtDetail') },
           { path: '/circles', element: page(circles, 'CirclesPage') },

@@ -85,9 +85,13 @@ export const profiles = pgTable('profiles', {
   identityLabels: text('identity_labels').array().notNull().default(sql`'{}'::text[]`),
   /** Identity-card style key; premium styles require an entitlement (checked server-side). */
   cardStyle: text('card_style').notNull().default('classic'),
+  /** Opt-in: listed in Discover → People. Off by default; never inferred. */
+  discoverable: boolean('discoverable').notNull().default(false),
+  /** What the member is open to (friends, game partners, …) — self-chosen, shown only while discoverable. */
+  connectionIntents: text('connection_intents').array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('profiles_handle_uq').on(sql`lower(${t.handle})`), uniqueIndex('profiles_pseudonym_uq').on(sql`lower(${t.pseudonym})`)]);
+}, (t) => [uniqueIndex('profiles_handle_uq').on(sql`lower(${t.handle})`), uniqueIndex('profiles_pseudonym_uq').on(sql`lower(${t.pseudonym})`), index('profiles_discoverable_idx').on(t.discoverable)]);
 
 export const profileHistory = pgTable('profile_history', {
   id: uuid('id').primaryKey().defaultRandom(),

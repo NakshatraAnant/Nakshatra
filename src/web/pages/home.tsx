@@ -152,7 +152,7 @@ export function HomePage() {
         <div>
           <p className="eyebrow">{hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'}</p>
           <h1 className="mt-1 font-display text-5xl">{me?.profile?.displayName ?? 'Welcome'}</h1>
-          {lv && (
+          {lv && journey.data!.xp > 0 && (
             <Link to="/journey/rewards" className="mt-3 inline-flex items-center gap-3 rounded-full border border-line py-1 pl-1 pr-4 text-sm text-fg-2 hover:border-line-strong">
               <LevelBadge level={lv.level} rank={lv.rank} size={36} />
               <span><span className="text-fg">{lv.rank}</span> · level {lv.level}</span>
@@ -170,8 +170,10 @@ export function HomePage() {
         )}
       </header>
 
+      <NextStep hasPersona={!!p} loaded={!!id.data && !!circles.data} circleCount={circles.data?.circles.length ?? 0} onStartCircle={() => setCreating(true)} />
+
       <TodayRituals />
-      <HomeProgress />
+      {p && <HomeProgress />}
 
       <section aria-labelledby="home-circles">
         <div className="flex items-baseline justify-between"><h2 id="home-circles" className="font-display text-3xl">Your circles</h2><Link to="/circles" className="text-sm text-fg-2 hover:text-fg">All circles</Link></div>
@@ -198,13 +200,35 @@ export function HomePage() {
 
       <SessionList />
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card><h3 className="font-display text-2xl">Say something</h3><p className="mt-1 text-sm text-fg-2">Drop a thought, ask a question, or post a poll.</p><ButtonLink to="/thoughts" size="sm" variant="secondary" className="mt-3">Open Thoughts</ButtonLink></Card>
-        <Card><h3 className="font-display text-2xl">Play something</h3><p className="mt-1 text-sm text-fg-2">Twelve games — some solo, most better with friends.</p><ButtonLink to="/play" size="sm" variant="secondary" className="mt-3">Open Play</ButtonLink></Card>
-        <Card><h3 className="font-display text-2xl">Invite a friend</h3><p className="mt-1 text-sm text-fg-2">Earn points when they join in — never just for a click.</p><ButtonLink to="/invite" size="sm" variant="secondary" className="mt-3">Your invite link</ButtonLink></Card>
-      </section>
       <CreateCircleDialog open={creating} onClose={() => setCreating(false)} />
     </div>
+  );
+}
+
+/**
+ * One clear next step, chosen from what the member has (and hasn't) done yet: archetype → reward waiting →
+ * a circle → say something. Only one is shown so Home never becomes a to-do list.
+ */
+function NextStep({ hasPersona, loaded, circleCount, onStartCircle }: { hasPersona: boolean; loaded: boolean; circleCount: number; onStartCircle: () => void }) {
+  const progress = useQuery({ queryKey: ['progress'], queryFn: () => get<Progress>('progress'), enabled: hasPersona });
+  if (!loaded) return null;
+  const ready = progress.data?.quests.filter((q) => q.claimable).length ?? 0;
+  const step = !hasPersona
+    ? { title: 'Find your archetype', body: 'Twenty quick statements, about two minutes. No birth details needed.', cta: <ButtonLink to="/identity">Start</ButtonLink> }
+    : ready
+      ? { title: `${ready} reward${ready === 1 ? '' : 's'} waiting`, body: 'You finished a quest. Claim it to add the XP.', cta: <ButtonLink to="/progress">Claim</ButtonLink> }
+      : circleCount === 0
+        ? { title: 'Bring your people', body: 'Start a private circle for friends you already have — a daily question, games and drops only members see.', cta: <Button onClick={onStartCircle}>Start a circle</Button> }
+        : { title: 'Say something', body: 'Drop a thought, ask a question, post a poll, a photo or a voice note.', cta: <ButtonLink to="/create">Create</ButtonLink> };
+  return (
+    <section aria-labelledby="next-step" className="card flex flex-wrap items-center justify-between gap-4 border-accent/40 p-5">
+      <div className="min-w-0">
+        <p className="eyebrow">Next step</p>
+        <h2 id="next-step" className="mt-1 font-display text-3xl">{step.title}</h2>
+        <p className="mt-1 max-w-xl text-sm text-fg-2">{step.body}</p>
+      </div>
+      {step.cta}
+    </section>
   );
 }
 

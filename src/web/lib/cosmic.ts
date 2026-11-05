@@ -28,8 +28,9 @@ export interface CosmicIdentity {
   methodology: string[];
 }
 
-/** Anonymous page events; failures never affect the page. */
-export function publicEvent(name: 'landing_viewed' | 'cosmic_id_card_downloaded' | 'cosmic_id_preview_signup_clicked') {
+/** Funnel events (aggregate; the server attaches the member only when signed in). Failures never affect the page. */
+export type FunnelEvent = 'landing_viewed' | 'cosmic_id_card_downloaded' | 'cosmic_id_preview_signup_clicked' | 'assessment_started' | 'result_viewed' | 'share_card_created' | 'preview_signup_clicked' | 'offer_viewed';
+export function publicEvent(name: FunnelEvent) {
   void post('discover/events', { name }).catch(() => undefined);
 }
 

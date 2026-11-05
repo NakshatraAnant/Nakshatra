@@ -284,7 +284,7 @@ export function Onboarding() {
       {step === 2 && (
         <section className="rise-in">
           <h1 className="font-display text-4xl">{path === 'birth' ? 'What draws you to the sky?' : 'What are you into?'}</h1>
-          <p className="mt-2 text-fg-2">Your choices shape your feed, course suggestions and community — and nothing else. Change them any time.</p>
+          <p className="mt-2 text-fg-2">Your choices shape your feed and suggestions — and nothing else. Change them any time.</p>
           {warnings.length > 0 && <Notice tone="warning" className="mt-4" title="About your birth time">{warnings.map((w) => <p key={w}>{w}</p>)}</Notice>}
           <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Interests">
             {(path === 'birth' ? INTERESTS : SOCIAL_INTERESTS).map((i) => {
@@ -305,7 +305,7 @@ export function Onboarding() {
           <p className="mt-2 text-xs text-fg-3">You’ll always see both — this only sets the default.</p>
           </>}
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button size="lg" onClick={finish}>Reveal my Cosmic ID ✦</Button>
+            <Button size="lg" onClick={finish}>{path === 'birth' ? 'Reveal my Cosmic ID ✦' : 'Reveal my archetype ✦'}</Button>
             <Button variant="ghost" onClick={finish}>Skip — choose later in Settings</Button>
           </div>
         </section>

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Ctx } from '../lib/context';
-import { track } from '../lib/context';
+import { CLIENT_EVENTS, track } from '../lib/context';
 import { notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import {
@@ -71,8 +71,6 @@ export function cosmicIdentity(vedic: ChartResult, western: ChartResult) {
 const SAMPLE_BIRTH = { date: '1996-01-14', time: '06:40', latitude: 26.9124, longitude: 75.7873, timezone: 'Asia/Kolkata' };
 const SAMPLE_LABEL = 'Sample Cosmic ID for a fictional person born 14 January 1996, 06:40, Jaipur';
 
-/** Anonymous, aggregate-only events from public pages. No identifiers or properties are stored. */
-const PUBLIC_EVENTS = ['landing_viewed', 'cosmic_id_card_downloaded', 'cosmic_id_preview_signup_clicked'] as const;
 
 export async function discoverRoutes(app: FastifyInstance, ctx: Ctx) {
   /**
@@ -108,8 +106,11 @@ export async function discoverRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.post('/api/v1/discover/events', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) => {
-    const { name } = parse(z.object({ name: z.enum(PUBLIC_EVENTS) }), req.body);
-    await track(ctx.db, null, name);
+    // Aggregate funnel events. No properties are accepted; the member id is attached only for a signed-in member
+    // (so "first" steps can be counted once per person). Anonymous visitors stay anonymous.
+    const { name } = parse(z.object({ name: z.enum(CLIENT_EVENTS) }), req.body);
+    const uid = req.auth && !req.auth.mfaPending ? req.auth.userId : null;
+    await track(ctx.db, uid, name);
     return { ok: true };
   });
 }

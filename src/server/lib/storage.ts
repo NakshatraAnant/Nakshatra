@@ -17,7 +17,12 @@ const SIGNATURES: { mime: string; ext: string; test: (b: Buffer) => boolean }[] 
   { mime: 'image/jpeg', ext: 'jpg', test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
   { mime: 'image/webp', ext: 'webp', test: (b) => b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP' },
   { mime: 'application/pdf', ext: 'pdf', test: (b) => b.subarray(0, 5).toString('ascii') === '%PDF-' },
+  // Audio-only MP4 (Safari's voice recordings) must be checked before the generic MP4 signature.
+  { mime: 'audio/mp4', ext: 'm4a', test: (b) => b.subarray(4, 8).toString('ascii') === 'ftyp' && ['M4A ', 'M4B '].includes(b.subarray(8, 12).toString('ascii')) },
   { mime: 'video/mp4', ext: 'mp4', test: (b) => b.subarray(4, 8).toString('ascii') === 'ftyp' },
+  // WebM/Matroska (Chrome/Firefox MediaRecorder) and Ogg (Firefox). Accepted only where audio is allowed.
+  { mime: 'audio/webm', ext: 'webm', test: (b) => b.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) },
+  { mime: 'audio/ogg', ext: 'ogg', test: (b) => b.subarray(0, 4).toString('ascii') === 'OggS' },
   { mime: 'audio/mpeg', ext: 'mp3', test: (b) => b.subarray(0, 3).toString('ascii') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) },
 ];
 
@@ -102,3 +107,6 @@ export function createStorage(ctx: Ctx): FileStorage {
 export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export const DOC_TYPES = [...IMAGE_TYPES, 'application/pdf'];
 export const MEDIA_TYPES = ['audio/mpeg', 'video/mp4'];
+export const AUDIO_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg'];
+/** Voice notes: up to 60 seconds; at typical voice bitrates that is well under this cap. */
+export const VOICE_MAX_BYTES = 1.5 * 1048576;
