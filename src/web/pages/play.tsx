@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, get, post } from '../lib/api';
-import { Badge, Button, Card, Checkbox, PageHeader, Select, Textarea, cx } from '../components/ui/primitives';
+import { Badge, Button, ButtonLink, Card, Checkbox, PageHeader, Select, Textarea, cx } from '../components/ui/primitives';
 import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { Dialog, useToast } from '../components/ui/overlays';
 import { ReportDialog } from './thoughts';
@@ -138,7 +138,7 @@ export function SessionList({ circleId }: { circleId?: string }) {
 export function PlayPage() {
   return (
     <div className="space-y-10">
-      <PageHeader kicker="Play" title="Games that start conversations" subtitle="Twelve games with real rules — guess who wrote it, vote honestly, write a story together. Play solo where it makes sense, or with a circle." />
+      <PageHeader kicker="Play" title="Games that start conversations" subtitle="Twelve games with real rules — guess who wrote it, vote honestly, write a story together. Play solo where it makes sense, or with a circle." actions={<ButtonLink to="/play/quizzes" variant="secondary" size="sm">Member quizzes</ButtonLink>} />
       <GameLauncher />
       <SessionList />
     </div>

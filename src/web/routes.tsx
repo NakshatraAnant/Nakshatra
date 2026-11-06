@@ -49,6 +49,7 @@ const thoughts = () => import('./pages/thoughts');
 const explore = () => import('./pages/explore');
 const merch = () => import('./pages/merch');
 const membership = () => import('./pages/membership');
+const quizzes = () => import('./pages/quizzes');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -146,6 +147,9 @@ export const router = createBrowserRouter([
           { path: '/circles', element: page(circles, 'CirclesPage') },
           { path: '/circles/:id', element: page(circles, 'CircleDetail') },
           { path: '/play', element: page(play, 'PlayPage') },
+          { path: '/play/quizzes', element: page(quizzes, 'QuizzesPage') },
+          { path: '/play/quizzes/new', element: page(quizzes, 'QuizBuilder') },
+          { path: '/play/quizzes/:id', element: page(quizzes, 'QuizTake') },
           { path: '/play/:id', element: page(play, 'GameSession') },
           { path: '/invite', element: page(home, 'InvitePage') },
           { path: '/progress', element: page(progress, 'ProgressPage') },

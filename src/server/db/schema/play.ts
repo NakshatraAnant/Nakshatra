@@ -118,3 +118,29 @@ export const identityShares = pgTable('identity_shares', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('identity_shares_slug_uq').on(t.slug), index('identity_shares_user_idx').on(t.userId)]);
+
+/** Member-made quizzes (see src/shared/quiz.ts). Definition stored as JSON; answers never shown to takers. */
+export const memberQuizzes = pgTable('member_quizzes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** trivia | outcome */
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  definition: jsonb('definition').notNull(),
+  /** members (any signed-in member with the link or in Play) | circle */
+  visibility: text('visibility').notNull().default('members'),
+  groupId: uuid('group_id').references(() => groups.id, { onDelete: 'cascade' }),
+  /** published | removed (by author or moderation) */
+  status: text('status').notNull().default('published'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('member_quizzes_author_idx').on(t.authorId), index('member_quizzes_group_idx').on(t.groupId), index('member_quizzes_created_idx').on(t.createdAt)]);
+
+export const memberQuizAttempts = pgTable('member_quiz_attempts', {
+  quizId: uuid('quiz_id').notNull().references(() => memberQuizzes.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  answers: jsonb('answers').notNull(),
+  score: integer('score').notNull(),
+  outcome: integer('outcome'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.quizId, t.userId] })]);

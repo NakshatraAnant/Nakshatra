@@ -314,6 +314,8 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.analyticsEvents).set({ userId: null }).where(eq(s.analyticsEvents.userId, userId));
     await tx.delete(s.penMutes).where(or(eq(s.penMutes.muterId, userId), eq(s.penMutes.authorId, userId)));
     await tx.delete(s.mfaRecoveryCodes).where(eq(s.mfaRecoveryCodes.userId, userId));
+    await tx.update(s.memberQuizzes).set({ status: 'removed' }).where(eq(s.memberQuizzes.authorId, userId));
+    await tx.delete(s.memberQuizAttempts).where(eq(s.memberQuizAttempts.userId, userId));
     // COD orders: drafts go; finished orders keep amounts for accounting but lose the delivery address. Orders still
     // on their way keep the address until they are delivered or returned.
     await tx.delete(s.codOrders).where(and(eq(s.codOrders.userId, userId), eq(s.codOrders.status, 'draft')));

@@ -99,6 +99,8 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   discovery_opt_in: { meaningful: false, description: 'Member turned Discover → People listing on or off.' },
   cod_order_placed: { meaningful: true, description: 'Cash-on-delivery merch order placed (unpaid until delivered).' },
   cod_order_delivered: { meaningful: false, description: 'COD order delivered and cash collected by the courier.' },
+  quiz_created: { meaningful: true, description: 'Member published a quiz.' },
+  quiz_taken: { meaningful: true, description: 'Member took someone else’s quiz (answers not recorded in analytics).' },
   return_visit: { meaningful: false, description: 'Member came back on a later day than their previous visit.' },
 };
 
