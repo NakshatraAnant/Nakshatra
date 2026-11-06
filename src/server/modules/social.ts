@@ -15,7 +15,7 @@ import { rankFeed, type FeedCandidate } from '../services/ranking';
 import { bigThreeFor, displayNames, isBlockedEitherWay } from '../services/identity';
 import { DateTime } from 'luxon';
 import { blockedPhrases, screenText } from '../services/moderation';
-import { assertNotTimedOut } from '../services/circleSpaces';
+import { assertNotTimedOut, hiddenChannels } from '../services/circleSpaces';
 import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { checkCircleActivation } from '../services/circles';
@@ -81,6 +81,8 @@ export async function canViewPost(db: Executor, viewerId: string, post: typeof s
   if (post.visibility === 'group' && post.groupId) {
     const [m] = await db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, post.groupId), eq(s.groupMembers.userId, viewerId), eq(s.groupMembers.status, 'active')));
     const [g] = await db.select().from(s.groups).where(eq(s.groups.id, post.groupId));
+    // Members-only channels: only that tier and above (and circle admins) can open their posts.
+    if (post.channelId && (await hiddenChannels(db, viewerId, [post.groupId])).has(post.channelId)) return false;
     return Boolean(m) || g?.visibility === 'public';
   }
   const [f] = await db.select().from(s.follows).where(and(eq(s.follows.followerId, viewerId), eq(s.follows.followeeId, post.authorId), eq(s.follows.status, 'accepted')));
@@ -325,6 +327,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
         const [ch] = await ctx.db.select().from(s.circleChannels).where(and(eq(s.circleChannels.id, body.channelId), eq(s.circleChannels.circleId, body.groupId), isNull(s.circleChannels.archivedAt)));
         if (!ch) throw badRequest('That channel no longer exists.');
         if (ch.kind === 'announcements' && !['owner', 'moderator'].includes(m.role)) throw forbidden('Only circle owners and moderators post in announcement channels.');
+        if ((await hiddenChannels(ctx.db, a.userId, [body.groupId])).has(ch.id)) throw notFound('Channel');
       }
     } else if (body.channelId) throw badRequest('Channels are only for circle posts.');
     const recent = await ctx.db.select({ body: s.posts.body }).from(s.posts).where(and(eq(s.posts.authorId, a.userId), gt(s.posts.createdAt, new Date(Date.now() - 86400000))));
@@ -417,7 +420,8 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       or(isNull(s.posts.expiresAt), gt(s.posts.expiresAt, new Date())), visibility,
       q.topic ? sql`${q.topic} = any(${s.posts.topics})` : undefined, q.kind ? eq(s.posts.kind, q.kind) : undefined,
     )).orderBy(desc(s.posts.createdAt)).limit(400);
-    const visible = rows.filter((r) => !excluded.has(r.authorId) && !isMuted(r));
+    const lockedChannels = await hiddenChannels(ctx.db, a.userId, groupsIn);
+    const visible = rows.filter((r) => !excluded.has(r.authorId) && !isMuted(r) && !(r.channelId && lockedChannels.has(r.channelId)));
     const ids = visible.map((r) => r.id);
     const rc = ids.length ? await ctx.db.select({ postId: s.reactions.postId, n: sql<number>`count(*)::int` }).from(s.reactions).where(inArray(s.reactions.postId, ids)).groupBy(s.reactions.postId) : [];
     const cc = ids.length ? await ctx.db.select({ postId: s.comments.postId, n: sql<number>`count(*)::int` }).from(s.comments).where(and(inArray(s.comments.postId, ids), isNull(s.comments.deletedAt), eq(s.comments.hiddenByModeration, false))).groupBy(s.comments.postId) : [];

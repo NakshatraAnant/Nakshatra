@@ -11,7 +11,7 @@ import { notify } from '../lib/notify';
 import { blockedPhrases, screenText } from '../services/moderation';
 import { displayNames } from '../services/identity';
 import { circleMembership, isAdmin, requireCircle } from '../services/circles';
-import { materialiseSeries } from '../services/circleSpaces';
+import { hiddenChannels, materialiseSeries } from '../services/circleSpaces';
 import { FREQUENCIES, RECURRENCE_RULES as RR } from '../../shared/recurrence';
 
 /** Circle channels, circle events (one-off and recurring) and the circle moderator dashboard. */
@@ -38,17 +38,24 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const since = new Date(Date.now() - 7 * 864e5);
     const activity = await db.select({ c: s.posts.channelId, n: sql<number>`count(*)::int` }).from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), gte(s.posts.createdAt, since))).groupBy(s.posts.channelId);
     const canPost = (kind: string) => kind !== 'announcements' || isAdmin(member);
+    const locked = await hiddenChannels(db, a.userId, [id]);
+    const tiers = await db.select().from(s.circleTiers).where(eq(s.circleTiers.circleId, id));
     return {
       channels: [
-        { id: null, name: 'General', description: 'Everything else.', kind: 'discussion', canPost: true, postsThisWeek: activity.find((x) => x.c === null)?.n ?? 0 },
-        ...rows.map((c) => ({ id: c.id, name: c.name, description: c.description, kind: c.kind, canPost: canPost(c.kind), postsThisWeek: activity.find((x) => x.c === c.id)?.n ?? 0 })),
+        { id: null, name: 'General', description: 'Everything else.', kind: 'discussion', canPost: true, postsThisWeek: activity.find((x) => x.c === null)?.n ?? 0, tier: null },
+        ...rows.filter((c) => !locked.has(c.id)).map((c) => ({ id: c.id, name: c.name, description: c.description, kind: c.kind, canPost: canPost(c.kind), postsThisWeek: activity.find((x) => x.c === c.id)?.n ?? 0, tier: tiers.find((t) => t.id === c.tierId)?.name ?? null, tierId: c.tierId })),
       ],
       canManage: isAdmin(member),
       max: RR.maxChannels,
     };
   });
 
-  const ChannelBody = z.object({ name: z.string().trim().min(2).max(30).regex(/^[\p{L}\p{N} _-]+$/u, 'Use letters, numbers, spaces, - or _.'), description: z.string().trim().max(140).default(''), kind: z.enum(['discussion', 'announcements']).default('discussion') });
+  const ChannelBody = z.object({ name: z.string().trim().min(2).max(30).regex(/^[\p{L}\p{N} _-]+$/u, 'Use letters, numbers, spaces, - or _.'), description: z.string().trim().max(140).default(''), kind: z.enum(['discussion', 'announcements']).default('discussion'), tierId: z.uuid().nullable().optional() });
+  async function checkTier(circleId: string, tierId: string | null | undefined) {
+    if (!tierId) return;
+    const [t] = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.id, tierId), eq(s.circleTiers.circleId, circleId), isNull(s.circleTiers.archivedAt)));
+    if (!t) throw badRequest('That tier doesn’t exist in this circle.');
+  }
 
   app.post('/api/v1/circles/:id/channels', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req, reply) => {
     const a = requireAuth(req);
@@ -60,6 +67,7 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const existing = await db.select().from(s.circleChannels).where(and(eq(s.circleChannels.circleId, id), isNull(s.circleChannels.archivedAt)));
     if (existing.length >= RR.maxChannels) throw conflict(`A circle can have up to ${RR.maxChannels} channels.`);
     if (existing.some((c) => c.name.toLowerCase() === body.name.toLowerCase())) throw conflict('There is already a channel with that name.');
+    await checkTier(id, body.tierId);
     const [c] = await db.insert(s.circleChannels).values({ circleId: id, ...body, position: existing.length + 1, createdBy: a.userId }).returning();
     await audit(db, { actorId: a.userId, action: 'circle.channel_created', targetType: 'group', targetId: id, meta: { name: c.name } });
     return reply.code(201).send({ channel: { id: c.id, name: c.name } });
@@ -71,13 +79,86 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     await requireCircleAdmin(id, a.userId);
     const body = parse(ChannelBody.partial().extend({ archived: z.boolean().optional() }), req.body);
     await screen([body.name ?? '', body.description ?? '']);
+    await checkTier(id, body.tierId);
     const { archived, ...rest } = body;
     const [c] = await db.update(s.circleChannels).set({ ...rest, ...(archived === undefined ? {} : { archivedAt: archived ? new Date() : null }) })
       .where(and(eq(s.circleChannels.id, channelId), eq(s.circleChannels.circleId, id))).returning();
     if (!c) throw notFound('Channel');
-    // Archiving keeps the posts; they show up in General again.
-    if (archived) await db.update(s.posts).set({ channelId: null }).where(and(eq(s.posts.groupId, id), eq(s.posts.channelId, channelId)));
+    // Archiving keeps the posts; they show up in General again — except members-only channels, whose posts stay closed.
+    if (archived && !c.tierId) await db.update(s.posts).set({ channelId: null }).where(and(eq(s.posts.groupId, id), eq(s.posts.channelId, channelId)));
     await audit(db, { actorId: a.userId, action: archived ? 'circle.channel_archived' : 'circle.channel_updated', targetType: 'group', targetId: id, meta: { name: c.name } });
+    return { ok: true };
+  });
+
+  /* ---------------- Membership tiers (free) ---------------- */
+
+  app.get('/api/v1/circles/:id/tiers', async (req) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const { member } = await requireCircle(db, id, a.userId);
+    const tiers = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt))).orderBy(desc(s.circleTiers.position));
+    const counts = await db.select({ t: s.circleMemberTiers.tierId, n: sql<number>`count(*)::int` }).from(s.circleMemberTiers).where(eq(s.circleMemberTiers.circleId, id)).groupBy(s.circleMemberTiers.tierId);
+    const [mine] = await db.select({ t: s.circleMemberTiers.tierId }).from(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, a.userId)));
+    return {
+      tiers: tiers.map((t) => ({ id: t.id, name: t.name, description: t.description, color: t.color, position: t.position, members: counts.find((c) => c.t === t.id)?.n ?? 0 })),
+      myTierId: mine?.t ?? null, canManage: isAdmin(member), max: TIER_MAX,
+      paidNote: 'Paid tiers aren’t available: they need payments switched on and payouts to circle owners, which aren’t built.',
+    };
+  });
+
+  const TIER_MAX = 5;
+  const TierBody = z.object({ name: z.string().trim().min(2).max(30), description: z.string().trim().max(140).default(''), color: z.enum(['saffron', 'jade', 'dusk', 'ember', 'monsoon']).default('saffron') });
+
+  app.post('/api/v1/circles/:id/tiers', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req, reply) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    await requireCircleAdmin(id, a.userId);
+    const body = parse(TierBody, req.body);
+    await screen([body.name, body.description]);
+    const existing = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt)));
+    if (existing.length >= TIER_MAX) throw conflict(`A circle can have up to ${TIER_MAX} tiers.`);
+    if (existing.some((t) => t.name.toLowerCase() === body.name.toLowerCase())) throw conflict('There is already a tier with that name.');
+    // New tiers go on top; reorder with PATCH.
+    const [t] = await db.insert(s.circleTiers).values({ circleId: id, ...body, position: Math.max(0, ...existing.map((x) => x.position)) + 1 }).returning();
+    await audit(db, { actorId: a.userId, action: 'circle.tier_created', targetType: 'group', targetId: id, meta: { name: t.name } });
+    return reply.code(201).send({ tier: { id: t.id, name: t.name } });
+  });
+
+  app.patch('/api/v1/circles/:id/tiers/:tierId', async (req) => {
+    const a = requireAuth(req);
+    const { id, tierId } = parse(z.object({ id: z.uuid(), tierId: z.uuid() }), req.params);
+    await requireCircleAdmin(id, a.userId);
+    const body = parse(TierBody.partial().extend({ position: z.number().int().min(1).max(100).optional(), archived: z.literal(true).optional() }), req.body);
+    await screen([body.name ?? '', body.description ?? '']);
+    const [t] = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.id, tierId), eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt)));
+    if (!t) throw notFound('Tier');
+    if (body.archived) {
+      const [ch] = await db.select({ id: s.circleChannels.id }).from(s.circleChannels).where(and(eq(s.circleChannels.tierId, tierId), isNull(s.circleChannels.archivedAt)));
+      if (ch) throw conflict('Move or archive the channels that use this tier first.');
+      await db.delete(s.circleMemberTiers).where(eq(s.circleMemberTiers.tierId, tierId));
+    }
+    const { archived, ...rest } = body;
+    await db.update(s.circleTiers).set({ ...rest, ...(archived ? { archivedAt: new Date() } : {}) }).where(eq(s.circleTiers.id, tierId));
+    await audit(db, { actorId: a.userId, action: archived ? 'circle.tier_archived' : 'circle.tier_updated', targetType: 'group', targetId: id, meta: { name: t.name } });
+    return { ok: true };
+  });
+
+  /** Give a member a tier, or clear it (tierId: null). They're told about a new tier. */
+  app.put('/api/v1/circles/:id/members/:userId/tier', async (req) => {
+    const a = requireAuth(req);
+    const { id, userId } = parse(z.object({ id: z.uuid(), userId: z.uuid() }), req.params);
+    const { circle } = await requireCircleAdmin(id, a.userId);
+    const { tierId } = parse(z.object({ tierId: z.uuid().nullable() }), req.body);
+    if (!(await circleMembership(db, id, userId))) throw notFound('Member');
+    if (tierId === null) {
+      await db.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, userId)));
+    } else {
+      await checkTier(id, tierId);
+      await db.insert(s.circleMemberTiers).values({ circleId: id, userId, tierId, assignedBy: a.userId }).onConflictDoUpdate({ target: [s.circleMemberTiers.circleId, s.circleMemberTiers.userId], set: { tierId, assignedBy: a.userId, createdAt: new Date() } });
+      const [t] = await db.select({ name: s.circleTiers.name }).from(s.circleTiers).where(eq(s.circleTiers.id, tierId));
+      if (userId !== a.userId) await notify(ctx, db, { userId, category: 'circles', title: `You’re now ${t.name} in ${circle.name}`, link: `/circles/${id}`, dedupeKey: `circle-tier:${id}:${userId}:${tierId}` });
+    }
+    await audit(db, { actorId: a.userId, action: tierId ? 'circle.tier_assigned' : 'circle.tier_cleared', targetType: 'group', targetId: id, meta: { userId } });
     return { ok: true };
   });
 
@@ -287,6 +368,7 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       if (target.role === 'owner' || (target.role === 'moderator' && member.role !== 'owner')) throw forbidden('You can’t ban this member.');
       await db.update(s.groupMembers).set({ status: 'banned', role: 'member' }).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId)));
       await db.delete(s.circleTimeouts).where(and(eq(s.circleTimeouts.circleId, id), eq(s.circleTimeouts.userId, userId)));
+      await db.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, userId)));
     } else {
       await db.delete(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId), eq(s.groupMembers.status, 'banned')));
     }

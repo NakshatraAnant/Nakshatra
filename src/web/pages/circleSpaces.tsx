@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError, del, get, post } from '../lib/api';
+import { ApiError, del, get, patch, post, put } from '../lib/api';
 import { Badge, Button, Card, Field, Input, Select, Textarea, cx } from '../components/ui/primitives';
 import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
@@ -176,5 +176,60 @@ export function CircleModeration({ circleId }: { circleId: string }) {
         </Card>
       </div>
     )}</QueryState>
+  );
+}
+
+/* ---------------- Membership tiers ---------------- */
+
+interface TiersResp { tiers: { id: string; name: string; description: string; color: string; position: number; members: number }[]; myTierId: string | null; canManage: boolean; max: number; paidNote: string }
+const TIER_COLORS: Record<string, string> = { saffron: 'text-warning', jade: 'text-success', dusk: 'text-accent', ember: 'text-danger', monsoon: 'text-celestial' };
+
+export const useTiers = (circleId: string) => useQuery({ queryKey: ['circle-tiers', circleId], queryFn: () => get<TiersResp>(`circles/${circleId}/tiers`) });
+
+export function TierBadge({ name, color }: { name: string; color: string }) {
+  return <span className={cx('inline-flex items-center rounded-full border border-current px-2 text-[11px] font-semibold', TIER_COLORS[color] ?? TIER_COLORS.saffron)}>{name}</span>;
+}
+
+export function TiersPanel({ circleId }: { circleId: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useTiers(circleId);
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('saffron');
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['circle-tiers', circleId] }); void qc.invalidateQueries({ queryKey: ['circle', circleId] }); };
+  const add = useMutation({ mutationFn: () => post(`circles/${circleId}/tiers`, { name, color }), onSuccess: () => { setName(''); refresh(); }, onError: failWith(toast) });
+  const archive = useMutation({ mutationFn: (id: string) => patch(`circles/${circleId}/tiers/${id}`, { archived: true }), onSuccess: refresh, onError: failWith(toast) });
+  if (!q.data || (!q.data.canManage && !q.data.tiers.length)) return null;
+  const d = q.data;
+  return (
+    <Card className="space-y-3" aria-label="Membership tiers">
+      <h2 className="font-display text-2xl">Membership tiers</h2>
+      <p className="text-sm text-fg-2">Give members a badge, and open members-only channels to a tier and everyone above it. Newer tiers sit higher.</p>
+      {d.tiers.length > 0 && <ul className="divide-y divide-line">{d.tiers.map((t) => (
+        <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span><TierBadge name={t.name} color={t.color} /> <span className="text-fg-3">· {t.members} member{t.members === 1 ? '' : 's'}</span></span>{d.canManage && <Button size="sm" variant="ghost" onClick={() => archive.mutate(t.id)}>Archive</Button>}</li>
+      ))}</ul>}
+      {d.canManage && d.tiers.length < d.max && (
+        <div className="flex flex-wrap gap-2">
+          <Input aria-label="Tier name" placeholder="e.g. Core crew" maxLength={30} value={name} onChange={(e) => setName(e.target.value)} className="min-w-0 flex-1" />
+          <Select aria-label="Tier colour" className="w-32" value={color} onChange={(e) => setColor(e.target.value)}>{Object.keys(TIER_COLORS).map((c) => <option key={c}>{c}</option>)}</Select>
+          <Button size="sm" variant="secondary" disabled={name.trim().length < 2} loading={add.isPending} onClick={() => add.mutate()}>Add tier</Button>
+        </div>
+      )}
+      <p className="text-xs text-fg-3">{d.paidNote}</p>
+    </Card>
+  );
+}
+
+export function AssignTier({ circleId, userId, name, current }: { circleId: string; userId: string; name: string; current: string | null }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useTiers(circleId);
+  const set = useMutation({ mutationFn: (tierId: string | null) => put(`circles/${circleId}/members/${userId}/tier`, { tierId }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['circle', circleId] }); void qc.invalidateQueries({ queryKey: ['circle-tiers', circleId] }); }, onError: failWith(toast) });
+  if (!q.data?.tiers.length) return null;
+  const value = q.data.tiers.find((t) => t.name === current)?.id ?? '';
+  return (
+    <Select aria-label={`Tier for ${name}`} className="w-36" value={value} onChange={(e) => set.mutate(e.target.value || null)}>
+      <option value="">No tier</option>{q.data.tiers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+    </Select>
   );
 }

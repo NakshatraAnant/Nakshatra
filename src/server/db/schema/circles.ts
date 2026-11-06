@@ -11,6 +11,8 @@ export const circleChannels = pgTable('circle_channels', {
   /** discussion (any member posts) | announcements (only owner/moderators post) */
   kind: text('kind').notNull().default('discussion'),
   position: integer('position').notNull().default(0),
+  /** Members-only channel: open to this tier and higher tiers (plus owners/moderators). Null = everyone in the circle. */
+  tierId: uuid('tier_id'),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -57,3 +59,25 @@ export const circleReportReviews = pgTable('circle_report_reviews', {
   note: text('note').notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('circle_report_reviews_circle_idx').on(t.circleId)]);
+
+/** Free membership tiers inside a circle (e.g. "Core crew"). Higher position = higher tier. Paid tiers are not built. */
+export const circleTiers = pgTable('circle_tiers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  circleId: uuid('circle_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  /** Badge colour token: saffron | jade | dusk | ember | monsoon */
+  color: text('color').notNull().default('saffron'),
+  position: integer('position').notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('circle_tiers_circle_idx').on(t.circleId)]);
+
+/** One tier per member per circle, assigned by circle owners/moderators. */
+export const circleMemberTiers = pgTable('circle_member_tiers', {
+  circleId: uuid('circle_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tierId: uuid('tier_id').notNull().references(() => circleTiers.id, { onDelete: 'cascade' }),
+  assignedBy: uuid('assigned_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.circleId, t.userId] })]);

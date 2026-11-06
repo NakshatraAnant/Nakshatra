@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Executor } from '../db/client';
 import { forbidden } from '../lib/http';
@@ -41,4 +41,27 @@ export async function materialiseAllSeries(db: Executor, now = new Date()): Prom
 export async function assertNotTimedOut(db: Executor, circleId: string, userId: string) {
   const [t] = await db.select().from(s.circleTimeouts).where(and(eq(s.circleTimeouts.circleId, circleId), eq(s.circleTimeouts.userId, userId), gt(s.circleTimeouts.until, new Date())));
   if (t) throw forbidden(`A circle moderator paused your posting here until ${t.until.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}.`);
+}
+
+/**
+ * Members-only channels this member may NOT see, across the given circles. A tier channel is open to members of
+ * that tier or a higher one, and always to owners and moderators. Archived tier channels stay closed (their posts
+ * are never moved into General). Used by every path that lists or opens circle posts.
+ */
+export async function hiddenChannels(db: Executor, userId: string, circleIds: string[]): Promise<Set<string>> {
+  if (!circleIds.length) return new Set();
+  const gated = await db.select({ id: s.circleChannels.id, circleId: s.circleChannels.circleId, required: s.circleTiers.position })
+    .from(s.circleChannels).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleChannels.tierId)).where(inArray(s.circleChannels.circleId, circleIds));
+  if (!gated.length) return new Set();
+  const roles = await db.select({ c: s.groupMembers.groupId, role: s.groupMembers.role }).from(s.groupMembers).where(and(eq(s.groupMembers.userId, userId), eq(s.groupMembers.status, 'active'), inArray(s.groupMembers.groupId, circleIds)));
+  const mine = await db.select({ c: s.circleMemberTiers.circleId, pos: s.circleTiers.position }).from(s.circleMemberTiers).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleMemberTiers.tierId))
+    .where(and(eq(s.circleMemberTiers.userId, userId), inArray(s.circleMemberTiers.circleId, circleIds), isNull(s.circleTiers.archivedAt)));
+  const hidden = new Set<string>();
+  for (const g of gated) {
+    const role = roles.find((r) => r.c === g.circleId)?.role;
+    if (role === 'owner' || role === 'moderator') continue;
+    const pos = mine.find((m) => m.c === g.circleId)?.pos;
+    if (pos === undefined || pos < g.required) hidden.add(g.id);
+  }
+  return hidden;
 }

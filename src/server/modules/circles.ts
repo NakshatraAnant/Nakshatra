@@ -15,6 +15,7 @@ import { recordFirstAction } from '../services/activation';
 import { blockedPhrases, screenText } from '../services/moderation';
 import { hydratePosts, muteFilters } from './social';
 import { flagEnabled, requireFeature } from '../services/settings';
+import { hiddenChannels } from '../services/circleSpaces';
 import { enabledModules } from '../services/modules';
 import { PERSONA_BY_KEY, type Vector } from '../../shared/personality';
 import { commonGround, type SharedView } from '../../shared/commonGround';
@@ -75,6 +76,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const profiles = await ctx.db.select({ u: s.profiles.userId, fv: s.profiles.fieldVisibility }).from(s.profiles).where(inArray(s.profiles.userId, members.map((m) => m.userId)));
     const latest = await ctx.db.execute(sql`select distinct on (user_id) user_id, archetype_key from assessment_results where user_id in (${sql.join(members.map((m) => sql`${m.userId}`), sql`, `)}) order by user_id, created_at desc`) as unknown as { rows: { user_id: string; archetype_key: string }[] };
     const contributors = await contributingMembers(ctx.db, id);
+    const tiers = await ctx.db.select({ u: s.circleMemberTiers.userId, name: s.circleTiers.name, color: s.circleTiers.color }).from(s.circleMemberTiers).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleMemberTiers.tierId)).where(and(eq(s.circleMemberTiers.circleId, id), isNull(s.circleTiers.archivedAt)));
     return {
       circle: { id: circle.id, name: circle.name, description: circle.description, theme: circle.theme, invitePolicy: circle.invitePolicy, createdAt: circle.createdAt, ownerId: circle.ownerId },
       me: { role: member.role, canInvite: isAdmin(member) || circle.invitePolicy === 'members', isAdmin: isAdmin(member) },
@@ -82,7 +84,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
         // Circle members see an archetype only when its owner made it public (persona visibility).
         const vis = ((profiles.find((p) => p.u === m.userId)?.fv ?? {}) as Record<string, string>).persona ?? 'public';
         const key = latest.rows.find((r) => r.user_id === m.userId)?.archetype_key;
-        return { userId: m.userId, role: m.role, joinedAt: m.createdAt, ...names.get(m.userId), archetype: key && (vis === 'public' || m.userId === a.userId) ? PERSONA_BY_KEY[key]?.name ?? null : null, contributed: contributors.has(m.userId) };
+        return { userId: m.userId, role: m.role, joinedAt: m.createdAt, ...names.get(m.userId), archetype: key && (vis === 'public' || m.userId === a.userId) ? PERSONA_BY_KEY[key]?.name ?? null : null, contributed: contributors.has(m.userId), tier: tiers.find((t) => t.u === m.userId) ?? null };
       }),
       level: circleLevel(await circlePoints(ctx.db, id)),
       activation: { contributors: contributors.size, needed: ACTIVATION_MEMBERS },
@@ -208,6 +210,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
       await ctx.db.update(s.groups).set({ archivedAt: new Date() }).where(eq(s.groups.id, id));
     }
     await ctx.db.delete(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, a.userId)));
+    await ctx.db.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, a.userId)));
     return { ok: true };
   });
 
@@ -225,7 +228,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     if (action === 'remove' && target.member.role === 'moderator' && member.role !== 'owner') throw forbidden('Only the owner can remove an admin.');
     await ctx.db.transaction(async (tx) => {
       const where = and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, userId));
-      if (action === 'remove') await tx.delete(s.groupMembers).where(where);
+      if (action === 'remove') { await tx.delete(s.groupMembers).where(where); await tx.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, userId))); }
       if (action === 'make_admin') await tx.update(s.groupMembers).set({ role: 'moderator' }).where(where);
       if (action === 'remove_admin') await tx.update(s.groupMembers).set({ role: 'member' }).where(where);
       if (action === 'transfer_ownership') {
@@ -273,8 +276,10 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const { before, channel } = parse(z.object({ before: z.iso.datetime().optional(), channel: z.union([z.literal('general'), z.uuid()]).optional() }), req.query);
     await requireCircle(ctx.db, id, a.userId);
     const isMuted = await muteFilters(ctx.db, a.userId);
+    const locked = await hiddenChannels(ctx.db, a.userId, [id]);
+    if (channel && channel !== 'general' && locked.has(channel)) throw notFound('Channel');
     const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), channel === 'general' ? isNull(s.posts.channelId) : channel ? eq(s.posts.channelId, channel) : undefined, before ? lt(s.posts.createdAt, new Date(before)) : undefined)).orderBy(desc(s.posts.createdAt)).limit(21);
-    const page = rows.slice(0, 20).filter((r) => !isMuted(r));
+    const page = rows.slice(0, 20).filter((r) => !isMuted(r) && !(r.channelId && locked.has(r.channelId)));
     return { posts: await hydratePosts(ctx.db, a.userId, page), nextBefore: rows.length > 20 ? rows[19].createdAt.toISOString() : null };
   });
 

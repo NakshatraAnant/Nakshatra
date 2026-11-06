@@ -10,7 +10,7 @@ import { Composer, ThoughtCard, type ThoughtPost } from './thoughts';
 import { GameLauncher, SessionList } from './play';
 import { CircleQuestion } from './home';
 import { Art } from '../components/visual';
-import { CircleEvents, CircleModeration } from './circleSpaces';
+import { AssignTier, CircleEvents, CircleModeration, TierBadge, TiersPanel, useTiers } from './circleSpaces';
 import { circleCover, circleSymbol } from '../lib/visual';
 
 export const CIRCLE_THEME_COLORS: Record<string, [string, string]> = {
@@ -104,7 +104,7 @@ export function CirclesPage() {
 interface CircleDetailResp {
   circle: { id: string; name: string; description: string; theme: string; invitePolicy: string; ownerId: string };
   me: { role: string; canInvite: boolean; isAdmin: boolean };
-  members: { userId: string; role: string; displayName?: string; handle?: string; archetype: string | null; contributed: boolean }[];
+  members: { userId: string; role: string; displayName?: string; handle?: string; archetype: string | null; contributed: boolean; tier: { name: string; color: string } | null }[];
   level: { name: string; points: number; next: { name: string; at: number } | null };
   activation: { contributors: number; needed: number };
 }
@@ -146,7 +146,7 @@ function InvitePanel({ circleId, canInvite, isAdmin }: { circleId: string; canIn
   );
 }
 
-interface Channel { id: string | null; name: string; description: string; kind: string; canPost: boolean; postsThisWeek: number }
+interface Channel { id: string | null; name: string; description: string; kind: string; canPost: boolean; postsThisWeek: number; tier: string | null }
 
 function CircleFeed({ circleId, circleName }: { circleId: string; circleName: string }) {
   const [channel, setChannel] = useState<string>('');
@@ -175,7 +175,7 @@ function CircleFeed({ circleId, circleName }: { circleId: string; circleName: st
           <button type="button" aria-pressed={channel === ''} onClick={() => setChannel('')} className={pill(channel === '')}>All</button>
           {list.map((ch) => {
             const key = ch.id ?? 'general';
-            return <button key={key} type="button" aria-pressed={channel === key} onClick={() => setChannel(key)} className={pill(channel === key)}># {ch.name}{ch.kind === 'announcements' ? ' (announcements)' : ''}</button>;
+            return <button key={key} type="button" aria-pressed={channel === key} onClick={() => setChannel(key)} className={pill(channel === key)}># {ch.name}{ch.kind === 'announcements' ? ' (announcements)' : ''}{ch.tier ? ` · ${ch.tier}+` : ''}</button>;
           })}
           {channels.data?.canManage && <Button size="sm" variant="ghost" onClick={() => setManaging(!managing)}>{managing ? 'Done' : 'Manage channels'}</Button>}
         </div>
@@ -197,20 +197,23 @@ function ChannelManager({ circleId, channels, max }: { circleId: string; channel
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [kind, setKind] = useState('discussion');
+  const [tierId, setTierId] = useState('');
+  const tiers = useTiers(circleId);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['circle-channels', circleId] }); void qc.invalidateQueries({ queryKey: ['circle-feed', circleId] }); };
   const fail = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error');
-  const add = useMutation({ mutationFn: () => post(`circles/${circleId}/channels`, { name, description, kind }), onSuccess: () => { setName(''); setDescription(''); refresh(); toast('Channel added', 'success'); }, onError: fail });
+  const add = useMutation({ mutationFn: () => post(`circles/${circleId}/channels`, { name, description, kind, tierId: tierId || null }), onSuccess: () => { setName(''); setDescription(''); refresh(); toast('Channel added', 'success'); }, onError: fail });
   const archive = useMutation({ mutationFn: (channelId: string) => patch(`circles/${circleId}/channels/${channelId}`, { archived: true }), onSuccess: () => { refresh(); toast('Archived — its posts are back in General', 'success'); }, onError: fail });
   return (
     <Card className="space-y-3" aria-label="Manage channels">
       {channels.length > 0 && <ul className="divide-y divide-line">{channels.map((ch) => (
-        <li key={ch.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span># {ch.name} <span className="text-fg-3">· {ch.kind === 'announcements' ? 'announcements' : 'discussion'} · {ch.postsThisWeek} this week</span></span><Button size="sm" variant="ghost" onClick={() => archive.mutate(ch.id!)}>Archive</Button></li>
+        <li key={ch.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span># {ch.name} <span className="text-fg-3">· {ch.kind === 'announcements' ? 'announcements' : 'discussion'}{ch.tier ? ` · ${ch.tier} and above` : ''} · {ch.postsThisWeek} this week</span></span><Button size="sm" variant="ghost" onClick={() => archive.mutate(ch.id!)}>Archive</Button></li>
       ))}</ul>}
       {channels.length < max && (
         <div className="grid gap-2 sm:grid-cols-2">
           <Input aria-label="Channel name" placeholder="Channel name" maxLength={30} value={name} onChange={(e) => setName(e.target.value)} />
           <Input aria-label="Channel description" placeholder="What it’s for (optional)" maxLength={140} value={description} onChange={(e) => setDescription(e.target.value)} />
           <Select aria-label="Who can post" value={kind} onChange={(e) => setKind(e.target.value)}><option value="discussion">Everyone posts</option><option value="announcements">Announcements (admins post)</option></Select>
+          <Select aria-label="Who can see it" value={tierId} onChange={(e) => setTierId(e.target.value)}><option value="">Everyone in the circle</option>{tiers.data?.tiers.map((t) => <option key={t.id} value={t.id}>{t.name} and above</option>)}</Select>
           <Button size="sm" disabled={name.trim().length < 2} loading={add.isPending} onClick={() => add.mutate()}>Add channel</Button>
         </div>
       )}
@@ -282,16 +285,18 @@ export function CircleDetail() {
             {tab === 'members' && (
               <div className="space-y-6">
                 <Card><h2 className="mb-3 font-display text-2xl">Invite</h2><InvitePanel circleId={d.circle.id} canInvite={d.me.canInvite} isAdmin={d.me.isAdmin} /></Card>
+                <TiersPanel circleId={d.circle.id} />
                 <Card>
                   <h2 className="font-display text-2xl">Members</h2>
                   <ul className="mt-3 divide-y divide-line">
                     {d.members.map((m) => (
                       <li key={m.userId} className="flex flex-wrap items-center gap-3 py-2.5">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm text-fg">{m.displayName ?? 'Member'} {m.userId === me?.id && <span className="text-fg-3">(you)</span>}</p>
+                          <p className="text-sm text-fg">{m.displayName ?? 'Member'} {m.userId === me?.id && <span className="text-fg-3">(you)</span>} {m.tier && <TierBadge name={m.tier.name} color={m.tier.color} />}</p>
                           <p className="text-xs text-fg-3">{m.role === 'owner' ? 'Owner' : m.role === 'moderator' ? 'Admin' : 'Member'}{m.archetype ? ` · ${m.archetype}` : ''}{m.contributed ? ' · has joined in' : ''}</p>
                         </div>
                         {m.userId !== me?.id && <CommonGroundButton circleId={d.circle.id} userId={m.userId} name={m.displayName ?? 'Member'} />}
+                        {d.me.isAdmin && <AssignTier circleId={d.circle.id} userId={m.userId} name={m.displayName ?? 'Member'} current={m.tier?.name ?? null} />}
                         {d.me.isAdmin && m.userId !== me?.id && m.role !== 'owner' && (
                           <div className="flex flex-wrap gap-1">
                             {d.me.role === 'owner' && (m.role === 'moderator'
