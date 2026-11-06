@@ -319,6 +319,11 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     // Tournaments: hosted ones that are still running are called off; your entries (and answers) are removed.
     await tx.update(s.tournaments).set({ cancelledAt: new Date() }).where(and(eq(s.tournaments.hostId, userId), isNull(s.tournaments.cancelledAt)));
     await tx.delete(s.tournamentEntries).where(eq(s.tournamentEntries.userId, userId));
+    // Creator page goes; the earnings ledger and tip amounts stay for accounting, without names or messages.
+    await tx.delete(s.creatorProfiles).where(eq(s.creatorProfiles.userId, userId));
+    await tx.update(s.creatorOfferings).set({ status: 'archived' }).where(eq(s.creatorOfferings.creatorId, userId));
+    await tx.delete(s.creatorOfferingInterests).where(eq(s.creatorOfferingInterests.userId, userId));
+    await tx.update(s.creatorTips).set({ message: '', anonymous: true, showOnWall: false }).where(or(eq(s.creatorTips.fromUserId, userId), eq(s.creatorTips.creatorId, userId)));
     // COD orders: drafts go; finished orders keep amounts for accounting but lose the delivery address. Orders still
     // on their way keep the address until they are delivered or returned.
     await tx.delete(s.codOrders).where(and(eq(s.codOrders.userId, userId), eq(s.codOrders.status, 'draft')));

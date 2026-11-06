@@ -728,7 +728,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post('/api/v1/reports', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req) => {
     const a = requireAuth(req, { allowSuspended: false });
     const body = parse(z.object({
-      targetType: z.enum(['user', 'post', 'comment', 'message', 'dating_profile', 'expert', 'review', 'product', 'vendor', 'group', 'matchmaking_profile', 'game_submission', 'quiz', 'tournament']),
+      targetType: z.enum(['user', 'post', 'comment', 'message', 'dating_profile', 'expert', 'review', 'product', 'vendor', 'group', 'matchmaking_profile', 'game_submission', 'quiz', 'tournament', 'creator']),
       targetId: z.uuid(), reason: z.enum(['spam', 'harassment', 'scam', 'impersonation', 'underage', 'inappropriate', 'hate', 'self_harm', 'other']),
       details: z.string().max(2000).default(''),
     }), req.body);
@@ -736,6 +736,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     if (body.targetType === 'user' || body.targetType === 'dating_profile' || body.targetType === 'expert' || body.targetType === 'matchmaking_profile') targetUserId = body.targetId;
     if (body.targetType === 'post') targetUserId = (await ctx.db.select({ u: s.posts.authorId }).from(s.posts).where(eq(s.posts.id, body.targetId)))[0]?.u ?? null;
     if (body.targetType === 'quiz') targetUserId = (await ctx.db.select({ u: s.memberQuizzes.authorId }).from(s.memberQuizzes).where(eq(s.memberQuizzes.id, body.targetId)))[0]?.u ?? null;
+    if (body.targetType === 'creator') targetUserId = body.targetId;
     if (body.targetType === 'tournament') targetUserId = (await ctx.db.select({ u: s.tournaments.hostId }).from(s.tournaments).where(eq(s.tournaments.id, body.targetId)))[0]?.u ?? null;
     if (body.targetType === 'comment') targetUserId = (await ctx.db.select({ u: s.comments.authorId }).from(s.comments).where(eq(s.comments.id, body.targetId)))[0]?.u ?? null;
     if (body.targetType === 'message') {

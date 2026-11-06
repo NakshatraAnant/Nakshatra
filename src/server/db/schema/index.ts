@@ -7,3 +7,4 @@ export * from './commerce';
 export * from './platform';
 export * from './play';
 export * from './merch';
+export * from './creators';

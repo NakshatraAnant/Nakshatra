@@ -10,11 +10,11 @@ import { ConfirmDialog, Dialog, useToast } from '../components/ui/overlays';
 import { DataTable, StatTile } from '../components/ui/data';
 import { AssessmentAdmin, FunnelAdmin } from './adminInsights';
 import { CodAdmin } from './adminMerch';
-import { LaunchReadiness, PerformanceAdmin, StudentRequests } from './adminOps';
+import { CreatorsAdmin, LaunchReadiness, PerformanceAdmin, StudentRequests } from './adminOps';
 
 const SECTIONS: [string, string][] = [
   ['overview', 'Overview'], ['launch', 'Launch readiness'], ['performance', 'Performance'], ['users', 'Users'], ['moderation', 'Moderation'], ['appeals', 'Appeals'], ['verification', 'Verification'], ['refunds', 'Refunds & disputes'],
-  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['cod', 'COD fulfilment'], ['students', 'Student requests'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
+  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['cod', 'COD fulfilment'], ['students', 'Student requests'], ['creators', 'Creators'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
   ['config', 'Calculation configs'], ['templates', 'Notification templates'], ['analytics', 'Analytics'], ['funnel', 'Funnel'], ['assessment', 'Assessment model'], ['audit', 'Audit log'], ['flags', 'Flags & settings'],
   ['support', 'Support'], ['privacy', 'Privacy requests'],
 ];
@@ -43,6 +43,7 @@ export function AdminPage() {
           {section === 'commerce' && <Commerce />}
           {section === 'cod' && <CodAdmin />}
           {section === 'students' && <StudentRequests />}
+          {section === 'creators' && <CreatorsAdmin />}
           {section === 'courses' && <Courses />}
           {section === 'vendors' && <VendorsExperts />}
           {section === 'content' && <Content />}

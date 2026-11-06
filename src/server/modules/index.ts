@@ -36,6 +36,7 @@ import { merchRoutes } from './merch';
 import { membershipRoutes } from './memberships';
 import { quizRoutes } from './quizzes';
 import { tournamentRoutes } from './tournaments';
+import { creatorRoutes } from './creators';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Provider webhooks: signature-verified and idempotent (see lib/payments.ts). */
@@ -112,5 +113,6 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await membershipRoutes(app, ctx);
   await quizRoutes(app, ctx);
   await tournamentRoutes(app, ctx);
+  await creatorRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

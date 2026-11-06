@@ -14,7 +14,7 @@ import { createRazorpayOrder, createRazorpayRefund, normalizeRazorpayEvent, veri
  * simulator produces events through the same verified path and is labelled as
  * such everywhere in the UI. No card data is ever handled by this application.
  */
-export type PaymentPurpose = 'order' | 'booking' | 'subscription' | 'event' | 'vendor_milestone';
+export type PaymentPurpose = 'order' | 'booking' | 'subscription' | 'event' | 'vendor_milestone' | 'creator_tip';
 export type PaymentStatus = 'created' | 'succeeded' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
 
 const TRANSITIONS: Record<string, PaymentStatus[]> = {

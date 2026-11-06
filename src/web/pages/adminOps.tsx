@@ -115,3 +115,41 @@ export function StudentRequests() {
     )}</QueryState>
   );
 }
+
+interface CreatorRow { userId: string; handle: string; name: string; status: string; tipsEnabled: boolean; heldNetPaise: number; platformFeePaise: number; simulatedNetPaise: number }
+
+/** Creator pages: status, held earnings (no payouts exist) and suspension with a reason (audited, creator notified). */
+export function CreatorsAdmin() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['admin-creators'], queryFn: () => get<{ payoutsAvailable: boolean; creators: CreatorRow[] }>('admin/creators') });
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const set = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'suspended' }) => post(`admin/creators/${userId}/status`, { status, reason: reasons[userId] ?? '' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin-creators'] }); toast('Saved', 'success'); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error'),
+  });
+  const inr = (p: number) => `₹${(p / 100).toLocaleString('en-IN')}`;
+  return (
+    <QueryState q={q} empty={(d) => (!d.creators.length ? <EmptyState icon="sparkle" title="No creator pages yet" /> : null)}>{(d) => (
+      <div className="space-y-3">
+        {!d.payoutsAvailable && <p className="text-sm text-fg-2">Payouts are not built: tip earnings are held in the ledger. Simulated amounts come from the development payment simulator and are not real money.</p>}
+        <ul className="space-y-3">{d.creators.map((c) => (
+          <li key={c.userId} className="card space-y-2 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link to={`/creators/${c.handle}`} className="font-semibold text-fg underline-offset-2 hover:underline">{c.name}</Link>
+              <span className={cx('text-sm', c.status === 'suspended' ? 'text-danger' : 'text-fg-2')}>{c.status}{c.tipsEnabled ? ' · tips on' : ''}</span>
+            </div>
+            <p className="text-xs text-fg-3 numeric">Held {inr(c.heldNetPaise)} · platform fee {inr(c.platformFeePaise)} · simulated {inr(c.simulatedNetPaise)}</p>
+            <div className="flex flex-wrap gap-2">
+              <Input aria-label={`Reason for ${c.name}`} className="min-w-0 flex-1" placeholder="Reason (sent to the creator)" value={reasons[c.userId] ?? ''} onChange={(e) => setReasons({ ...reasons, [c.userId]: e.target.value })} />
+              {c.status === 'suspended'
+                ? <Button size="sm" variant="secondary" onClick={() => set.mutate({ userId: c.userId, status: 'active' })}>Restore</Button>
+                : <Button size="sm" variant="ghost" onClick={() => set.mutate({ userId: c.userId, status: 'suspended' })}>Suspend</Button>}
+            </div>
+          </li>
+        ))}</ul>
+      </div>
+    )}</QueryState>
+  );
+}

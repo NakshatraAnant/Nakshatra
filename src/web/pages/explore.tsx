@@ -151,6 +151,12 @@ export function ExplorePage() {
     <div className="space-y-10">
       <PageHeader kicker="Discover" title="Find your people" subtitle="Opt-in, never inferred: you see people who chose to be found, and what they’re open to." />
       {mods.enabled('people') && <People />}
+      {mods.enabled('creators') && (
+        <Link to="/creators" className="card flex flex-wrap items-center justify-between gap-3 p-4 hover:border-line-strong">
+          <span><span className="block font-display text-2xl">Creators</span><span className="text-sm text-fg-2">Members who make zines, music, games and workshops.</span></span>
+          <span className="text-sm text-accent">Browse creators →</span>
+        </Link>
+      )}
       <TrendingDrops />
     </div>
   );
@@ -170,6 +176,7 @@ export function CreatePage() {
           <li><Link to="/circles" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Start a circle</p><p className="mt-1 text-sm text-fg-2">A private space for your friends, with its own drops, events and games.</p></Link></li>
           <li><Link to="/play" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Start a game</p><p className="mt-1 text-sm text-fg-2">Twelve quick social games to play with a circle.</p></Link></li>
           <li><Link to="/play/quizzes/new" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Make a quiz</p><p className="mt-1 text-sm text-fg-2">Trivia about you, or a “which one are you?” for friends.</p></Link></li>
+          <li><Link to="/creator-studio" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Creator page</p><p className="mt-1 text-sm text-fg-2">Links, featured drops, planned offerings and tips.</p></Link></li>
           <li><Link to="/play/tournaments/new" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Host a tournament</p><p className="mt-1 text-sm text-fg-2">Timed trivia for a circle or friends, with standings.</p></Link></li>
           <li><Link to="/identity" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Share your card</p><p className="mt-1 text-sm text-fg-2">Your archetype card, as an image or a link.</p></Link></li>
         </ul>

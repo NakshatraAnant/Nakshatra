@@ -470,6 +470,10 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     const events = await ctx.db.select({ type: s.paymentEvents.type, toStatus: s.paymentEvents.toStatus, createdAt: s.paymentEvents.createdAt, signatureValid: s.paymentEvents.signatureValid }).from(s.paymentEvents).where(eq(s.paymentEvents.paymentId, id)).orderBy(asc(s.paymentEvents.createdAt));
     // Where the payer returns afterwards (wedding milestones go back to their project).
     let returnPath = p.purpose === 'order' ? '/shop/orders/' + p.purposeId : p.purpose === 'booking' ? '/experts/bookings/' + p.purposeId : p.purpose === 'subscription' ? '/settings/subscription' : '/weddings';
+    if (p.purpose === 'creator_tip') {
+      const [c] = await ctx.db.select({ handle: s.profiles.handle }).from(s.creatorTips).innerJoin(s.profiles, eq(s.profiles.userId, s.creatorTips.creatorId)).where(eq(s.creatorTips.id, p.purposeId));
+      returnPath = c ? '/creators/' + c.handle : '/creators';
+    }
     if (p.purpose === 'vendor_milestone') {
       const [m] = await ctx.db.select({ projectId: s.vendorBookings.projectId }).from(s.vendorPaymentMilestones).innerJoin(s.vendorBookings, eq(s.vendorBookings.id, s.vendorPaymentMilestones.vendorBookingId)).where(eq(s.vendorPaymentMilestones.id, p.purposeId));
       if (m) returnPath = '/weddings/' + m.projectId;
