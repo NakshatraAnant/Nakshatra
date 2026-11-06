@@ -314,6 +314,10 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.analyticsEvents).set({ userId: null }).where(eq(s.analyticsEvents.userId, userId));
     await tx.delete(s.penMutes).where(or(eq(s.penMutes.muterId, userId), eq(s.penMutes.authorId, userId)));
     await tx.delete(s.mfaRecoveryCodes).where(eq(s.mfaRecoveryCodes.userId, userId));
+    // COD orders: drafts go; finished orders keep amounts for accounting but lose the delivery address. Orders still
+    // on their way keep the address until they are delivered or returned.
+    await tx.delete(s.codOrders).where(and(eq(s.codOrders.userId, userId), eq(s.codOrders.status, 'draft')));
+    await tx.update(s.codOrders).set({ address: { redacted: true } }).where(and(eq(s.codOrders.userId, userId), inArray(s.codOrders.status, ['delivered', 'cancelled', 'returned', 'rto', 'refunded'])));
     await tx.update(s.identityShares).set({ revokedAt: new Date(), displayName: null }).where(eq(s.identityShares.userId, userId));
     await tx.update(s.expertProfiles).set({ verificationStatus: 'suspended', acceptsBookings: false, bio: '', displayName: 'Former expert' }).where(eq(s.expertProfiles.userId, userId));
     await tx.update(s.profiles).set({ handle: `deleted-${userId.slice(0, 8)}`, displayName: 'Deleted user', fullName: null, bio: '', statusText: '', avatarUrl: null, interests: [], visibility: 'private', featuredBadges: [], featuredInsights: [], pseudonym: null, identityLabels: [] }).where(eq(s.profiles.userId, userId));

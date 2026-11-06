@@ -210,6 +210,14 @@ export async function seedDemoData(ctx: Ctx): Promise<DevCredential[]> {
     const [grp] = await ctx.db.insert(s.groups).values({ slug: 'nakshatra-learners', name: 'Nakshatra Learners', description: 'A community for people learning the 27 nakshatras together.', visibility: 'public', ownerId: adminId, tags: ['nakshatras', 'learning'] }).returning();
     await ctx.db.insert(s.groupMembers).values({ groupId: grp.id, userId: adminId, role: 'owner', status: 'active' });
   }
+  // Development sample merch (cash on delivery). Labelled as sample; never seeded in production.
+  const [tee] = await ctx.db.select().from(s.merchProducts).where(eq(s.merchProducts.slug, 'sample-archetype-tee'));
+  if (!tee) {
+    const [p] = await ctx.db.insert(s.merchProducts).values({ slug: 'sample-archetype-tee', title: 'Archetype tee (sample)', description: 'Development sample product for testing cash-on-delivery orders locally. Not a real listing.', isSample: true }).returning();
+    await ctx.db.insert(s.merchVariants).values(['S', 'M', 'L'].map((size) => ({ productId: p.id, sku: `SAMPLE-TEE-${size}`, name: size, pricePaise: 59900, stockOnHand: 25 })));
+    const [st] = await ctx.db.insert(s.merchProducts).values({ slug: 'sample-sticker-pack', title: 'Sticker pack (sample)', description: 'Development sample: 24 archetype stickers.', isSample: true }).returning();
+    await ctx.db.insert(s.merchVariants).values({ productId: st.id, sku: 'SAMPLE-STICKERS', name: 'Pack of 24', pricePaise: 19900, stockOnHand: 50 });
+  }
   return creds;
 }
 

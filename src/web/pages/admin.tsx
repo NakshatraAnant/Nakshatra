@@ -9,10 +9,11 @@ import { QueryState, Notice } from '../components/ui/feedback';
 import { ConfirmDialog, Dialog, useToast } from '../components/ui/overlays';
 import { DataTable, StatTile } from '../components/ui/data';
 import { AssessmentAdmin, FunnelAdmin } from './adminInsights';
+import { CodAdmin } from './adminMerch';
 
 const SECTIONS: [string, string][] = [
   ['overview', 'Overview'], ['users', 'Users'], ['moderation', 'Moderation'], ['appeals', 'Appeals'], ['verification', 'Verification'], ['refunds', 'Refunds & disputes'],
-  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
+  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['cod', 'COD fulfilment'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
   ['config', 'Calculation configs'], ['templates', 'Notification templates'], ['analytics', 'Analytics'], ['funnel', 'Funnel'], ['assessment', 'Assessment model'], ['audit', 'Audit log'], ['flags', 'Flags & settings'],
   ['support', 'Support'], ['privacy', 'Privacy requests'],
 ];
@@ -37,6 +38,7 @@ export function AdminPage() {
           {section === 'refunds' && <Refunds />}
           {section === 'payouts' && <Payouts />}
           {section === 'commerce' && <Commerce />}
+          {section === 'cod' && <CodAdmin />}
           {section === 'courses' && <Courses />}
           {section === 'vendors' && <VendorsExperts />}
           {section === 'content' && <Content />}

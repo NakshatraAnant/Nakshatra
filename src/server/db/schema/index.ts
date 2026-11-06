@@ -6,3 +6,4 @@ export * from './experts';
 export * from './commerce';
 export * from './platform';
 export * from './play';
+export * from './merch';

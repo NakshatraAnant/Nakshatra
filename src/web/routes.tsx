@@ -47,6 +47,7 @@ const discover = () => import('./pages/discover');
 const studio = () => import('./pages/studio');
 const thoughts = () => import('./pages/thoughts');
 const explore = () => import('./pages/explore');
+const merch = () => import('./pages/merch');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -134,6 +135,9 @@ export const router = createBrowserRouter([
           { path: '/identity', element: page(studio, 'IdentityStudio') },
           { path: '/explore', element: page(explore, 'ExplorePage') },
           { path: '/create', element: page(explore, 'CreatePage') },
+          { path: '/merch', element: page(merch, 'MerchPage') },
+          { path: '/merch/orders', element: page(merch, 'MerchOrders') },
+          { path: '/merch/orders/:id', element: page(merch, 'MerchOrder') },
           { path: '/thoughts', element: page(thoughts, 'ThoughtsPage') },
           { path: '/thoughts/:id', element: page(thoughts, 'ThoughtDetail') },
           { path: '/circles', element: page(circles, 'CirclesPage') },

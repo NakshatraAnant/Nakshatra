@@ -43,6 +43,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/invite', key: 'nav.invite', icon: 'share', pkg: 'gift' },
     { to: '/journey', key: 'nav.journey', icon: 'journey' },
     { to: '/shop', key: 'nav.shop', icon: 'shop' },
+    { to: '/merch', key: 'nav.merch', icon: 'shop' },
   ] },
   { label: 'Optional · astrology', items: [
     { to: '/cosmic-id', key: 'nav.cosmicId', icon: 'star' },

@@ -97,6 +97,8 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   share_card_created: { meaningful: true, description: 'Archetype card image downloaded or shared (anonymous unless signed in).' },
   connection_made: { meaningful: true, description: 'Member followed (or asked to follow) someone.' },
   discovery_opt_in: { meaningful: false, description: 'Member turned Discover → People listing on or off.' },
+  cod_order_placed: { meaningful: true, description: 'Cash-on-delivery merch order placed (unpaid until delivered).' },
+  cod_order_delivered: { meaningful: false, description: 'COD order delivered and cash collected by the courier.' },
   return_visit: { meaningful: false, description: 'Member came back on a later day than their previous visit.' },
 };
 
