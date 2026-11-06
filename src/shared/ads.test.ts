@@ -9,6 +9,7 @@ describe('ad policy', () => {
     expect(adPolicyIssues({ ...ok, headline: 'Perfect for introverts like you' }, { topics: [], languages: [] })[0]).toMatch(/sensitive/);
     expect(adPolicyIssues({ ...ok, body: 'Scorpio? This one is for you.' }, { topics: [], languages: [] })[0]).toMatch(/scorpio/);
     expect(adPolicyIssues({ ...ok, body: 'Matches for your caste' }, { topics: [], languages: [] })[0]).toMatch(/caste/);
+    expect(adPolicyIssues({ ...ok, body: 'Deals for Geminis this week' }, { topics: [], languages: [] })[0]).toMatch(/gemini/);
     expect(adPolicyIssues({ ...ok, body: 'Cancer-free cookware' }, { topics: [], languages: [] })[0]).toMatch(/cancer/);
   });
 

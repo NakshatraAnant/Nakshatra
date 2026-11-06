@@ -11,3 +11,4 @@ export * from './creators';
 export * from './circles';
 export * from './collections';
 export * from './ads';
+export * from './partners';

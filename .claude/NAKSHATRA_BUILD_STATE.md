@@ -3,8 +3,8 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017 (taken with the app stopped)
-- Gates (2026-11-06, latest): vitest 348/348; typecheck + lint clean; production build OK; Playwright 33/33 (no retries). Do not run vitest and Playwright at the same time (timeouts).
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018 (taken with the app stopped)
+- Gates (2026-11-06, latest): vitest 351/351; typecheck + lint clean; production build OK; Playwright 34/34 (no retries). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
   assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
@@ -24,8 +24,10 @@
   follows profile privacy, Save to… picker); fixed broken Save toggle (sent {} instead of {saved}) (0016);
   sponsored cards (module ads, default OFF): staff advertisers/campaigns, contextual-only targeting (safe topic list +
   language), sensitive-term policy check, four-eyes approval, edits return to draft, per-viewer daily caps with
-  HMAC viewer keys (30-day retention), hide, why-this-ad, server-validated clicks, no ads for Plus, admin stats (0017)
+  HMAC viewer keys (30-day retention), hide, why-this-ad, server-validated clicks, no ads for Plus, admin stats (0017);
+  partner perks (module partners, default OFF): /perks page only with commission disclosure, opaque click refs,
+  code reveal, HMAC-signed idempotent postbacks (CSRF-exempt, 30-day attribution), staff approve/reverse commission (0018)
 - NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), community commerce, ad billing/self-serve,
-  partners/affiliate, B2B orgs, journal/calendar/theme studio/avatar,
+  B2B orgs, journal/calendar/theme studio/avatar,
   year-in-review, circle tiers, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: partners/affiliate links (disclosed, tracked, no paid placement in identity results)
+- Next exact task if continuing: B2B organisations with tenant isolation (team workspaces, admin seats, org-scoped data)

@@ -97,7 +97,8 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
       req.cookies[CSRF_COOKIE] = csrf;
     }
     const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-    const exempt = req.url.startsWith('/api/v1/payments/webhook/');
+    // Server-to-server endpoints authenticate with their own signatures instead of the browser CSRF token.
+    const exempt = req.url.startsWith('/api/v1/payments/webhook/') || req.url.startsWith('/api/v1/partners/postback/');
     if (unsafe && req.url.startsWith('/api/') && !exempt) {
       const header = String(req.headers['x-csrf-token'] ?? '');
       if (!header || !safeEqual(header, csrf)) throw new AppError(403, 'csrf_failed', 'Your session security token is missing or stale. Refresh the page and try again.');

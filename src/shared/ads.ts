@@ -42,7 +42,8 @@ export interface Creative { headline: string; body: string; ctaLabel: string; de
 export function adPolicyIssues(c: Creative, t: AdTargeting): string[] {
   const issues: string[] = [];
   const text = ` ${`${c.headline} ${c.body} ${c.ctaLabel}`.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ')} `;
-  const hits = SENSITIVE.filter((w) => text.includes(` ${w} `));
+  // Whole words, including simple plurals ("scorpios", "introverts").
+  const hits = SENSITIVE.filter((w) => text.includes(` ${w} `) || text.includes(` ${w}s `) || text.includes(` ${w}es `));
   if (hits.length) issues.push(`Mentions a sensitive or identity topic (${hits.slice(0, 3).join(', ')}). Ads can’t speak to who someone is.`);
   if (!c.headline.trim()) issues.push('Add a headline.');
   if (c.headline.length > AD_RULES.headline) issues.push(`Headline is over ${AD_RULES.headline} characters.`);
