@@ -144,10 +144,24 @@ export async function circleStreaks(db: Executor, userId: string) {
 
 /* ---------------- Seasons ---------------- */
 
-async function seasonPoints(db: Executor, userId: string, seasonKey: string): Promise<number> {
+export function seasonWindow(seasonKey: string): { from: Date; to: Date } {
   const def = SEASON_BY_KEY[seasonKey];
-  const from = DateTime.fromISO(def.startsOn, { zone: SEASON_TZ }).startOf('day').toJSDate();
-  const to = DateTime.fromISO(def.endsOn, { zone: SEASON_TZ }).endOf('day').toJSDate();
+  return { from: DateTime.fromISO(def.startsOn, { zone: SEASON_TZ }).startOf('day').toJSDate(), to: DateTime.fromISO(def.endsOn, { zone: SEASON_TZ }).endOf('day').toJSDate() };
+}
+
+/** Season points for many members at once (same rule as seasonPoints: XP earned in the window, minus season rewards). */
+export async function seasonPointsFor(db: Executor, userIds: string[], seasonKey: string): Promise<Map<string, number>> {
+  if (!userIds.length) return new Map();
+  const { from, to } = seasonWindow(seasonKey);
+  const rows = await db.select({ u: s.xpLedger.userId, total: sql<number>`coalesce(sum(${s.xpLedger.amount}), 0)::int` }).from(s.xpLedger)
+    .where(and(inArray(s.xpLedger.userId, userIds), gte(s.xpLedger.createdAt, from), lt(s.xpLedger.createdAt, to), ne(s.xpLedger.rule, 'season_reward'))).groupBy(s.xpLedger.userId);
+  return new Map(rows.map((r) => [r.u, Math.max(0, Number(r.total))]));
+}
+
+export function todaySeason(): string | null { return currentSeason(DateTime.now().setZone(SEASON_TZ).toISODate()!)?.key ?? null; }
+
+async function seasonPoints(db: Executor, userId: string, seasonKey: string): Promise<number> {
+  const { from, to } = seasonWindow(seasonKey);
   const [r] = await db.select({ total: sql<number>`coalesce(sum(${s.xpLedger.amount}), 0)::int` }).from(s.xpLedger)
     .where(and(eq(s.xpLedger.userId, userId), gte(s.xpLedger.createdAt, from), lt(s.xpLedger.createdAt, to), ne(s.xpLedger.rule, 'season_reward')));
   return Math.max(0, Number(r?.total ?? 0));

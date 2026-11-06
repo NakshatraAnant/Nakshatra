@@ -92,6 +92,13 @@
       "when": 1793929083529,
       "tag": "0012_member_quizzes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793941379937,
+      "tag": "0013_tournaments",
+      "breakpoints": true
     }
   ]
 }

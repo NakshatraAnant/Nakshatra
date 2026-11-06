@@ -316,6 +316,9 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.delete(s.mfaRecoveryCodes).where(eq(s.mfaRecoveryCodes.userId, userId));
     await tx.update(s.memberQuizzes).set({ status: 'removed' }).where(eq(s.memberQuizzes.authorId, userId));
     await tx.delete(s.memberQuizAttempts).where(eq(s.memberQuizAttempts.userId, userId));
+    // Tournaments: hosted ones that are still running are called off; your entries (and answers) are removed.
+    await tx.update(s.tournaments).set({ cancelledAt: new Date() }).where(and(eq(s.tournaments.hostId, userId), isNull(s.tournaments.cancelledAt)));
+    await tx.delete(s.tournamentEntries).where(eq(s.tournamentEntries.userId, userId));
     // COD orders: drafts go; finished orders keep amounts for accounting but lose the delivery address. Orders still
     // on their way keep the address until they are delivered or returned.
     await tx.delete(s.codOrders).where(and(eq(s.codOrders.userId, userId), eq(s.codOrders.status, 'draft')));

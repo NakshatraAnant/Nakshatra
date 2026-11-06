@@ -27,7 +27,34 @@ export function QuizzesPage() {
   );
 }
 
-const blankQuestion = (kind: QuizKind): QuizQuestion => ({ text: '', options: [{ text: '', ...(kind === 'trivia' ? { correct: true } : { outcome: 0 }) }, { text: '', ...(kind === 'trivia' ? { correct: false } : { outcome: 1 }) }] });
+export const blankQuestion = (kind: QuizKind): QuizQuestion => ({ text: '', options: [{ text: '', ...(kind === 'trivia' ? { correct: true } : { outcome: 0 }) }, { text: '', ...(kind === 'trivia' ? { correct: false } : { outcome: 1 }) }] });
+
+/** The question editor shared by the quiz builder and the tournament builder. */
+export function QuestionCards({ kind, outcomes, questions, setQuestions }: { kind: QuizKind; outcomes: { title: string }[]; questions: QuizQuestion[]; setQuestions: (q: QuizQuestion[]) => void }) {
+  const setQ = (i: number, patch: Partial<QuizQuestion>) => setQuestions(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
+  const setO = (qi: number, oi: number, patch: Record<string, unknown>) => setQ(qi, { options: questions[qi].options.map((o, j) => (j === oi ? { ...o, ...patch } : patch.correct ? { ...o, correct: false } : o)) });
+  return (
+    <>
+    {questions.map((q, i) => (
+      <Card key={i} className="space-y-3" aria-label={`Question ${i + 1}`}>
+        <div className="flex items-center justify-between gap-2"><h2 className="font-display text-xl">Question {i + 1}</h2>{questions.length > L.minQuestions && <Button size="sm" variant="ghost" onClick={() => setQuestions(questions.filter((_, j) => j !== i))}>Remove</Button>}</div>
+        <Input aria-label={`Question ${i + 1} text`} maxLength={L.text} value={q.text} onChange={(e) => setQ(i, { text: e.target.value })} placeholder="Ask something" />
+        {q.options.map((o, j) => (
+          <div key={j} className="flex flex-wrap items-center gap-2">
+            <Input aria-label={`Question ${i + 1} answer ${j + 1}`} className="min-w-0 flex-1" maxLength={L.option} value={o.text} onChange={(e) => setO(i, j, { text: e.target.value })} placeholder={`Answer ${j + 1}`} />
+            {kind === 'trivia'
+              ? <label className="flex items-center gap-1 text-sm text-fg-2"><input type="radio" name={`correct-${i}`} aria-label={`Question ${i + 1}: answer ${j + 1} is correct`} checked={!!o.correct} onChange={() => setO(i, j, { correct: true })} />Correct</label>
+              : <Select aria-label={`Question ${i + 1} answer ${j + 1} leads to`} className="w-40" value={o.outcome ?? 0} onChange={(e) => setO(i, j, { outcome: Number(e.target.value) })}>{outcomes.map((oc, k) => <option key={k} value={k}>{oc.title || `Result ${k + 1}`}</option>)}</Select>}
+            {q.options.length > L.minOptions && <Button size="sm" variant="ghost" aria-label={`Remove answer ${j + 1}`} onClick={() => setQ(i, { options: q.options.filter((_, k) => k !== j) })}>✕</Button>}
+          </div>
+        ))}
+        {q.options.length < L.maxOptions && <Button size="sm" variant="ghost" onClick={() => setQ(i, { options: [...q.options, kind === 'trivia' ? { text: '', correct: false } : { text: '', outcome: 0 }] })}>Add an answer</Button>}
+      </Card>
+    ))}
+    {questions.length < L.maxQuestions && <Button variant="secondary" onClick={() => setQuestions([...questions, blankQuestion(kind)])}>Add a question</Button>}
+    </>
+  );
+}
 
 export function QuizBuilder() {
   const nav = useNavigate();
@@ -47,8 +74,6 @@ export function QuizBuilder() {
   });
   const submit = () => { try { validateQuiz(def); setError(null); publish.mutate(); } catch (e) { setError(e instanceof QuizError ? e.message : 'Check the quiz'); } };
   const switchKind = (k: QuizKind) => { setKind(k); setQuestions(questions.map((q) => ({ ...q, options: q.options.map((o, i) => (k === 'trivia' ? { text: o.text, correct: i === 0 } : { text: o.text, outcome: Math.min(i, outcomes.length - 1) })) }))); };
-  const setQ = (i: number, patch: Partial<QuizQuestion>) => setQuestions(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
-  const setO = (qi: number, oi: number, patch: Record<string, unknown>) => setQ(qi, { options: questions[qi].options.map((o, j) => (j === oi ? { ...o, ...patch } : patch.correct ? { ...o, correct: false } : o)) });
   return (
     <div className="space-y-6">
       <PageHeader kicker="Play" title="Make a quiz" subtitle="Your friends answer; you see how they did. Nothing here changes anyone’s archetype." />
@@ -77,23 +102,7 @@ export function QuizBuilder() {
         </Card>
       )}
 
-      {questions.map((q, i) => (
-        <Card key={i} className="space-y-3" aria-label={`Question ${i + 1}`}>
-          <div className="flex items-center justify-between gap-2"><h2 className="font-display text-xl">Question {i + 1}</h2>{questions.length > L.minQuestions && <Button size="sm" variant="ghost" onClick={() => setQuestions(questions.filter((_, j) => j !== i))}>Remove</Button>}</div>
-          <Input aria-label={`Question ${i + 1} text`} maxLength={L.text} value={q.text} onChange={(e) => setQ(i, { text: e.target.value })} placeholder="Ask something" />
-          {q.options.map((o, j) => (
-            <div key={j} className="flex flex-wrap items-center gap-2">
-              <Input aria-label={`Question ${i + 1} answer ${j + 1}`} className="min-w-0 flex-1" maxLength={L.option} value={o.text} onChange={(e) => setO(i, j, { text: e.target.value })} placeholder={`Answer ${j + 1}`} />
-              {kind === 'trivia'
-                ? <label className="flex items-center gap-1 text-sm text-fg-2"><input type="radio" name={`correct-${i}`} aria-label={`Question ${i + 1}: answer ${j + 1} is correct`} checked={!!o.correct} onChange={() => setO(i, j, { correct: true })} />Correct</label>
-                : <Select aria-label={`Question ${i + 1} answer ${j + 1} leads to`} className="w-40" value={o.outcome ?? 0} onChange={(e) => setO(i, j, { outcome: Number(e.target.value) })}>{outcomes.map((oc, k) => <option key={k} value={k}>{oc.title || `Result ${k + 1}`}</option>)}</Select>}
-              {q.options.length > L.minOptions && <Button size="sm" variant="ghost" aria-label={`Remove answer ${j + 1}`} onClick={() => setQ(i, { options: q.options.filter((_, k) => k !== j) })}>✕</Button>}
-            </div>
-          ))}
-          {q.options.length < L.maxOptions && <Button size="sm" variant="ghost" onClick={() => setQ(i, { options: [...q.options, kind === 'trivia' ? { text: '', correct: false } : { text: '', outcome: 0 }] })}>Add an answer</Button>}
-        </Card>
-      ))}
-      {questions.length < L.maxQuestions && <Button variant="secondary" onClick={() => setQuestions([...questions, blankQuestion(kind)])}>Add a question</Button>}
+      <QuestionCards kind={kind} outcomes={outcomes} questions={questions} setQuestions={setQuestions} />
       {error && <Notice tone="danger">{error}</Notice>}
       <Button size="lg" loading={publish.isPending} onClick={submit}>Publish quiz</Button>
     </div>

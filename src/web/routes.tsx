@@ -50,6 +50,7 @@ const explore = () => import('./pages/explore');
 const merch = () => import('./pages/merch');
 const membership = () => import('./pages/membership');
 const quizzes = () => import('./pages/quizzes');
+const tournaments = () => import('./pages/tournaments');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -150,6 +151,10 @@ export const router = createBrowserRouter([
           { path: '/play/quizzes', element: page(quizzes, 'QuizzesPage') },
           { path: '/play/quizzes/new', element: page(quizzes, 'QuizBuilder') },
           { path: '/play/quizzes/:id', element: page(quizzes, 'QuizTake') },
+          { path: '/play/tournaments', element: page(tournaments, 'TournamentsPage') },
+          { path: '/play/tournaments/new', element: page(tournaments, 'TournamentBuilder') },
+          { path: '/play/tournaments/:id', element: page(tournaments, 'TournamentPage') },
+          { path: '/play/leaderboard', element: page(tournaments, 'SeasonLeaderboard') },
           { path: '/play/:id', element: page(play, 'GameSession') },
           { path: '/invite', element: page(home, 'InvitePage') },
           { path: '/progress', element: page(progress, 'ProgressPage') },

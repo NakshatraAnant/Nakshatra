@@ -138,7 +138,7 @@ export function SessionList({ circleId }: { circleId?: string }) {
 export function PlayPage() {
   return (
     <div className="space-y-10">
-      <PageHeader kicker="Play" title="Games that start conversations" subtitle="Twelve games with real rules — guess who wrote it, vote honestly, write a story together. Play solo where it makes sense, or with a circle." actions={<ButtonLink to="/play/quizzes" variant="secondary" size="sm">Member quizzes</ButtonLink>} />
+      <PageHeader kicker="Play" title="Games that start conversations" subtitle="Twelve games with real rules — guess who wrote it, vote honestly, write a story together. Play solo where it makes sense, or with a circle." actions={<><ButtonLink to="/play/tournaments" variant="secondary" size="sm">Tournaments</ButtonLink><ButtonLink to="/play/leaderboard" variant="secondary" size="sm">Leaderboard</ButtonLink><ButtonLink to="/play/quizzes" variant="secondary" size="sm">Member quizzes</ButtonLink></>} />
       <GameLauncher />
       <SessionList />
     </div>

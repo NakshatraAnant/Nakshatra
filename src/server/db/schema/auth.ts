@@ -88,6 +88,8 @@ export const profiles = pgTable('profiles', {
   /** Opt-in: listed in Discover → People. Off by default; never inferred. */
   discoverable: boolean('discoverable').notNull().default(false),
   /** What the member is open to (friends, game partners, …) — self-chosen, shown only while discoverable. */
+  /** Shown on circle and following season leaderboards (on by default; a member can hide themself). */
+  leaderboardVisible: boolean('leaderboard_visible').notNull().default(true),
   connectionIntents: text('connection_intents').array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

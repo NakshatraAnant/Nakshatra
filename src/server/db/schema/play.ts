@@ -144,3 +144,41 @@ export const memberQuizAttempts = pgTable('member_quiz_attempts', {
   outcome: integer('outcome'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.quizId, t.userId] })]);
+
+/* ---------------- Tournaments ---------------- */
+
+/** Async trivia tournament. The questions (with answers) live only here and never reach a client before close. */
+export const tournaments = pgTable('tournaments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  hostId: uuid('host_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  /** A trivia QuizDefinition, validated by the shared quiz engine. */
+  definition: jsonb('definition').notNull(),
+  /** circle (any active member of group_id may join) | invite (only invited members) */
+  access: text('access').notNull(),
+  groupId: uuid('group_id').references(() => groups.id, { onDelete: 'cascade' }),
+  secondsPerQuestion: integer('seconds_per_question').notNull().default(20),
+  maxEntrants: integer('max_entrants').notNull().default(64),
+  opensAt: timestamp('opens_at', { withTimezone: true }).notNull(),
+  closesAt: timestamp('closes_at', { withTimezone: true }).notNull(),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('tournaments_host_idx').on(t.hostId), index('tournaments_group_idx').on(t.groupId), index('tournaments_closes_idx').on(t.closesAt)]);
+
+export const tournamentEntries = pgTable('tournament_entries', {
+  tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** invited | joined | playing | finished | declined */
+  state: text('state').notNull(),
+  invitedBy: uuid('invited_by'),
+  /** Server clock: set once when the entrant presses Start. */
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  answers: jsonb('answers'),
+  score: integer('score'),
+  durationMs: integer('duration_ms'),
+  /** null | too_fast | over_time — flagged entries are held out of the ranking until cleared. */
+  flag: text('flag'),
+  flagClearedBy: uuid('flag_cleared_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tournamentId, t.userId] }), index('tournament_entries_user_idx').on(t.userId)]);

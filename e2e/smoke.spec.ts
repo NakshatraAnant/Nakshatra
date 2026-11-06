@@ -9,7 +9,7 @@ const MEMBER = [
   '/matchmaking', '/matchmaking/profile', '/matchmaking/family', '/experts', '/experts/bookings', '/expert/dashboard',
   '/learn', '/learn/foundations-of-astrology-sample', '/creator', '/shop', '/shop/p/report-complete-vedic', '/shop/p/sample-puja-diya-set', '/shop/cart', '/shop/orders', '/shop/library', '/seller',
   '/weddings', '/weddings/new', '/vendors', '/vendor/dashboard', '/notifications', '/search?q=astro', '/support',
-  '/settings', '/settings/birth', '/settings/privacy', '/settings/notifications', '/settings/security', '/settings/subscription', '/settings/data', '/settings/appeals', '/membership', '/explore', '/create', '/progress',
+  '/settings', '/settings/birth', '/settings/privacy', '/settings/notifications', '/settings/security', '/settings/subscription', '/settings/data', '/settings/appeals', '/membership', '/explore', '/create', '/progress', '/play/tournaments', '/play/tournaments/new', '/play/leaderboard', '/play/quizzes',
 ];
 const ADMIN = ['overview', 'users', 'moderation', 'appeals', 'verification', 'refunds', 'payouts', 'commerce', 'courses', 'vendors', 'content', 'config', 'templates', 'analytics', 'audit', 'flags', 'support', 'privacy', 'launch', 'performance', 'funnel', 'assessment', 'cod', 'students'].map((s) => `/admin/${s}`);
 
