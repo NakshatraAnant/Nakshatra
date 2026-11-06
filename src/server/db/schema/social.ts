@@ -147,6 +147,8 @@ export const groups = pgTable('groups', {
   tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
+  /** Organisation workspace this circle belongs to (organisations.id); only that org's members can join. */
+  orgId: uuid('org_id'),
 }, (t) => [uniqueIndex('groups_slug_uq').on(t.slug)]);
 
 export const groupMembers = pgTable('group_members', {

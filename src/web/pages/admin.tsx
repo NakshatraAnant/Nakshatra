@@ -13,10 +13,11 @@ import { CodAdmin } from './adminMerch';
 import { CreatorsAdmin, LaunchReadiness, PerformanceAdmin, StudentRequests } from './adminOps';
 import { AdsAdmin } from './adminAds';
 import { PartnersAdmin } from './perks';
+import { OrgsAdmin } from './orgs';
 
 const SECTIONS: [string, string][] = [
   ['overview', 'Overview'], ['launch', 'Launch readiness'], ['performance', 'Performance'], ['users', 'Users'], ['moderation', 'Moderation'], ['appeals', 'Appeals'], ['verification', 'Verification'], ['refunds', 'Refunds & disputes'],
-  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['cod', 'COD fulfilment'], ['students', 'Student requests'], ['creators', 'Creators'], ['ads', 'Sponsored cards'], ['partners', 'Partner perks'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
+  ['payouts', 'Payouts'], ['commerce', 'Products & orders'], ['cod', 'COD fulfilment'], ['students', 'Student requests'], ['creators', 'Creators'], ['ads', 'Sponsored cards'], ['partners', 'Partner perks'], ['orgs', 'Organisations'], ['courses', 'Courses'], ['vendors', 'Vendors & experts'], ['content', 'Interpretation content'],
   ['config', 'Calculation configs'], ['templates', 'Notification templates'], ['analytics', 'Analytics'], ['funnel', 'Funnel'], ['assessment', 'Assessment model'], ['audit', 'Audit log'], ['flags', 'Flags & settings'],
   ['support', 'Support'], ['privacy', 'Privacy requests'],
 ];
@@ -48,6 +49,7 @@ export function AdminPage() {
           {section === 'creators' && <CreatorsAdmin />}
           {section === 'ads' && <AdsAdmin />}
           {section === 'partners' && <PartnersAdmin />}
+          {section === 'orgs' && <OrgsAdmin />}
           {section === 'courses' && <Courses />}
           {section === 'vendors' && <VendorsExperts />}
           {section === 'content' && <Content />}

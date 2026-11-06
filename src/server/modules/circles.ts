@@ -175,6 +175,10 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const { inv, circle } = await inviteFor(token);
     const [existing] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, circle.id), eq(s.groupMembers.userId, a.userId)));
     if (existing?.status === 'banned') throw forbidden('You cannot join this circle.');
+    if (circle.orgId) {
+      const [om] = await ctx.db.select().from(s.orgMembers).where(and(eq(s.orgMembers.orgId, circle.orgId), eq(s.orgMembers.userId, a.userId)));
+      if (!om) throw forbidden('This circle is only for members of its organisation.');
+    }
     if (existing?.status === 'active') return { circleId: circle.id, joined: false };
     const joined = await ctx.db.transaction(async (tx) => {
       // Atomic use count: concurrent accepts can never exceed maxUses.

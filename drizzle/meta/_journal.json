@@ -134,6 +134,13 @@
       "when": 1793964243536,
       "tag": "0018_partners",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793965514153,
+      "tag": "0019_organisations",
+      "breakpoints": true
     }
   ]
 }
