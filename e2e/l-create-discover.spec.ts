@@ -35,7 +35,7 @@ test('Create and Discover: text, poll and photo drops; opt-in people list; next 
   await expect(a.getByText('Discover is opt-in both ways', { exact: false })).toBeVisible();
   await a.getByRole('switch', { name: /List me in Discover/ }).click();
   await a.getByRole('button', { name: 'Game partners' }).click();
-  await a.getByRole('button', { name: 'Save' }).click();
+  await a.getByLabel('People', { exact: true }).getByRole('button', { name: 'Save' }).click();
   await api(b, 'PUT', 'people/settings', { discoverable: true, intents: ['game_partners'] });
   await a.reload();
   const card = a.getByRole('listitem').filter({ hasText: 'Bodhi' });

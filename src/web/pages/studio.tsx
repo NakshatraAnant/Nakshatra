@@ -263,6 +263,16 @@ export function IdentityStudio() {
       ) : (
         <div className="space-y-8">
           <PersonaResult persona={d.persona} style={d.cardStyle} actions={<div className="space-y-4"><PersonaShare persona={d.persona} style={d.cardStyle} labels={d.labels} /><Button variant="ghost" size="sm" onClick={() => setRetake(true)}>Retake assessment</Button></div>} />
+          {params.get('welcome') === '1' && (
+            <Card className="flex flex-wrap items-center justify-between gap-4 border-accent/40" role="note" aria-labelledby="first-step">
+              <div>
+                <p className="eyebrow">Your next step</p>
+                <h2 id="first-step" className="mt-1 font-display text-3xl">Say hello</h2>
+                <p className="mt-1 text-sm text-fg-2">Drop one thought — a question, a poll, a photo or a voice note. It’s how people here find you.</p>
+              </div>
+              <ButtonLink to="/create">Drop your first thought</ButtonLink>
+            </Card>
+          )}
           <WhyThisResult persona={d.persona} />
           <IdentityTimeline />
 

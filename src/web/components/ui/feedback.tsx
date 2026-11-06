@@ -35,6 +35,10 @@ export function BirthDetailsNeeded() {
 
 export function ErrorState({ error, onRetry, title = 'We couldn’t load this' }: { error: unknown; onRetry?: () => void; title?: string }) {
   if (error instanceof ApiError && error.status === 404 && /^Birth profile not found/.test(error.message)) return <BirthDetailsNeeded />;
+  // Missing or switched-off items are a normal state, not a failure: no alert, no retry.
+  if (error instanceof ApiError && error.status === 404) {
+    return <EmptyState icon="search" art="unavailable" title={error.code === 'module_disabled' ? 'Not available right now' : 'Not found'} body={error.code === 'module_disabled' ? 'This part of Nakshatra is switched off.' : 'It may have been removed, or it isn’t available to you.'} />;
+  }
   const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Unexpected error.';
   return (
     <div role="alert" className="flex flex-col items-center rounded-[var(--radius-lg)] border border-danger/30 bg-danger/5 px-6 py-10 text-center">

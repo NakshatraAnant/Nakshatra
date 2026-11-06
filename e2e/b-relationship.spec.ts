@@ -57,7 +57,7 @@ test('Journey B: invite → accept as second user → Bond compatibility → sha
 
   // The share link and B's view of the Bond are now blocked
   await anon.reload();
-  await expect(anon.getByRole('alert')).toBeVisible();
+  await expect(anon.getByRole('heading', { name: 'Not found' }).or(anon.getByRole('alert'))).toBeVisible();
   await expect(anon.getByText(/Guna Milan/)).toHaveCount(0);
   await b.goto(bondPath);
   await expect(b.getByText(/Guna Milan/)).toHaveCount(0);
