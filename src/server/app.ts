@@ -20,6 +20,7 @@ import { DatabaseStorage } from './lib/storage';
 import { applyLaunchScope, ensureAllModuleFlags, moduleEnabled } from './services/modules';
 import { renderShell } from './services/shell';
 import { moduleForApiPath } from '../shared/modules';
+import { recordRequest } from './services/metrics';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -83,6 +84,10 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
   });
 
   app.decorateRequest('auth', null);
+  // Request timing by route pattern (shown in Admin → Performance).
+  app.addHook('onResponse', async (req, reply) => {
+    recordRequest(req.routeOptions?.url ?? (req.url.startsWith('/api/') ? 'api:unmatched' : 'static'), reply.elapsedTime, reply.statusCode);
+  });
   app.addHook('onRequest', async (req, reply) => {
     // Double-submit CSRF: every client gets a random CSRF cookie; unsafe API calls must echo it in a header.
     let csrf = req.cookies[CSRF_COOKIE];

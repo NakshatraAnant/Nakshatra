@@ -30,7 +30,7 @@ import { ritualRoutes } from './rituals';
 import { referralRoutes } from './referrals';
 import { giftRoutes } from './gifts';
 import { progressionRoutes } from './progression';
-import { insightRoutes } from './insights';
+import { insightRoutes, opsRoutes } from './insights';
 import { peopleRoutes } from './people';
 import { merchRoutes } from './merch';
 
@@ -103,6 +103,7 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await giftRoutes(app, ctx);
   await progressionRoutes(app, ctx);
   await insightRoutes(app, ctx);
+  await opsRoutes(app, ctx);
   await peopleRoutes(app, ctx);
   await merchRoutes(app, ctx);
   await paymentRoutes(app, ctx);

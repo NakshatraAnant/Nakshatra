@@ -24,16 +24,19 @@ test('mobile: signup → onboarding by touch → Cosmic ID → bottom navigation
   await page.waitForURL(/\/cosmic-id/);
   await expect(page.getByRole('list', { name: 'Identity layers' }).getByRole('button').first()).toBeVisible();
 
-  // Bottom navigation + "More" drawer
+  // Bottom navigation: Home, Discover, Create, Circles, Play, Profile; everything else is in the header menu.
   const nav = page.getByRole('navigation', { name: 'Primary' }).last();
   await expect(nav).toBeVisible();
-  await nav.getByRole('button', { name: /More/ }).tap();
+  for (const label of ['Home', 'Discover', 'Create', 'Circles', 'Play', 'Profile']) await expect(nav.getByRole('link', { name: label })).toBeVisible();
+  await nav.getByRole('link', { name: 'Create' }).tap();
+  await page.waitForURL(/\/create/);
+  await page.getByRole('button', { name: 'More' }).tap();
   const drawer = page.getByRole('dialog', { name: 'Menu' });
   await expect(drawer).toBeVisible();
-  await drawer.getByRole('link', { name: /Learn/ }).tap();
-  await page.waitForURL(/\/learn/);
+  await drawer.getByRole('link', { name: /Quests/ }).tap();
+  await page.waitForURL(/\/progress/);
 
-  for (const path of ['/today', '/cosmic-id', '/chart', '/calendar', '/bonds', '/social', '/dating', '/experts', '/learn', '/shop', '/shop/cart', '/weddings', '/settings', '/journey/rewards']) {
+  for (const path of ['/home', '/explore', '/create', '/circles', '/play', '/identity', '/progress', '/today', '/cosmic-id', '/chart', '/calendar', '/bonds', '/dating', '/shop', '/settings', '/journey/rewards']) {
     await noHorizontalOverflow(page, path);
   }
   const me = await api(page, 'GET', 'auth/me');

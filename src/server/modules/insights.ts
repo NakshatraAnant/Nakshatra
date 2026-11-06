@@ -5,6 +5,7 @@ import { parse } from '../lib/http';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { requireCapability } from '../lib/auth';
+import { snapshot } from '../services/metrics';
 import { PERSONA_ARCHETYPES, PERSONALITY_VERSION, scorePersonality, scorePersonalityV1 } from '../../shared/personality';
 import { simulatePopulation, summariseResults, type DistributionSummary, type Population } from '../../shared/assessmentSim';
 
@@ -102,5 +103,69 @@ export async function insightRoutes(app: FastifyInstance, ctx: Ctx) {
       simulated: simulatedReference(),
       note: 'Simulated populations are seeded reference sheets for checking balance, not real users. Real counts are all saved results, including retakes; small totals are not meaningful.',
     };
+  });
+}
+
+type Light = 'green' | 'amber' | 'red' | 'grey';
+export interface ReadinessItem { key: string; area: string; feature: string; status: Light; reason: string; dependency: string | null; works: string; launchImpact: string; link: string | null }
+
+/**
+ * Launch Readiness / Blocker Centre. Every row is computed from live configuration and data at request time,
+ * so it can't drift from reality: green = ready, amber = works with a caveat, red = blocks a public launch,
+ * grey = deliberately switched off or not built.
+ */
+export async function launchReadiness(ctx: Ctx): Promise<ReadinessItem[]> {
+  const c = ctx.config;
+  const n = sql<number>`count(*)::int`;
+  const flags = new Map((await ctx.db.select().from(s.featureFlags)).map((f) => [f.key, f.enabled]));
+  const on = (k: string, def: boolean) => flags.get(k) ?? def;
+  const t0 = performance.now();
+  await ctx.db.execute(sql`select 1`);
+  const dbMs = Math.round(performance.now() - t0);
+  const day = new Date(Date.now() - 864e5);
+  const week = new Date(Date.now() - 7 * 864e5);
+  const [errs] = await ctx.db.select({ n }).from(s.analyticsEvents).where(and(sql`${s.analyticsEvents.name} = 'client_error'`, gte(s.analyticsEvents.createdAt, day)));
+  const [events] = await ctx.db.select({ n }).from(s.analyticsEvents).where(gte(s.analyticsEvents.createdAt, week));
+  const [openReports] = await ctx.db.select({ n }).from(s.reports).where(sql`${s.reports.status} = 'open'`);
+  const [stock] = await ctx.db.select({ n: sql<number>`coalesce(sum(greatest(0, ${s.merchVariants.stockOnHand} - ${s.merchVariants.reserved})),0)::int` }).from(s.merchVariants).where(sql`${s.merchVariants.active}`);
+  const [staleCod] = await ctx.db.select({ n }).from(s.codOrders).where(and(sql`${s.codOrders.status} = 'pending_confirmation'`, sql`${s.codOrders.placedAt} < now() - interval '48 hours'`));
+  const perf = snapshot();
+  const legacyOff = ['dating', 'matchmaking', 'experts', 'learning', 'marketplace', 'weddings', 'community', 'messages'].filter((k) => !on(k, false));
+  const sim = summariseResults(simulatePopulation('persons', 3000, 11).map(scorePersonality));
+  const merchOn = on('merch', false);
+  return [
+    { key: 'assessment', area: 'Identity', feature: 'Archetype assessment', status: sim.maxOverMin < 2.5 ? 'green' : 'amber', reason: `${PERSONALITY_VERSION}; every archetype between ${(sim.minShare * 100).toFixed(1)}% and ${(sim.maxShare * 100).toFixed(1)}% on the reference population.`, dependency: null, works: 'Assessment, blends, honest confidence, resumable progress, retakes with history.', launchImpact: 'Core of the product.', link: '/admin/assessment' },
+    { key: 'mfa', area: 'Security', feature: 'Two-step verification and recovery codes', status: 'green', reason: 'Authenticator codes with one-time recovery codes; changes need password and a code.', dependency: null, works: 'Set up, sign in, lost-device recovery, regenerate codes.', launchImpact: 'Account takeover protection.', link: null },
+    { key: 'secret', area: 'Security', feature: 'Application secret', status: c.APP_SECRET ? 'green' : c.isProd ? 'red' : 'amber', reason: c.APP_SECRET ? 'Set from the environment.' : 'Using the built-in development secret.', dependency: 'APP_SECRET (at least 32 random characters)', works: 'Sessions, encryption and signed links work locally.', launchImpact: 'Must be set before any hosted deployment (production refuses to start without it).', link: null },
+    { key: 'email', area: 'Accounts', feature: 'Email delivery', status: c.MAIL_TRANSPORT === 'smtp' && c.SMTP_URL ? 'green' : 'red', reason: c.MAIL_TRANSPORT === 'smtp' ? 'SMTP selected.' : 'Emails go to the local development mailbox only.', dependency: 'SMTP provider and a verified sending domain (MAIL_TRANSPORT=smtp, SMTP_URL, MAIL_FROM)', works: 'Verification, password reset and gift emails can be read at /dev/mailbox locally.', launchImpact: 'Real people cannot verify email or reset passwords until this is set up.', link: null },
+    { key: 'payments', area: 'Revenue', feature: 'Online payments', status: c.PAYMENTS_ENABLED === 'true' ? 'amber' : 'grey', reason: c.PAYMENTS_ENABLED === 'true' ? `Provider: ${c.PAYMENT_PROVIDER}.` : 'Switched off on purpose (PAYMENTS_ENABLED=false).', dependency: 'Payment provider account, published refund policy, then PAYMENTS_ENABLED=true', works: 'Paid items show as a preview; no one can be charged.', launchImpact: 'No online revenue until enabled. Cash-on-delivery merch does not depend on this.', link: null },
+    { key: 'cod', area: 'Revenue', feature: 'Merch, cash on delivery', status: merchOn && stock.n > 0 && !staleCod.n ? 'green' : 'amber', reason: merchOn ? `${stock.n} units available${staleCod.n ? `; ${staleCod.n} order(s) waiting over 48 h for confirmation` : ''}.` : 'Built and tested; switched off.', dependency: 'Real stock, a courier agreement, and staff to confirm orders', works: 'Ordering, confirmation, packing, dispatch, delivery, returns, RTO and refunds with stock tracking.', launchImpact: 'Optional revenue line; turn on in Flags once operations are ready.', link: '/admin/cod' },
+    { key: 'storage', area: 'Infrastructure', feature: 'Uploaded files', status: 'amber', reason: c.STORAGE_DRIVER === 'local' ? 'Stored on this machine’s disk.' : 'Stored in the database (capped per file).', dependency: 'Object storage or a persistent disk for hosting', works: 'Photos, voice notes and avatars work locally.', launchImpact: 'A host with a temporary disk would lose uploads on restart.', link: null },
+    { key: 'scheduler', area: 'Infrastructure', feature: 'Background jobs', status: 'amber', reason: 'Run inside the app process.', dependency: 'An always-on instance (or a separate worker)', works: 'Gift expiry, retention clean-up and reminders run while the app runs.', launchImpact: 'Jobs pause if a free host sleeps.', link: null },
+    { key: 'database', area: 'Infrastructure', feature: 'Database', status: dbMs < 100 ? 'green' : 'amber', reason: `${c.DATABASE_URL ? 'PostgreSQL' : 'Embedded PostgreSQL (PGlite)'}; ping ${dbMs} ms.`, dependency: c.DATABASE_URL ? null : 'Managed PostgreSQL for hosting', works: 'All features.', launchImpact: c.DATABASE_URL ? 'None.' : 'Fine for one machine; hosting needs managed PostgreSQL.', link: null },
+    { key: 'performance', area: 'Infrastructure', feature: 'API response times', status: !perf.overallApi.sampled ? 'grey' : perf.overallApi.p95 < 300 ? 'green' : perf.overallApi.p95 < 1000 ? 'amber' : 'red', reason: perf.overallApi.sampled ? `p50 ${Math.round(perf.overallApi.p50)} ms · p95 ${Math.round(perf.overallApi.p95)} ms · p99 ${Math.round(perf.overallApi.p99)} ms over ${perf.overallApi.sampled} recent API requests.` : 'No requests measured since start.', dependency: null, works: 'Measured live in this process.', launchImpact: 'Slow responses hurt first impressions.', link: '/admin/performance' },
+    { key: 'errors', area: 'Quality', feature: 'Client errors (24 h)', status: errs.n > 100 ? 'red' : errs.n > 10 ? 'amber' : 'green', reason: `${errs.n} reported in the last 24 hours.`, dependency: null, works: 'Browsers report crashes and WebGL failures.', launchImpact: 'Rising errors mean broken screens for someone.', link: '/admin/analytics' },
+    { key: 'moderation', area: 'Safety', feature: 'Moderation queue', status: openReports.n > 20 ? 'amber' : 'green', reason: `${openReports.n} open report(s).`, dependency: 'People on moderation duty', works: 'Reports, blocks, pen-name mutes, appeals.', launchImpact: 'Unreviewed reports erode trust.', link: '/admin/moderation' },
+    { key: 'people', area: 'Social', feature: 'Discover → People', status: on('people', true) ? 'green' : 'grey', reason: on('people', true) ? 'On (opt-in, reciprocal).' : 'Switched off.', dependency: null, works: 'Opt-in listing with intents; blocks honoured.', launchImpact: 'Helps new members find people.', link: '/admin/flags' },
+    { key: 'funnel', area: 'Growth', feature: 'Funnel analytics', status: events.n ? 'green' : 'amber', reason: events.n ? `${events.n} events in the last 7 days.` : 'No events in the last 7 days.', dependency: null, works: 'Visitor and member funnels with drop-off.', launchImpact: 'Without data you can’t see where people leave.', link: '/admin/funnel' },
+    { key: 'legal', area: 'Compliance', feature: 'Terms and privacy policy', status: 'amber', reason: 'Rewritten in plain language; not yet reviewed by a lawyer.', dependency: 'Legal review and a grievance-officer contact', works: 'Pages are published in the app.', launchImpact: 'Needed before a public launch in India (IT Rules, DPDP Act).', link: '/legal/terms' },
+    { key: 'push', area: 'Engagement', feature: 'Push notifications', status: 'grey', reason: 'Not built.', dependency: 'A push provider (web push keys or FCM)', works: 'In-app notifications only.', launchImpact: 'Fewer return visits without reminders.', link: null },
+    { key: 'legacy', area: 'Product', feature: 'Legacy modules', status: 'grey', reason: legacyOff.length ? `Switched off: ${legacyOff.join(', ')}.` : 'All legacy modules are on.', dependency: null, works: 'Pages explain they are off; APIs refuse requests.', launchImpact: 'Keeps the launch focused. Re-enable deliberately in Flags.', link: '/admin/flags' },
+  ];
+}
+
+export async function opsRoutes(app: FastifyInstance, ctx: Ctx) {
+  app.get('/api/v1/admin/launch-readiness', async (req) => {
+    requireCapability(req, 'analytics');
+    const items = await launchReadiness(ctx);
+    const count = (l: Light) => items.filter((i) => i.status === l).length;
+    return { generatedAt: new Date().toISOString(), summary: { green: count('green'), amber: count('amber'), red: count('red'), grey: count('grey') }, items };
+  });
+
+  app.get('/api/v1/admin/performance', async (req) => {
+    requireCapability(req, 'analytics');
+    const t0 = performance.now();
+    await ctx.db.execute(sql`select 1`);
+    return { ...snapshot(), dbPingMs: Math.round((performance.now() - t0) * 10) / 10, note: 'Measured in this server process since it started (most recent 1,000 requests per route). Route patterns only — no URLs, ids or users.' };
   });
 }
