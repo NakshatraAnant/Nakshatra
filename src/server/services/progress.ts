@@ -3,6 +3,7 @@ import type { Executor } from '../db/client';
 import * as s from '../db/schema';
 import { COLLECTIBLES, levelForXp, type CollectibleDef } from '../../shared/gamification';
 import { totalXp } from '../lib/rewards';
+import { plusStatus } from './entitlements';
 
 export interface CollectibleState extends CollectibleDef { unlocked: boolean; source: 'earned' | 'subscription' | 'purchased' | null }
 
@@ -15,7 +16,7 @@ export async function collectibleStates(db: Executor, userId: string): Promise<C
   const level = levelForXp(await totalXp(db, userId)).level;
   const achieved = new Set((await db.select({ k: s.userAchievements.achievementKey }).from(s.userAchievements).where(eq(s.userAchievements.userId, userId))).map((r) => r.k));
   const active = and(eq(s.entitlements.userId, userId), isNull(s.entitlements.revokedAt), or(isNull(s.entitlements.expiresAt), gte(s.entitlements.expiresAt, new Date())));
-  const hasPlus = (await db.select({ id: s.entitlements.id }).from(s.entitlements).where(and(active, eq(s.entitlements.kind, 'subscription')))).length > 0;
+  const hasPlus = (await plusStatus(db, userId)).active;
   const slugs = [...new Set(COLLECTIBLES.flatMap((c) => (c.unlock.type === 'purchase' ? [c.unlock.productSlug] : [])))];
   const owned = slugs.length
     ? new Set((await db.select({ slug: s.products.slug }).from(s.entitlements).innerJoin(s.products, sql`${s.products.id}::text = ${s.entitlements.refId}`)

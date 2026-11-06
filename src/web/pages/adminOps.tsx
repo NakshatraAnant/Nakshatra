@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
-import { get } from '../lib/api';
-import { Card, cx } from '../components/ui/primitives';
-import { QueryState } from '../components/ui/feedback';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiError, get, post } from '../lib/api';
+import { Button, Card, Input, cx } from '../components/ui/primitives';
+import { EmptyState, QueryState } from '../components/ui/feedback';
+import { useToast } from '../components/ui/overlays';
 
 type Light = 'green' | 'amber' | 'red' | 'grey';
 interface Item { key: string; area: string; feature: string; status: Light; reason: string; dependency: string | null; works: string; launchImpact: string; link: string | null }
@@ -87,6 +88,30 @@ export function PerformanceAdmin() {
           <p className="mt-3 text-xs text-fg-3">{d.note} Up {Math.round(d.uptimeSeconds / 60)} min.</p>
         </Card>
       </div>
+    )}</QueryState>
+  );
+}
+
+export function StudentRequests() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['admin-students'], queryFn: () => get<{ requests: { id: string; name: string; institution: string; emailDomain: string; createdAt: string }[] }>('admin/student-verifications') });
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const decide = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'approved' | 'rejected' }) => post(`admin/student-verifications/${id}`, { decision, note: notes[id] ?? '' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin-students'] }); toast('Saved', 'success'); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error'),
+  });
+  return (
+    <QueryState q={q} empty={(d) => (!d.requests.length ? <EmptyState icon="check" title="No student requests waiting" /> : null)}>{(d) => (
+      <ul className="space-y-3">{d.requests.map((r) => (
+        <li key={r.id} className="card space-y-2 p-4">
+          <p className="text-fg"><strong>{r.name}</strong> · {r.institution}</p>
+          <p className="text-xs text-fg-3">Verified email domain: {r.emailDomain} · {new Date(r.createdAt).toLocaleDateString()}</p>
+          <Input aria-label={`Note for ${r.name}`} placeholder="Note (shown to them)" value={notes[r.id] ?? ''} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
+          <div className="flex gap-2"><Button size="sm" onClick={() => decide.mutate({ id: r.id, decision: 'approved' })}>Approve</Button><Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: r.id, decision: 'rejected' })}>Reject</Button></div>
+        </li>
+      ))}</ul>
     )}</QueryState>
   );
 }

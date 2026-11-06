@@ -40,6 +40,9 @@ export async function seedReferenceData(ctx: Ctx) {
   await db.insert(s.subscriptionPlans).values([
     { key: 'plus_monthly', name: 'Nakshatra+ Monthly', description: 'Included reports, exclusive Cosmic ID themes and frames, and advanced chart tools.', pricePaise: 19900, intervalMonths: 1, benefits: ['Complete Vedic and Western reports included', 'Eclipse theme and gilded frame', 'Unlimited chart snapshots'] },
     { key: 'plus_yearly', name: 'Nakshatra+ Yearly', description: 'Everything in Nakshatra+ Monthly, billed yearly.', pricePaise: 199900, intervalMonths: 12, benefits: ['Everything in monthly', 'Two months free compared with monthly'] },
+    { key: 'duo_monthly', name: 'Nakshatra+ Duo', description: 'Nakshatra+ for two people — you and one person you invite.', pricePaise: 29900, intervalMonths: 1, benefits: ['Everything in Nakshatra+ for two accounts', 'Invite or change your second person any time'], seats: 2 },
+    { key: 'student_monthly', name: 'Nakshatra+ Student', description: 'Nakshatra+ at a student price, for verified students.', pricePaise: 9900, intervalMonths: 1, benefits: ['Everything in Nakshatra+', 'Needs a verified institution email and a quick review'], eligibility: 'student' },
+    { key: 'founding_yearly', name: 'Founding Member', description: 'For the first 500 members: yearly Nakshatra+ at a price that stays locked while you renew.', pricePaise: 149900, intervalMonths: 12, benefits: ['Everything in Nakshatra+', 'Price locked for as long as you renew'], seatCap: 500, founding: true },
   ]).onConflictDoNothing();
 
   await db.insert(s.featureFlags).values([

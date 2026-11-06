@@ -1,8 +1,9 @@
+import { MembershipPanel } from './membership';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError, del, get, idempotencyKey, patch, post, put } from '../lib/api';
-import { cap, civilDate, money, relative } from '../lib/format';
+import { ApiError, del, get, patch, post, put } from '../lib/api';
+import { cap, civilDate, relative } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { useMe } from '../lib/session';
 import { Badge, Button, Card, Field, Input, PageHeader, Select, Switch, Textarea } from '../components/ui/primitives';
@@ -281,40 +282,7 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
 }
 
 function SubscriptionSettings() {
-  const nav = useNavigate();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [key] = useState(idempotencyKey);
-  const q = useQuery({ queryKey: ['subscriptions'], queryFn: () => get<{ plans: { key: string; name: string; description: string; pricePaise: number; intervalMonths: number; benefits: string[] }[]; subscriptions: { id: string; planKey: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean }[]; renewalNote?: string }>('subscriptions') });
-  const start = useMutation({ mutationFn: (planKey: string) => post<{ checkout: { checkoutPath: string } }>('subscriptions', { planKey, idempotencyKey: `${key}:${planKey}` }), onSuccess: (r) => nav(r.checkout.checkoutPath), onError: (e) => toast((e as Error).message, 'error') });
-  const act = useMutation({ mutationFn: ({ id, action }: { id: string; action: 'cancel' | 'resume' | 'renew' }) => post<{ checkout?: { checkoutPath: string }; message?: string }>(`subscriptions/${id}/${action}`), onSuccess: (r) => { if (r.checkout) nav(r.checkout.checkoutPath); else { qc.invalidateQueries({ queryKey: ['subscriptions'] }); toast(r.message ?? 'Updated', 'success'); } } });
-  return (
-    <QueryState q={q}>{(d) => {
-      const current = d.subscriptions.find((s) => ['active', 'past_due', 'pending_payment'].includes(s.status));
-      return (
-        <div className="space-y-5">
-          {d.renewalNote && <Notice tone="dev">{d.renewalNote}</Notice>}
-          {current && (
-            <Card>
-              <h2 className="font-display text-2xl">{d.plans.find((p) => p.key === current.planKey)?.name}</h2>
-              <p className="mt-1 text-sm text-fg-2">Status: <strong>{cap(current.status)}</strong>{current.currentPeriodEnd && ` · ${current.cancelAtPeriodEnd ? 'ends' : 'renews'} ${new Date(current.currentPeriodEnd).toLocaleDateString()}`}</p>
-              <div className="mt-3 flex gap-2">{current.status === 'active' && !current.cancelAtPeriodEnd && <Button size="sm" variant="ghost" onClick={() => act.mutate({ id: current.id, action: 'cancel' })}>Cancel at period end</Button>}{current.status === 'active' && current.cancelAtPeriodEnd && <Button size="sm" onClick={() => act.mutate({ id: current.id, action: 'resume' })}>Keep my membership</Button>}{current.status === 'past_due' && <Button size="sm" onClick={() => act.mutate({ id: current.id, action: 'renew' })}>Confirm renewal payment</Button>}</div>
-            </Card>
-          )}
-          <div className="grid gap-4 md:grid-cols-2">{d.plans.map((p) => (
-            <Card key={p.key}>
-              <h3 className="font-display text-2xl">{p.name}</h3>
-              <p className="mt-1 font-display text-3xl">{money(p.pricePaise)}<span className="text-base text-fg-3"> / {p.intervalMonths === 12 ? 'year' : 'month'}</span></p>
-              <p className="mt-2 text-sm text-fg-2">{p.description}</p>
-              <ul className="mt-3 space-y-1 text-sm text-fg-2">{p.benefits.map((b) => <li key={b}>✓ {b}</li>)}</ul>
-              {!current && <Button className="mt-4" loading={start.isPending} onClick={() => start.mutate(p.key)}>Choose {p.intervalMonths === 12 ? 'yearly' : 'monthly'}</Button>}
-            </Card>
-          ))}</div>
-          <p className="text-xs text-fg-3">Purchased benefits are always labelled separately from rewards you earn on your Journey. Core features — your Cosmic ID, charts, daily briefing and Bonds — are free.</p>
-        </div>
-      );
-    }}</QueryState>
-  );
+  return <MembershipPanel />;
 }
 
 function DataSettings() {

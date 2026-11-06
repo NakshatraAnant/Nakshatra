@@ -198,6 +198,13 @@ export const subscriptionPlans = pgTable('subscription_plans', {
   intervalMonths: integer('interval_months').notNull(),
   benefits: text('benefits').array().notNull(),
   active: boolean('active').notNull().default(true),
+  /** People covered by one subscription (2 for Duo). */
+  seats: integer('seats').notNull().default(1),
+  /** anyone | student (needs an approved student verification) */
+  eligibility: text('eligibility').notNull().default('anyone'),
+  /** Founding plans: limited number of subscribers; the price paid is locked for renewals. */
+  seatCap: integer('seat_cap'),
+  founding: boolean('founding').notNull().default(false),
 });
 
 export const subscriptions = pgTable('subscriptions', {
@@ -210,9 +217,40 @@ export const subscriptions = pgTable('subscriptions', {
   currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
   cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
   provider: text('provider').notNull(),
+  /** Founding members keep this price on renewal. */
+  lockedPricePaise: integer('locked_price_paise'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('subscriptions_user_idx').on(t.userId)]);
+
+/** Extra people on a multi-seat subscription (Duo). Benefits follow the owner's subscription status. */
+export const subscriptionMembers = pgTable('subscription_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  subscriptionId: uuid('subscription_id').notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  /** null until someone accepts the invite */
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  inviteTokenHash: text('invite_token_hash'),
+  inviteExpiresAt: timestamp('invite_expires_at', { withTimezone: true }),
+  joinedAt: timestamp('joined_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('subscription_members_sub_idx').on(t.subscriptionId), index('subscription_members_user_idx').on(t.userId), uniqueIndex('subscription_members_token_uq').on(t.inviteTokenHash)]);
+
+/** Student plan eligibility: verified institution email plus staff review. Nothing is inferred. */
+export const studentVerifications = pgTable('student_verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  institution: text('institution').notNull(),
+  emailDomain: text('email_domain').notNull(),
+  /** pending | approved | rejected */
+  status: text('status').notNull().default('pending'),
+  note: text('note').notNull().default(''),
+  reviewerId: uuid('reviewer_id'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  /** Approvals last one academic year. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('student_verifications_user_idx').on(t.userId), index('student_verifications_status_idx').on(t.status)]);
 
 /** Paid access rights. Granted only by verified payment workflows or admin action (audited). */
 export const entitlements = pgTable('entitlements', {

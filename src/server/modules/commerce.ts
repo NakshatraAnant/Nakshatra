@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 import * as s from '../db/schema';
@@ -7,6 +7,8 @@ import type { Executor, Tx } from '../db/client';
 import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
 import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
+import { plusStatus } from '../services/entitlements';
+import { checkPlanEligibility } from './memberships';
 import { requireAuth } from '../lib/auth';
 import { randomToken } from '../lib/crypto';
 import { notify } from '../lib/notify';
@@ -401,7 +403,8 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     const { templateKey } = parse(z.object({ templateKey: z.string() }), req.body);
     const tpl = REPORT_TEMPLATES[templateKey];
     if (!tpl) throw notFound('Report template');
-    const [ent] = await ctx.db.select().from(s.entitlements).where(and(eq(s.entitlements.userId, a.userId), eq(s.entitlements.kind, 'subscription'), isNull(s.entitlements.revokedAt), or(isNull(s.entitlements.expiresAt), gte(s.entitlements.expiresAt, new Date()))));
+    const plus = await plusStatus(ctx.db, a.userId);
+    const ent = plus.active ? { id: plus.entitlementId! } : null;
     if (!ent || !tpl.includedInPlus) throw forbidden('This report is available to purchase in the shop or included with Nakshatra+.');
     if (!(await currentChart(ctx.db, a.userId, 'vedic_default'))) throw badRequest('Complete your Cosmic ID first.');
     const content = await generateReport(ctx.db, a.userId, templateKey);
@@ -423,8 +426,10 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!plan) throw notFound('Plan');
     const active = await ctx.db.select().from(s.subscriptions).where(and(eq(s.subscriptions.userId, a.userId), inArray(s.subscriptions.status, ['active', 'past_due'])));
     if (active.length) throw conflict('You already have an active subscription.');
+    if ((await plusStatus(ctx.db, a.userId)).via === 'shared') throw conflict('You already have Nakshatra+ through a Duo membership. Leave it first if you want your own.');
+    await checkPlanEligibility(ctx.db, a.userId, plan);
     return ctx.db.transaction(async (tx) => {
-      const [sub] = await tx.insert(s.subscriptions).values({ userId: a.userId, planKey, status: 'pending_payment', provider: ctx.config.PAYMENT_PROVIDER }).returning();
+      const [sub] = await tx.insert(s.subscriptions).values({ userId: a.userId, planKey, status: 'pending_payment', provider: ctx.config.PAYMENT_PROVIDER, lockedPricePaise: plan.founding ? plan.pricePaise : null }).returning();
       const checkout = await createPayment(ctx, tx, { userId: a.userId, purpose: 'subscription', purposeId: sub.id, amountPaise: plan.pricePaise, idempotencyKey: `sub:${a.userId}:${idempotencyKey}` });
       return { subscription: sub, checkout };
     });
@@ -452,7 +457,7 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     const [sub] = await ctx.db.select().from(s.subscriptions).where(and(eq(s.subscriptions.id, id), eq(s.subscriptions.userId, a.userId), eq(s.subscriptions.status, 'past_due')));
     if (!sub) throw notFound('Subscription');
     const [plan] = await ctx.db.select().from(s.subscriptionPlans).where(eq(s.subscriptionPlans.key, sub.planKey));
-    const checkout = await createPayment(ctx, ctx.db, { userId: a.userId, purpose: 'subscription', purposeId: sub.id, amountPaise: plan.pricePaise, idempotencyKey: `sub-renew:${sub.id}:${sub.currentPeriodEnd?.toISOString()}` });
+    const checkout = await createPayment(ctx, ctx.db, { userId: a.userId, purpose: 'subscription', purposeId: sub.id, amountPaise: sub.lockedPricePaise ?? plan.pricePaise, idempotencyKey: `sub-renew:${sub.id}:${sub.currentPeriodEnd?.toISOString()}` });
     return { checkout };
   });
 
