@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import { and, eq, isNull, lt, lte, inArray, ne, or } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
@@ -90,6 +91,7 @@ export async function runRetention(ctx: Ctx, now = new Date()): Promise<number> 
   n += (await ctx.db.update(s.emailOutbox).set({ textBody: '[delivered — content removed by retention policy]' })
     .where(and(eq(s.emailOutbox.transport, 'smtp'), eq(s.emailOutbox.status, 'sent'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - day)), ne(s.emailOutbox.textBody, '[delivered — content removed by retention policy]'))).returning({ id: s.emailOutbox.id })).length;
   n += (await ctx.db.delete(s.emailOutbox).where(and(eq(s.emailOutbox.transport, 'dev_mailbox'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - 7 * day)))).returning({ id: s.emailOutbox.id })).length;
+  n += (await ctx.db.delete(s.adDelivery).where(lt(s.adDelivery.day, DateTime.fromJSDate(now).minus({ days: 30 }).toISODate()!)).returning({ c: s.adDelivery.campaignId })).length;
   n += (await ctx.db.delete(s.authTokens).where(lt(s.authTokens.expiresAt, new Date(now.getTime() - 7 * day))).returning({ id: s.authTokens.id })).length;
   n += (await ctx.db.delete(s.sessions).where(or(lt(s.sessions.expiresAt, new Date(now.getTime() - 30 * day)), lt(s.sessions.revokedAt, new Date(now.getTime() - 30 * day)))).returning({ id: s.sessions.id })).length;
   return n;

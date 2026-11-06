@@ -13,6 +13,7 @@ import { eventVisibleSql } from '../services/events';
 import { enabledModules } from '../services/modules';
 import { IDENTITY_OFFER_SLUGS } from '../../shared/modules';
 import { POLICY_VERSION } from './auth';
+import { adViewerKey } from './ads';
 
 /**
  * Account, privacy, notifications, search and support routes.
@@ -314,6 +315,9 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.analyticsEvents).set({ userId: null }).where(eq(s.analyticsEvents.userId, userId));
     await tx.delete(s.penMutes).where(or(eq(s.penMutes.muterId, userId), eq(s.penMutes.authorId, userId)));
     await tx.delete(s.mfaRecoveryCodes).where(eq(s.mfaRecoveryCodes.userId, userId));
+    const adKey = adViewerKey(ctx.config.appSecret, userId);
+    await tx.delete(s.adDelivery).where(eq(s.adDelivery.viewerKey, adKey));
+    await tx.delete(s.adHides).where(eq(s.adHides.viewerKey, adKey));
     await tx.delete(s.closeFriends).where(or(eq(s.closeFriends.ownerId, userId), eq(s.closeFriends.friendId, userId)));
     await tx.delete(s.postCollections).where(eq(s.postCollections.ownerId, userId));
     await tx.update(s.memberQuizzes).set({ status: 'removed' }).where(eq(s.memberQuizzes.authorId, userId));

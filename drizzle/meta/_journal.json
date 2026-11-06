@@ -120,6 +120,13 @@
       "when": 1793955870799,
       "tag": "0016_close_friends_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793958741396,
+      "tag": "0017_ads",
+      "breakpoints": true
     }
   ]
 }

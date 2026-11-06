@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, del, get, patch, post } from '../lib/api';
@@ -8,6 +8,8 @@ import { Dialog, Segmented, useToast } from '../components/ui/overlays';
 import { MaskIcon, PseudonymAvatar } from '../components/visual';
 import { postTypeIcon } from '../lib/visual';
 import { PhotoCarousel, PhotoPicker, VoiceRecorder } from '../components/MediaComposer';
+import { SponsoredCard } from '../components/SponsoredCard';
+import { AD_RULES } from '../../shared/ads';
 
 export const THOUGHT_TYPES = [
   { value: 'thought', label: 'Thought', hint: 'Something on your mind.' },
@@ -240,7 +242,7 @@ export function ThoughtsPage() {
       <div className="mt-4 space-y-4">
         {q.isLoading ? <LoadingBlock lines={5} /> : q.error ? <Notice tone="danger">Could not load the feed.</Notice> : posts.length === 0
           ? <EmptyState icon="social" title="Nothing here yet" body="Drop the first thought, follow people whose takes you enjoy, or start a circle with friends." />
-          : posts.map((p) => <ThoughtCard key={p.id} p={p} />)}
+          : posts.map((p, i) => <Fragment key={p.id}><ThoughtCard p={p} />{i === AD_RULES.minPostsBetweenAds - 1 && <SponsoredCard topic={topic} />}</Fragment>)}
       </div>
       {q.hasNextPage && <div className="mt-6 text-center"><Button variant="secondary" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>Load more</Button></div>}
     </div>

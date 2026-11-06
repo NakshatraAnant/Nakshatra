@@ -10,3 +10,4 @@ export * from './merch';
 export * from './creators';
 export * from './circles';
 export * from './collections';
+export * from './ads';
