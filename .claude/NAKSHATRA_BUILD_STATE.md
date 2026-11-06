@@ -1,12 +1,16 @@
 # Nakshatra build state (continuation file)
 
-- Branch: product-evolution (local commits only, not pushed)
-- Phase: 3 — full e2e run, then hosting on :4500
-- Done: MFA recovery (0007); personality-v2 + diagnostics; assessment resume; launch-scope e2e; funnel + admin Funnel;
-  nav redesign; Create (text/poll/photo/voice, 0008); People discovery (0009); Home next step;
-  COD merch lifecycle + admin fulfilment + stock (0010; module `merch` off at launch);
-  Admin Launch readiness + live Performance (p50/p95/p99 per route)
-- Tests: vitest 305/305; typecheck + lint clean; new e2e (h, l, m, n, legacy-modules) 6/6 pass; full suite running
-- Migrations 0007–0010: run on disposable copy (.data/pglite-disposable) OK for 0007–0009; 0010 to verify on the same copy
-- Next exact task: finish full e2e (repeat runs), back up .data/pglite, start `app` on :4500 (applies 0007–0010), verify in browser
-- Not built yet from the directive: subscriptions/creator/ads/partners/B2B systems, quiz builder, tournaments, journals and many of the 50 features (see Launch readiness for honest status)
+- Branch: product-evolution (local commits only, not pushed); last commit 628a59b
+- Phase: hosting done; remaining scope listed below
+- Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
+- Backups: .data/pglite-backup-before-0007-0010 (taken before migrations 0007–0010 were applied to local data)
+- Gates (2026-11-06): vitest 310/310; typecheck + lint clean; production build OK; Playwright full suite 26/26 (run 3, no retries;
+  run 1 had 1 failure and run 2 had 2, both fixed: 404 display + ambiguous selector)
+- Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
+  assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
+  opt-in People discovery; Home next step; reveal first-step card; COD merch lifecycle + admin fulfilment/stock (module off);
+  admin Launch readiness + Performance; launch-scope e2e (legacy journeys via E2E_MODULE_SCOPE=all)
+- NOT built (honest gaps): subscriptions (duo/student/founding), creator economy, community commerce, ad campaigns,
+  partners/affiliate, B2B orgs, user quiz builder, tournaments/seasonal leaderboards, journal/calendar/theme studio/avatar,
+  year-in-review, close friends, collections, circle channels/tiers/mod dashboard, 3D additions; most of the 50+50 lists
+- Next exact task if continuing: subscriptions + entitlement engine (preview-only while payments are off), then quiz builder
