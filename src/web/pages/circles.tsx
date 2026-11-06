@@ -10,6 +10,7 @@ import { Composer, ThoughtCard, type ThoughtPost } from './thoughts';
 import { GameLauncher, SessionList } from './play';
 import { CircleQuestion } from './home';
 import { Art } from '../components/visual';
+import { CircleEvents, CircleModeration } from './circleSpaces';
 import { circleCover, circleSymbol } from '../lib/visual';
 
 export const CIRCLE_THEME_COLORS: Record<string, [string, string]> = {
@@ -145,20 +146,75 @@ function InvitePanel({ circleId, canInvite, isAdmin }: { circleId: string; canIn
   );
 }
 
+interface Channel { id: string | null; name: string; description: string; kind: string; canPost: boolean; postsThisWeek: number }
+
 function CircleFeed({ circleId, circleName }: { circleId: string; circleName: string }) {
+  const [channel, setChannel] = useState<string>('');
+  const [managing, setManaging] = useState(false);
+  const channels = useQuery({ queryKey: ['circle-channels', circleId], queryFn: () => get<{ channels: Channel[]; canManage: boolean; max: number }>(`circles/${circleId}/channels`) });
+  const list = channels.data?.channels ?? [];
+  const active = list.find((c) => (c.id ?? 'general') === channel) ?? null;
   const q = useInfiniteQuery({
-    queryKey: ['circle-feed', circleId],
+    queryKey: ['circle-feed', circleId, channel],
     initialPageParam: '',
-    queryFn: ({ pageParam }) => get<{ posts: ThoughtPost[]; nextBefore: string | null }>(`circles/${circleId}/feed${pageParam ? `?before=${encodeURIComponent(pageParam)}` : ''}`),
+    queryFn: ({ pageParam }) => {
+      const qs = new URLSearchParams();
+      if (pageParam) qs.set('before', pageParam);
+      if (channel) qs.set('channel', channel);
+      const s = qs.toString();
+      return get<{ posts: ThoughtPost[]; nextBefore: string | null }>(`circles/${circleId}/feed${s ? `?${s}` : ''}`);
+    },
     getNextPageParam: (last) => last.nextBefore ?? undefined,
   });
   const posts = q.data?.pages.flatMap((p) => p.posts) ?? [];
+  const pill = (on: boolean) => cx('min-h-9 rounded-full border px-3 text-sm', on ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-2');
   return (
     <div className="space-y-4">
-      <Composer circleId={circleId} circleName={circleName} />
+      {list.length > 1 || channels.data?.canManage ? (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Channels">
+          <button type="button" aria-pressed={channel === ''} onClick={() => setChannel('')} className={pill(channel === '')}>All</button>
+          {list.map((ch) => {
+            const key = ch.id ?? 'general';
+            return <button key={key} type="button" aria-pressed={channel === key} onClick={() => setChannel(key)} className={pill(channel === key)}># {ch.name}{ch.kind === 'announcements' ? ' (announcements)' : ''}</button>;
+          })}
+          {channels.data?.canManage && <Button size="sm" variant="ghost" onClick={() => setManaging(!managing)}>{managing ? 'Done' : 'Manage channels'}</Button>}
+        </div>
+      ) : null}
+      {managing && channels.data && <ChannelManager circleId={circleId} channels={list.filter((c) => c.id)} max={channels.data.max} />}
+      {active?.description && <p className="text-sm text-fg-3">{active.description}</p>}
+      {active && !active.canPost
+        ? <Notice tone="info">Only circle owners and moderators post in # {active.name}.</Notice>
+        : <Composer key={channel} circleId={circleId} circleName={active?.id ? `${circleName} · #${active.name}` : circleName} channelId={active?.id ?? null} />}
       {q.isLoading ? <LoadingBlock /> : posts.length === 0 ? <EmptyState icon="social" title="Quiet in here" body="Post the first thought, answer today’s question, or start a game." /> : posts.map((p) => <ThoughtCard key={p.id} p={p} />)}
       {q.hasNextPage && <Button variant="secondary" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>Older posts</Button>}
     </div>
+  );
+}
+
+function ChannelManager({ circleId, channels, max }: { circleId: string; channels: Channel[]; max: number }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [kind, setKind] = useState('discussion');
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['circle-channels', circleId] }); void qc.invalidateQueries({ queryKey: ['circle-feed', circleId] }); };
+  const fail = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error');
+  const add = useMutation({ mutationFn: () => post(`circles/${circleId}/channels`, { name, description, kind }), onSuccess: () => { setName(''); setDescription(''); refresh(); toast('Channel added', 'success'); }, onError: fail });
+  const archive = useMutation({ mutationFn: (channelId: string) => patch(`circles/${circleId}/channels/${channelId}`, { archived: true }), onSuccess: () => { refresh(); toast('Archived — its posts are back in General', 'success'); }, onError: fail });
+  return (
+    <Card className="space-y-3" aria-label="Manage channels">
+      {channels.length > 0 && <ul className="divide-y divide-line">{channels.map((ch) => (
+        <li key={ch.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span># {ch.name} <span className="text-fg-3">· {ch.kind === 'announcements' ? 'announcements' : 'discussion'} · {ch.postsThisWeek} this week</span></span><Button size="sm" variant="ghost" onClick={() => archive.mutate(ch.id!)}>Archive</Button></li>
+      ))}</ul>}
+      {channels.length < max && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input aria-label="Channel name" placeholder="Channel name" maxLength={30} value={name} onChange={(e) => setName(e.target.value)} />
+          <Input aria-label="Channel description" placeholder="What it’s for (optional)" maxLength={140} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Select aria-label="Who can post" value={kind} onChange={(e) => setKind(e.target.value)}><option value="discussion">Everyone posts</option><option value="announcements">Announcements (admins post)</option></Select>
+          <Button size="sm" disabled={name.trim().length < 2} loading={add.isPending} onClick={() => add.mutate()}>Add channel</Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -188,7 +244,10 @@ export function CircleDetail() {
   const { id } = useParams();
   const me = useMe().data?.user;
   const q = useQuery({ queryKey: ['circle', id], queryFn: () => get<CircleDetailResp>(`circles/${id}`), retry: false });
-  const [tab, setTab] = useState<'feed' | 'play' | 'members' | 'settings'>('feed');
+  const [tab, setTab] = useState<'feed' | 'events' | 'play' | 'members' | 'moderation' | 'settings'>(() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    return t === 'events' || t === 'play' || t === 'members' || t === 'moderation' ? t : 'feed';
+  });
   const qc = useQueryClient();
   const toast = useToast();
   const nav = useNavigate();
@@ -213,10 +272,12 @@ export function CircleDetail() {
         {d.activation.contributors < d.activation.needed && (
           <Notice tone="info" className="mb-6" title="Bring your circle to life">{d.activation.contributors} of {d.activation.needed} members have joined in. Answer today’s question or start a quick game together.</Notice>
         )}
-        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'feed', label: 'Feed' }, { value: 'play', label: 'Play' }, { value: 'members', label: 'Members', count: d.members.length }, { value: 'settings', label: 'Settings' }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'feed', label: 'Feed' }, { value: 'events', label: 'Events' }, { value: 'play', label: 'Play' }, { value: 'members', label: 'Members', count: d.members.length }, ...(d.me.isAdmin ? [{ value: 'moderation' as const, label: 'Moderation' }] : []), { value: 'settings', label: 'Settings' }]} />
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>
             {tab === 'feed' && <CircleFeed circleId={d.circle.id} circleName={d.circle.name} />}
+            {tab === 'events' && <CircleEvents circleId={d.circle.id} />}
+            {tab === 'moderation' && d.me.isAdmin && <CircleModeration circleId={d.circle.id} />}
             {tab === 'play' && <div className="space-y-6"><GameLauncher circleId={d.circle.id} /><SessionList circleId={d.circle.id} /></div>}
             {tab === 'members' && (
               <div className="space-y-6">

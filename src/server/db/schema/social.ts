@@ -185,7 +185,9 @@ export const posts = pgTable('posts', {
   /** Voice note (author's own upload, ≤ 60 s). */
   audioUrl: text('audio_url'),
   audioSeconds: integer('audio_seconds'),
-}, (t) => [index('posts_author_created_idx').on(t.authorId, t.createdAt), index('posts_created_idx').on(t.createdAt), index('posts_group_idx').on(t.groupId), index('posts_group_created_idx').on(t.groupId, t.createdAt)]);
+  /** Circle channel (circle_channels.id); null is the circle's General channel. */
+  channelId: uuid('channel_id'),
+}, (t) => [index('posts_channel_idx').on(t.groupId, t.channelId, t.createdAt), index('posts_author_created_idx').on(t.authorId, t.createdAt), index('posts_created_idx').on(t.createdAt), index('posts_group_idx').on(t.groupId), index('posts_group_created_idx').on(t.groupId, t.createdAt)]);
 
 export const pollOptions = pgTable('poll_options', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -254,8 +256,10 @@ export const events = pgTable('events', {
   kind: text('kind').notNull().default('community'),
   pricePaise: integer('price_paise').notNull().default(0),
   status: text('status').notNull().default('scheduled'),
+  /** Recurring circle event series (event_series.id) this occurrence belongs to. */
+  seriesId: uuid('series_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index('events_starts_idx').on(t.startsAt)]);
+}, (t) => [index('events_starts_idx').on(t.startsAt), uniqueIndex('events_series_occurrence_uq').on(t.seriesId, t.startsAt), index('events_group_idx').on(t.groupId, t.startsAt)]);
 
 export const eventRsvps = pgTable('event_rsvps', {
   eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),

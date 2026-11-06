@@ -8,3 +8,4 @@ export * from './platform';
 export * from './play';
 export * from './merch';
 export * from './creators';
+export * from './circles';

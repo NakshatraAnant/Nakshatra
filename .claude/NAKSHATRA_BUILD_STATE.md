@@ -3,8 +3,8 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014 (taken with the app stopped)
-- Gates (2026-11-06, latest): vitest 332/332; typecheck + lint clean; production build OK; Playwright 30/30 (no retries; mobile re-run after a network drop)
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015 (taken with the app stopped)
+- Gates (2026-11-06, latest): vitest 339/339; typecheck + lint clean; production build OK; Playwright 31/31 (no retries)
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
   assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
@@ -15,8 +15,11 @@
   async trivia tournaments (server clock, one run, answers hidden until close, too-fast/over-time held for moderator review,
   competition ranking, match history) + season leaderboards (following/circle scope only, hide-me setting) (0013);
   creator pages (links, featured drops, offering listings with Notify me, tips via payment boundary into a held
-  ledger with 10% fee, simulated tips labelled, refunds reverse, daily cap, moderator suspension, no payouts) (0014)
+  ledger with 10% fee, simulated tips labelled, refunds reverse, daily cap, moderator suspension, no payouts) (0014);
+  circle channels (discussion/announcements, feed filter, archive back to General), circle events with weekly/
+  fortnightly/monthly repeats (DST-safe, materialised 6 ahead by scheduler, cancel one / stop series), circle
+  moderator dashboard (reports in circle w/ reporter hidden, remove/keep, pause posting, ban/unban, audit log) (0015)
 - NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), community commerce, ad campaigns,
   partners/affiliate, B2B orgs, journal/calendar/theme studio/avatar,
-  year-in-review, close friends, collections, circle channels/tiers/mod dashboard, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: circle channels + recurring events + circle moderator dashboard
+  year-in-review, close friends, collections, circle tiers, 3D additions; most of the 50+50 lists
+- Next exact task if continuing: close friends + saved collections, then ad campaigns (approval, caps, disclosure)

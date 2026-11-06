@@ -319,6 +319,7 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     // Tournaments: hosted ones that are still running are called off; your entries (and answers) are removed.
     await tx.update(s.tournaments).set({ cancelledAt: new Date() }).where(and(eq(s.tournaments.hostId, userId), isNull(s.tournaments.cancelledAt)));
     await tx.delete(s.tournamentEntries).where(eq(s.tournamentEntries.userId, userId));
+    await tx.update(s.eventSeries).set({ endedAt: new Date() }).where(and(eq(s.eventSeries.hostId, userId), isNull(s.eventSeries.endedAt)));
     // Creator page goes; the earnings ledger and tip amounts stay for accounting, without names or messages.
     await tx.delete(s.creatorProfiles).where(eq(s.creatorProfiles.userId, userId));
     await tx.update(s.creatorOfferings).set({ status: 'archived' }).where(eq(s.creatorOfferings.creatorId, userId));

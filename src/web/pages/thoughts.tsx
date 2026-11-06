@@ -36,7 +36,7 @@ function ago(iso: string) {
   if (m < 1) return 'just now'; if (m < 60) return `${m}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; return `${Math.round(h / 24)}d`;
 }
 
-export function Composer({ circleId, circleName, onPosted, defaultType = 'thought', prefill = '' }: { circleId?: string; circleName?: string; onPosted?: () => void; defaultType?: ThoughtType; prefill?: string }) {
+export function Composer({ circleId, circleName, channelId, onPosted, defaultType = 'thought', prefill = '' }: { circleId?: string; circleName?: string; channelId?: string | null; onPosted?: () => void; defaultType?: ThoughtType; prefill?: string }) {
   const toast = useToast();
   const qc = useQueryClient();
   const [type, setType] = useState<ThoughtType>(defaultType);
@@ -54,7 +54,7 @@ export function Composer({ circleId, circleName, onPosted, defaultType = 'though
     mutationFn: () => {
       const [vis, gid] = where.startsWith('circle:') ? ['group', where.slice(7)] : [where, undefined];
       return post('posts', {
-        kind: type, body, visibility: vis, groupId: gid, topics: topic ? [topic] : [], pseudonymous: pseudo,
+        kind: type, body, visibility: vis, groupId: gid, channelId: gid && channelId ? channelId : undefined, topics: topic ? [topic] : [], pseudonymous: pseudo,
         pollOptions: type === 'poll' ? options.filter(Boolean) : undefined,
         ...(type === 'image' ? (photos.length > 1 ? { imageUrls: photos } : { imageUrl: photos[0] }) : {}),
         ...(type === 'voice' && voice ? { audioUrl: voice.url, audioSeconds: voice.seconds } : {}),

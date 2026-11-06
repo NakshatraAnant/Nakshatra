@@ -266,10 +266,10 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/api/v1/circles/:id/feed', async (req) => {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
-    const { before } = parse(z.object({ before: z.iso.datetime().optional() }), req.query);
+    const { before, channel } = parse(z.object({ before: z.iso.datetime().optional(), channel: z.union([z.literal('general'), z.uuid()]).optional() }), req.query);
     await requireCircle(ctx.db, id, a.userId);
     const isMuted = await muteFilters(ctx.db, a.userId);
-    const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), before ? lt(s.posts.createdAt, new Date(before)) : undefined)).orderBy(desc(s.posts.createdAt)).limit(21);
+    const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), channel === 'general' ? isNull(s.posts.channelId) : channel ? eq(s.posts.channelId, channel) : undefined, before ? lt(s.posts.createdAt, new Date(before)) : undefined)).orderBy(desc(s.posts.createdAt)).limit(21);
     const page = rows.slice(0, 20).filter((r) => !isMuted(r));
     return { posts: await hydratePosts(ctx.db, a.userId, page), nextBefore: rows.length > 20 ? rows[19].createdAt.toISOString() : null };
   });

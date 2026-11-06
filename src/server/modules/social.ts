@@ -15,6 +15,7 @@ import { rankFeed, type FeedCandidate } from '../services/ranking';
 import { bigThreeFor, displayNames, isBlockedEitherWay } from '../services/identity';
 import { DateTime } from 'luxon';
 import { blockedPhrases, screenText } from '../services/moderation';
+import { assertNotTimedOut } from '../services/circleSpaces';
 import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { checkCircleActivation } from '../services/circles';
@@ -110,7 +111,7 @@ export async function hydratePosts(db: Executor, viewerId: string, rows: (typeof
   const votes = pollIds.length ? await db.select({ optionId: s.pollVotes.optionId, n: sql<number>`count(*)::int` }).from(s.pollVotes).where(inArray(s.pollVotes.postId, pollIds)).groupBy(s.pollVotes.optionId) : [];
   const myVotes = pollIds.length ? await db.select().from(s.pollVotes).where(and(inArray(s.pollVotes.postId, pollIds), eq(s.pollVotes.userId, viewerId))) : [];
   return rows.map((r) => ({
-    id: r.id, kind: r.kind, body: r.body, imageUrl: r.imageUrl, imageUrls: r.imageUrls?.length ? r.imageUrls : null, audioUrl: r.audioUrl, audioSeconds: r.audioSeconds, card: r.card, topics: r.topics, visibility: r.visibility, groupId: r.groupId,
+    id: r.id, kind: r.kind, body: r.body, imageUrl: r.imageUrl, imageUrls: r.imageUrls?.length ? r.imageUrls : null, audioUrl: r.audioUrl, audioSeconds: r.audioSeconds, card: r.card, topics: r.topics, visibility: r.visibility, groupId: r.groupId, channelId: r.channelId,
     createdAt: r.createdAt, expiresAt: r.expiresAt, editedAt: r.editedAt, pseudonymous: r.pseudonymous,
     author: r.pseudonymous && r.authorId !== viewerId ? { pseudonym: r.penName ?? pens.get(r.authorId) ?? 'Anonymous member' } : { userId: r.authorId, ...names.get(r.authorId), ...(r.pseudonymous ? { pseudonym: r.penName ?? undefined } : {}) },
     reactions: Object.fromEntries(reactions.filter((x) => x.postId === r.id).map((x) => [x.kind, x.n])),
@@ -249,6 +250,8 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     topics: z.array(z.enum(TOPICS as [string, ...string[]])).max(4).default([]),
     visibility: z.enum(['public', 'followers', 'group']).default('followers'),
     groupId: z.uuid().optional(),
+    /** Circle channel; omitted means General. */
+    channelId: z.uuid().optional(),
     pollOptions: z.array(z.string().trim().min(1).max(80)).min(2).max(4).optional(),
     temporaryHours: z.number().int().min(1).max(168).optional(),
     cardType: z.enum(['big_three', 'nakshatra', 'achievement']).optional(),
@@ -307,7 +310,13 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       if (!m) throw forbidden('Join the group to post in it.');
       const [g] = await ctx.db.select({ archivedAt: s.groups.archivedAt }).from(s.groups).where(eq(s.groups.id, body.groupId));
       if (!g || g.archivedAt) throw forbidden('This group is no longer active.');
-    }
+      await assertNotTimedOut(ctx.db, body.groupId, a.userId);
+      if (body.channelId) {
+        const [ch] = await ctx.db.select().from(s.circleChannels).where(and(eq(s.circleChannels.id, body.channelId), eq(s.circleChannels.circleId, body.groupId), isNull(s.circleChannels.archivedAt)));
+        if (!ch) throw badRequest('That channel no longer exists.');
+        if (ch.kind === 'announcements' && !['owner', 'moderator'].includes(m.role)) throw forbidden('Only circle owners and moderators post in announcement channels.');
+      }
+    } else if (body.channelId) throw badRequest('Channels are only for circle posts.');
     const recent = await ctx.db.select({ body: s.posts.body }).from(s.posts).where(and(eq(s.posts.authorId, a.userId), gt(s.posts.createdAt, new Date(Date.now() - 86400000))));
     const spam = spamCheck(body.body, recent.map((r) => r.body));
     if (spam) throw badRequest(spam);
@@ -321,7 +330,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const expiresAt = body.kind === 'story' ? new Date(Date.now() + 24 * 3600000) : body.temporaryHours ? new Date(Date.now() + body.temporaryHours * 3600000) : null;
     const post = await ctx.db.transaction(async (tx) => {
       const [p] = await tx.insert(s.posts).values({
-        authorId: a.userId, groupId: body.groupId ?? null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
+        authorId: a.userId, groupId: body.groupId ?? null, channelId: body.visibility === 'group' ? body.channelId ?? null : null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
         imageUrls: body.imageUrls ?? [], audioUrl: body.audioUrl ?? null, audioSeconds: body.audioUrl ? body.audioSeconds! : null,
         topics: body.topics, visibility: body.visibility, expiresAt, pseudonymous: body.pseudonymous, penName,
       }).returning();
@@ -490,6 +499,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const body = parse(z.object({ body: z.string().trim().min(1).max(1000), parentId: z.uuid().optional() }), req.body);
     const [p] = await ctx.db.select().from(s.posts).where(eq(s.posts.id, id));
     if (!p || !(await canViewPost(ctx.db, a.userId, p))) throw notFound('Post');
+    if (p.groupId) await assertNotTimedOut(ctx.db, p.groupId, a.userId);
     const spam = spamCheck(body.body, []);
     if (spam) throw badRequest(spam);
     const screened = screenText(body.body, await blockedPhrases(ctx.db));
@@ -691,7 +701,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     await ctx.db.insert(s.eventRsvps).values({ eventId: id, userId: a.userId, status }).onConflictDoUpdate({ target: [s.eventRsvps.eventId, s.eventRsvps.userId], set: { status } });
     if (status === 'going') {
-      await ctx.db.insert(s.scheduledReminders).values({ userId: a.userId, category: 'social', title: `Starting soon: ${e.title}`, link: '/social/events', dueAt: new Date(e.startsAt.getTime() - 3600000), sourceKey: `event:${id}` }).onConflictDoNothing();
+      await ctx.db.insert(s.scheduledReminders).values({ userId: a.userId, category: 'social', title: `Starting soon: ${e.title}`, link: e.groupId ? `/circles/${e.groupId}?tab=events` : '/social/events', dueAt: new Date(e.startsAt.getTime() - 3600000), sourceKey: `event:${id}` }).onConflictDoNothing();
     }
     return { ok: true };
   });

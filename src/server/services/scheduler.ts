@@ -3,6 +3,7 @@ import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { deliverOutbox, notify, type NotificationCategory } from '../lib/notify';
 import { expireGifts } from './gifts';
+import { materialiseAllSeries } from './circleSpaces';
 
 /**
  * In-process scheduler for time-based state transitions. Each job is idempotent,
@@ -70,6 +71,9 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
 
   // 6. Gifts not claimed in time.
   results.expiredGifts = await expireGifts(ctx, now);
+
+  // 6b. Keep repeating circle events stocked a few weeks ahead.
+  results.eventOccurrences = await materialiseAllSeries(ctx.db, now);
 
   // 7. Retention: sign-in links and sessions are security material; keep them only as long as needed.
   results.retention = await runRetention(ctx, now);
