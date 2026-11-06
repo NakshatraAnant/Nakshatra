@@ -94,16 +94,18 @@ export function Composer({ circleId, circleName, channelId, onPosted, defaultTyp
       <div className="grid gap-3 sm:grid-cols-2">
         {!circleId && (
           <Field label="Who can see this">{(fid) => (
-            <Select id={fid} value={where} onChange={(e) => { setWhere(e.target.value); if (e.target.value === 'followers') setPseudo(false); }}>
+            <Select id={fid} value={where} onChange={(e) => { setWhere(e.target.value); if (e.target.value === 'followers' || e.target.value === 'close_friends') setPseudo(false); }}>
               <option value="public">Public</option>
               <option value="followers">Followers</option>
+              <option value="close_friends">Close friends</option>
               {circles.data?.circles.map((c) => <option key={c.id} value={`circle:${c.id}`}>Circle: {c.name}</option>)}
             </Select>
           )}</Field>
         )}
         <Field label="Topic (optional)">{(fid) => <Select id={fid} value={topic} onChange={(e) => setTopic(e.target.value)}><option value="">None</option>{SOCIAL_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}</Select>}</Field>
       </div>
-      {where !== 'followers' && (
+      {where === 'close_friends' && <p className="text-xs text-fg-3">Only people on your close-friends list will see this. <Link to="/close-friends" className="underline underline-offset-2">Edit the list</Link></p>}
+      {where !== 'followers' && where !== 'close_friends' && (
         id.data?.pseudonym
           ? <Switch label={`Post as “${id.data.pseudonym}” (pen name)`} checked={pseudo} onChange={setPseudo} description="Other members see only your pen name. Nakshatra keeps the link to your account for safety, so this is pseudonymous, not anonymous." />
           : <p className="text-xs text-fg-3">Want to post under a pen name? <Link to="/identity" className="text-accent underline underline-offset-2">Set one in Identity Studio</Link>.</p>
@@ -133,9 +135,10 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
   const qc = useQueryClient();
   const toast = useToast();
   const [reporting, setReporting] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.body);
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ['thoughts'] }); void qc.invalidateQueries({ queryKey: ['circle-feed'] }); void qc.invalidateQueries({ queryKey: ['thought', p.id] }); };
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['thoughts'] }); void qc.invalidateQueries({ queryKey: ['circle-feed'] }); void qc.invalidateQueries({ queryKey: ['thought', p.id] }); void qc.invalidateQueries({ queryKey: ['saved-posts'] }); void qc.invalidateQueries({ queryKey: ['collection'] }); };
   const act = (fn: () => Promise<unknown>, ok?: string) => fn().then(() => { refresh(); if (ok) toast(ok, 'success'); }).catch((e) => toast(e instanceof ApiError ? e.message : 'Something went wrong', 'error'));
   const name = p.author.pseudonym ?? p.author.displayName ?? 'Member';
   const canEdit = p.isMine && p.kind !== 'poll' && Date.now() - Date.parse(p.createdAt) < 15 * 60000;
@@ -149,6 +152,7 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
             {p.author.handle ? <Link to={`/i/${p.author.handle}`} className="font-semibold text-fg hover:underline">{name}</Link> : <span className="font-semibold text-fg">{name}</span>}
             {p.pseudonymous && <Badge tone="neutral">Pen name</Badge>}
             {p.groupId && <Badge tone="neutral">Circle</Badge>}
+            {p.visibility === 'close_friends' && <Badge tone="success">Close friends</Badge>}
           </div>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3">{TYPE_LABEL[p.kind] ?? p.kind} · {ago(p.createdAt)}{p.editedAt ? ' · edited' : ''}</p>
         </div>
@@ -196,7 +200,8 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
         ))}
         {linkToDetail && <Link to={`/thoughts/${p.id}`} className="ml-1 min-h-9 rounded-full px-3 py-2 text-xs text-fg-2 hover:text-fg">{p.commentCount ? `${p.commentCount} repl${p.commentCount === 1 ? 'y' : 'ies'}` : 'Reply'}</Link>}
         <span className="ml-auto flex flex-wrap gap-1">
-          <button type="button" className="min-h-9 rounded-full px-2 text-xs text-fg-3 hover:text-fg" aria-pressed={p.saved} onClick={() => act(() => post(`posts/${p.id}/save`, {}), p.saved ? 'Removed from saved' : 'Saved')}>{p.saved ? 'Saved' : 'Save'}</button>
+          <button type="button" className="min-h-9 rounded-full px-2 text-xs text-fg-3 hover:text-fg" aria-pressed={p.saved} onClick={() => act(() => post(`posts/${p.id}/save`, { saved: !p.saved }), p.saved ? 'Removed from saved' : 'Saved')}>{p.saved ? 'Saved' : 'Save'}</button>
+          <button type="button" className="min-h-9 rounded-full px-2 text-xs text-fg-3 hover:text-fg" onClick={() => setPicking(true)}>Save to…</button>
           {canEdit && <button type="button" className="min-h-9 rounded-full px-2 text-xs text-fg-3 hover:text-fg" onClick={() => setEditing(true)}>Edit</button>}
           {p.isMine
             ? <button type="button" className="min-h-9 rounded-full px-2 text-xs text-fg-3 hover:text-danger" onClick={() => act(() => del(`posts/${p.id}`), 'Deleted')}>Delete</button>
@@ -206,6 +211,7 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
             </>}
         </span>
       </footer>
+      {picking && <SaveToDialog postId={p.id} onClose={() => { setPicking(false); refresh(); }} />}
       <ReportDialog open={reporting} onClose={() => setReporting(false)} targetType="post" targetId={p.id} />
     </article>
   );
@@ -293,5 +299,33 @@ export function ThoughtDetail() {
         </div>
       )}</QueryState>
     </div>
+  );
+}
+
+/** "Save to…": add or remove this post from your collections, or start a new one. */
+function SaveToDialog({ postId, onClose }: { postId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const q = useQuery({ queryKey: ['post-collections', postId], queryFn: () => get<{ collections: { id: string; name: string; contains: boolean }[] }>(`posts/${postId}/collections`) });
+  const done = () => { void qc.invalidateQueries({ queryKey: ['post-collections', postId] }); void qc.invalidateQueries({ queryKey: ['collections'] }); };
+  const err = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error');
+  const toggle = useMutation({ mutationFn: ({ id, on }: { id: string; on: boolean }) => (on ? post(`collections/${id}/items`, { postId }) : del(`collections/${id}/items/${postId}`)), onSuccess: done, onError: err });
+  const create = useMutation({
+    mutationFn: async () => { const r = await post<{ collection: { id: string } }>('collections', { name }); await post(`collections/${r.collection.id}/items`, { postId }); },
+    onSuccess: () => { setName(''); done(); toast('Saved to a new collection', 'success'); }, onError: err,
+  });
+  return (
+    <Dialog open onClose={onClose} title="Save to a collection" footer={<Button onClick={onClose}>Done</Button>}>
+      <div className="space-y-3">
+        {q.data?.collections.length ? (
+          <ul className="space-y-1">{q.data.collections.map((c) => (
+            <li key={c.id}><label className="flex min-h-10 items-center gap-2 text-sm text-fg"><input type="checkbox" checked={c.contains} onChange={(e) => toggle.mutate({ id: c.id, on: e.target.checked })} />{c.name}</label></li>
+          ))}</ul>
+        ) : q.data ? <p className="text-sm text-fg-2">No collections yet — name your first one below.</p> : null}
+        <div className="flex gap-2"><Input aria-label="New collection name" placeholder="New collection" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} /><Button variant="secondary" disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create</Button></div>
+        <p className="text-xs text-fg-3">Collections are private unless you put one on your profile. <Link to="/saved" className="underline underline-offset-2" onClick={onClose}>Manage</Link></p>
+      </div>
+    </Dialog>
   );
 }

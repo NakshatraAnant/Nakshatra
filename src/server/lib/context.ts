@@ -103,6 +103,7 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   quiz_taken: { meaningful: true, description: 'Member took someone else’s quiz (answers not recorded in analytics).' },
   creator_profile_created: { meaningful: true, description: 'Member set up a creator page.' },
   creator_tip_paid: { meaningful: true, description: 'A tip to a creator was paid (amount not recorded in analytics).' },
+  collection_created: { meaningful: true, description: 'Member made a collection of saved posts.' },
   circle_event_created: { meaningful: true, description: 'Circle admin scheduled an event (one-off or repeating).' },
   tournament_created: { meaningful: true, description: 'Member hosted a trivia tournament.' },
   tournament_joined: { meaningful: true, description: 'Member joined a tournament.' },

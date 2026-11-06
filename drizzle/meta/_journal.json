@@ -113,6 +113,13 @@
       "when": 1793954054630,
       "tag": "0015_circle_channels_events",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793955870799,
+      "tag": "0016_close_friends_collections",
+      "breakpoints": true
     }
   ]
 }

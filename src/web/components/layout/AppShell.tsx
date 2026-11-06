@@ -40,6 +40,8 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
   { label: 'You', items: [
     { to: '/progress', key: 'nav.progress', icon: 'rewards' },
     { to: '/thoughts', key: 'nav.thoughts', icon: 'social', pkg: 'network' },
+    { to: '/saved', key: 'nav.saved', icon: 'bookmark' },
+    { to: '/close-friends', key: 'nav.closeFriends', icon: 'users' },
     { to: '/invite', key: 'nav.invite', icon: 'share', pkg: 'gift' },
     { to: '/journey', key: 'nav.journey', icon: 'journey' },
     { to: '/shop', key: 'nav.shop', icon: 'shop' },

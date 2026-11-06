@@ -169,7 +169,7 @@ export const posts = pgTable('posts', {
   imageUrl: text('image_url'),
   card: jsonb('card'),
   topics: text('topics').array().notNull().default(sql`'{}'::text[]`),
-  /** public | followers | group */
+  /** public | followers | close_friends (the author's list) | group */
   visibility: text('visibility').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

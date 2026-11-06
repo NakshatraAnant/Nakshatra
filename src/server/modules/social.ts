@@ -63,12 +63,21 @@ async function blockedSet(db: Executor, userId: string): Promise<Set<string>> {
  *  - group: active members of that circle/group, or anyone for a public community group.
  * Blocks in either direction always hide a post. Mutes are a feed preference, applied by callers.
  */
+/** Authors whose close-friends list includes this viewer. */
+export async function closeFriendAuthors(db: Executor, viewerId: string): Promise<string[]> {
+  return (await db.select({ o: s.closeFriends.ownerId }).from(s.closeFriends).where(eq(s.closeFriends.friendId, viewerId))).map((r) => r.o);
+}
+
 export async function canViewPost(db: Executor, viewerId: string, post: typeof s.posts.$inferSelect): Promise<boolean> {
   if (post.deletedAt || (post.hiddenByModeration && post.authorId !== viewerId)) return false;
   if (post.expiresAt && post.expiresAt < new Date() && post.authorId !== viewerId) return false;
   if (post.authorId === viewerId) return true;
   if (await isBlockedEitherWay(db, viewerId, post.authorId)) return false;
   if (post.visibility === 'public') return true;
+  if (post.visibility === 'close_friends') {
+    const [cf] = await db.select().from(s.closeFriends).where(and(eq(s.closeFriends.ownerId, post.authorId), eq(s.closeFriends.friendId, viewerId)));
+    return Boolean(cf);
+  }
   if (post.visibility === 'group' && post.groupId) {
     const [m] = await db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, post.groupId), eq(s.groupMembers.userId, viewerId), eq(s.groupMembers.status, 'active')));
     const [g] = await db.select().from(s.groups).where(eq(s.groups.id, post.groupId));
@@ -185,6 +194,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     await ctx.db.transaction(async (tx) => {
       await tx.insert(s.blocks).values({ blockerId: a.userId, blockedId: userId }).onConflictDoNothing();
       await tx.delete(s.follows).where(or(and(eq(s.follows.followerId, a.userId), eq(s.follows.followeeId, userId)), and(eq(s.follows.followerId, userId), eq(s.follows.followeeId, a.userId))));
+      await tx.delete(s.closeFriends).where(or(and(eq(s.closeFriends.ownerId, a.userId), eq(s.closeFriends.friendId, userId)), and(eq(s.closeFriends.ownerId, userId), eq(s.closeFriends.friendId, a.userId))));
       // Blocking revokes any chart sharing in both directions.
       await tx.update(s.chartShareGrants).set({ revokedAt: new Date() }).where(and(isNull(s.chartShareGrants.revokedAt), or(and(eq(s.chartShareGrants.grantorId, a.userId), eq(s.chartShareGrants.granteeId, userId)), and(eq(s.chartShareGrants.grantorId, userId), eq(s.chartShareGrants.granteeId, a.userId)))));
       await tx.update(s.bonds).set({ status: 'revoked' }).where(and(eq(s.bonds.status, 'active'), or(and(eq(s.bonds.ownerId, a.userId), eq(s.bonds.partnerUserId, userId)), and(eq(s.bonds.ownerId, userId), eq(s.bonds.partnerUserId, a.userId)))));
@@ -248,7 +258,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     audioUrl: z.string().startsWith('/uploads/public/').optional(),
     audioSeconds: z.number().int().min(1).max(60).optional(),
     topics: z.array(z.enum(TOPICS as [string, ...string[]])).max(4).default([]),
-    visibility: z.enum(['public', 'followers', 'group']).default('followers'),
+    visibility: z.enum(['public', 'followers', 'close_friends', 'group']).default('followers'),
     groupId: z.uuid().optional(),
     /** Circle channel; omitted means General. */
     channelId: z.uuid().optional(),
@@ -297,7 +307,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     if ((THOUGHT_KINDS as readonly string[]).includes(body.kind) && body.body.length > 500) throw badRequest('Thought Drops are up to 500 characters.');
     let penName: string | null = null;
     if (body.pseudonymous) {
-      if (body.visibility === 'followers') throw badRequest('Pseudonymous posts can be public or shared in a circle, not followers-only.');
+      if (body.visibility === 'followers' || body.visibility === 'close_friends') throw badRequest('Pseudonymous posts can be public or shared in a circle, not followers-only or close friends.');
       const [pen] = await ctx.db.select({ p: s.profiles.pseudonym }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
       if (!pen?.p) throw badRequest('Choose a pen name in Identity Studio before posting pseudonymously.');
       penName = pen.p;
@@ -389,13 +399,17 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const groupsIn = (await ctx.db.select({ id: s.groupMembers.groupId }).from(s.groupMembers).where(and(eq(s.groupMembers.userId, a.userId), eq(s.groupMembers.status, 'active')))).map((r) => r.id);
     const excluded = await blockedSet(ctx.db, a.userId);
     const isMuted = await muteFilters(ctx.db, a.userId);
+    // Authors who put this viewer on their close-friends list.
+    const cfAuthors = await closeFriendAuthors(ctx.db, a.userId);
+    const closeFriendsOk = or(ne(s.posts.visibility, 'close_friends'), eq(s.posts.authorId, a.userId), cfAuthors.length ? inArray(s.posts.authorId, cfAuthors) : sql`false`);
     // Following mode never includes other people's pen-name posts: it would narrow their author to people you follow.
     const visibility = q.mode === 'following'
-      ? and(inArray(s.posts.authorId, [a.userId, ...following]), ne(s.posts.visibility, 'group'), or(eq(s.posts.pseudonymous, false), eq(s.posts.authorId, a.userId)))
+      ? and(inArray(s.posts.authorId, [a.userId, ...following]), ne(s.posts.visibility, 'group'), closeFriendsOk, or(eq(s.posts.pseudonymous, false), eq(s.posts.authorId, a.userId)))
       : or(
         eq(s.posts.authorId, a.userId),
         eq(s.posts.visibility, 'public'),
         following.length ? and(eq(s.posts.visibility, 'followers'), inArray(s.posts.authorId, following)) : sql`false`,
+        cfAuthors.length ? and(eq(s.posts.visibility, 'close_friends'), inArray(s.posts.authorId, cfAuthors)) : sql`false`,
         groupsIn.length ? and(eq(s.posts.visibility, 'group'), inArray(s.posts.groupId, groupsIn)) : sql`false`,
       );
     const rows = await ctx.db.select().from(s.posts).where(and(
@@ -431,7 +445,9 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const following = (await ctx.db.select({ id: s.follows.followeeId }).from(s.follows).where(and(eq(s.follows.followerId, a.userId), eq(s.follows.status, 'accepted')))).map((r) => r.id);
     const excluded = await blockedSet(ctx.db, a.userId);
     const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.kind, 'story'), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), gt(s.posts.expiresAt, new Date()), inArray(s.posts.authorId, [a.userId, ...following]))).orderBy(desc(s.posts.createdAt)).limit(100);
-    return { stories: await hydratePosts(ctx.db, a.userId, rows.filter((r) => !excluded.has(r.authorId))) };
+    const visible = [];
+    for (const r of rows) if (!excluded.has(r.authorId) && (await canViewPost(ctx.db, a.userId, r))) visible.push(r);
+    return { stories: await hydratePosts(ctx.db, a.userId, visible) };
   });
 
   app.get('/api/v1/users/:userId/posts', async (req) => {

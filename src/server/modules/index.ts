@@ -38,6 +38,7 @@ import { quizRoutes } from './quizzes';
 import { tournamentRoutes } from './tournaments';
 import { creatorRoutes } from './creators';
 import { circleSpaceRoutes } from './circleSpaces';
+import { collectionRoutes } from './collections';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Provider webhooks: signature-verified and idempotent (see lib/payments.ts). */
@@ -116,5 +117,6 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await tournamentRoutes(app, ctx);
   await creatorRoutes(app, ctx);
   await circleSpaceRoutes(app, ctx);
+  await collectionRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

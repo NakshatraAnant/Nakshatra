@@ -3,8 +3,8 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015 (taken with the app stopped)
-- Gates (2026-11-06, latest): vitest 339/339; typecheck + lint clean; production build OK; Playwright 31/31 (no retries)
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016 (taken with the app stopped)
+- Gates (2026-11-06, latest): vitest 342/342; typecheck + lint clean; production build OK; Playwright 32/32 (no retries)
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
   assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
@@ -18,8 +18,11 @@
   ledger with 10% fee, simulated tips labelled, refunds reverse, daily cap, moderator suspension, no payouts) (0014);
   circle channels (discussion/announcements, feed filter, archive back to General), circle events with weekly/
   fortnightly/monthly repeats (DST-safe, materialised 6 ahead by scheduler, cancel one / stop series), circle
-  moderator dashboard (reports in circle w/ reporter hidden, remove/keep, pause posting, ban/unban, audit log) (0015)
+  moderator dashboard (reports in circle w/ reporter hidden, remove/keep, pause posting, ban/unban, audit log) (0015);
+  close friends (private list, close_friends post audience enforced in feed/profile/detail/stories, blocks drop it) +
+  saved collections (private/public, per-viewer visibility filtering, owner pen-name posts never exposed,
+  follows profile privacy, Save to… picker); fixed broken Save toggle (sent {} instead of {saved}) (0016)
 - NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), community commerce, ad campaigns,
   partners/affiliate, B2B orgs, journal/calendar/theme studio/avatar,
-  year-in-review, close friends, collections, circle tiers, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: close friends + saved collections, then ad campaigns (approval, caps, disclosure)
+  year-in-review, circle tiers, 3D additions; most of the 50+50 lists
+- Next exact task if continuing: ad campaigns (approval, scheduling, frequency caps, disclosure, no sensitive targeting)

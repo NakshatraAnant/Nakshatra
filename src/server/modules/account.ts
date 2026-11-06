@@ -314,6 +314,8 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.analyticsEvents).set({ userId: null }).where(eq(s.analyticsEvents.userId, userId));
     await tx.delete(s.penMutes).where(or(eq(s.penMutes.muterId, userId), eq(s.penMutes.authorId, userId)));
     await tx.delete(s.mfaRecoveryCodes).where(eq(s.mfaRecoveryCodes.userId, userId));
+    await tx.delete(s.closeFriends).where(or(eq(s.closeFriends.ownerId, userId), eq(s.closeFriends.friendId, userId)));
+    await tx.delete(s.postCollections).where(eq(s.postCollections.ownerId, userId));
     await tx.update(s.memberQuizzes).set({ status: 'removed' }).where(eq(s.memberQuizzes.authorId, userId));
     await tx.delete(s.memberQuizAttempts).where(eq(s.memberQuizAttempts.userId, userId));
     // Tournaments: hosted ones that are still running are called off; your entries (and answers) are removed.
