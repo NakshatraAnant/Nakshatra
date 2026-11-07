@@ -56,6 +56,7 @@ const collections = () => import('./pages/collections');
 const perks = () => import('./pages/perks');
 const orgs = () => import('./pages/orgs');
 const circleMarket = () => import('./pages/circleMarket');
+const journal = () => import('./pages/journal');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -168,6 +169,7 @@ export const router = createBrowserRouter([
           { path: '/collections/:id', element: page(collections, 'CollectionPage') },
           { path: '/close-friends', element: page(collections, 'CloseFriendsPage') },
           { path: '/perks', element: page(perks, 'PerksPage') },
+          { path: '/journal', element: page(journal, 'JournalPage') },
           { path: '/orgs', element: page(orgs, 'OrgsPage') },
           { path: '/orgs/:id', element: page(orgs, 'OrgPage') },
           { path: '/org/join/:token', element: page(orgs, 'JoinOrg') },

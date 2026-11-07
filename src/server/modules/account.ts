@@ -6,7 +6,7 @@ import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
 import { badRequest, notFound, parse, unauthorized } from '../lib/http';
 import { requireAuth, SESSION_COOKIE } from '../lib/auth';
-import { sha256, verifyPassword } from '../lib/crypto';
+import { decryptField, sha256, verifyPassword } from '../lib/crypto';
 import { NOTIFICATION_CATEGORIES } from '../lib/notify';
 import { textRelevance } from '../services/ranking';
 import { eventVisibleSql } from '../services/events';
@@ -129,6 +129,27 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
       circleMemberships: await ctx.db.select({ circleId: s.groupMembers.groupId, role: s.groupMembers.role, status: s.groupMembers.status, joinedAt: s.groupMembers.createdAt }).from(s.groupMembers).where(eq(s.groupMembers.userId, uid)),
       gameSubmissions: await ctx.db.select({ sessionId: s.gameSubmissions.sessionId, roundIndex: s.gameSubmissions.roundIndex, payload: s.gameSubmissions.payload, createdAt: s.gameSubmissions.createdAt }).from(s.gameSubmissions).where(eq(s.gameSubmissions.userId, uid)),
       referralsMade: await ctx.db.select({ status: s.referrals.status, createdAt: s.referrals.createdAt, decidedAt: s.referrals.decidedAt }).from(s.referrals).where(eq(s.referrals.referrerId, uid)),
+      // Added features: everything you created or that is about you.
+      journal: (await ctx.db.select().from(s.journalEntries).where(eq(s.journalEntries.userId, uid))).map((e) => ({ date: e.localDate, prompt: e.promptKey, body: decryptField(ctx.config.appSecret, e.bodyEnc), createdAt: e.createdAt, updatedAt: e.updatedAt })),
+      vibeCheckins: await ctx.db.select({ date: s.vibeCheckins.localDate, mood: s.vibeCheckins.mood }).from(s.vibeCheckins).where(eq(s.vibeCheckins.userId, uid)),
+      quizzesMade: await ctx.db.select().from(s.memberQuizzes).where(eq(s.memberQuizzes.authorId, uid)),
+      quizAttempts: await ctx.db.select().from(s.memberQuizAttempts).where(eq(s.memberQuizAttempts.userId, uid)),
+      tournamentsHosted: await ctx.db.select({ id: s.tournaments.id, title: s.tournaments.title, definition: s.tournaments.definition, opensAt: s.tournaments.opensAt, closesAt: s.tournaments.closesAt }).from(s.tournaments).where(eq(s.tournaments.hostId, uid)),
+      tournamentEntries: await ctx.db.select().from(s.tournamentEntries).where(eq(s.tournamentEntries.userId, uid)),
+      creatorProfile: (await ctx.db.select().from(s.creatorProfiles).where(eq(s.creatorProfiles.userId, uid)))[0] ?? null,
+      creatorOfferings: await ctx.db.select().from(s.creatorOfferings).where(eq(s.creatorOfferings.creatorId, uid)),
+      tipsSent: await ctx.db.select({ amountPaise: s.creatorTips.amountPaise, message: s.creatorTips.message, status: s.creatorTips.status, createdAt: s.creatorTips.createdAt }).from(s.creatorTips).where(eq(s.creatorTips.fromUserId, uid)),
+      creatorEarnings: await ctx.db.select().from(s.creatorLedger).where(eq(s.creatorLedger.creatorId, uid)),
+      closeFriends: await ctx.db.select({ friendId: s.closeFriends.friendId, addedAt: s.closeFriends.createdAt }).from(s.closeFriends).where(eq(s.closeFriends.ownerId, uid)),
+      savedPosts: await ctx.db.select().from(s.savedPosts).where(eq(s.savedPosts.userId, uid)),
+      collections: await ctx.db.select().from(s.postCollections).where(eq(s.postCollections.ownerId, uid)),
+      collectionItems: await ctx.db.select({ collectionId: s.collectionItems.collectionId, postId: s.collectionItems.postId, note: s.collectionItems.note }).from(s.collectionItems).innerJoin(s.postCollections, eq(s.postCollections.id, s.collectionItems.collectionId)).where(eq(s.postCollections.ownerId, uid)),
+      marketListings: await ctx.db.select().from(s.circleListings).where(eq(s.circleListings.sellerId, uid)),
+      marketInterests: await ctx.db.select().from(s.listingInterests).where(eq(s.listingInterests.userId, uid)),
+      marketMessagesSent: await ctx.db.select({ listingId: s.listingMessages.listingId, body: s.listingMessages.body, createdAt: s.listingMessages.createdAt }).from(s.listingMessages).where(eq(s.listingMessages.senderId, uid)),
+      organisations: await ctx.db.select({ orgId: s.orgMembers.orgId, role: s.orgMembers.role, includeInAggregate: s.orgMembers.includeInAggregate, joinedAt: s.orgMembers.createdAt }).from(s.orgMembers).where(eq(s.orgMembers.userId, uid)),
+      circleTiers: await ctx.db.select({ circleId: s.circleMemberTiers.circleId, tierId: s.circleMemberTiers.tierId }).from(s.circleMemberTiers).where(eq(s.circleMemberTiers.userId, uid)),
+      leaderboardVisible: (await ctx.db.select({ v: s.profiles.leaderboardVisible }).from(s.profiles).where(eq(s.profiles.userId, uid)))[0]?.v ?? true,
     };
     const [r] = await ctx.db.insert(s.dataExportRequests).values({ userId: uid, status: 'ready', payload: payload as unknown as Record<string, unknown>, completedAt: new Date() }).returning({ id: s.dataExportRequests.id });
     await audit(ctx.db, { actorId: uid, action: 'privacy.export', targetType: 'data_export', targetId: r.id });
@@ -321,6 +342,7 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.affiliateClicks).set({ viewerKey: 'deleted' }).where(eq(s.affiliateClicks.viewerKey, adKey));
     await tx.delete(s.orgMembers).where(and(eq(s.orgMembers.userId, userId), sql`${s.orgMembers.role} <> 'owner'`));
     await tx.delete(s.circleMemberTiers).where(eq(s.circleMemberTiers.userId, userId));
+    await tx.delete(s.journalEntries).where(eq(s.journalEntries.userId, userId));
     await tx.update(s.circleListings).set({ status: 'closed', description: '', imageUrls: [] }).where(eq(s.circleListings.sellerId, userId));
     await tx.delete(s.listingInterests).where(eq(s.listingInterests.userId, userId));
     await tx.update(s.listingMessages).set({ body: '[deleted]' }).where(eq(s.listingMessages.senderId, userId));

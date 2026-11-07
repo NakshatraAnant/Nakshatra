@@ -39,6 +39,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
   { label: 'Nakshatra', items: PRIMARY },
   { label: 'You', items: [
     { to: '/progress', key: 'nav.progress', icon: 'rewards' },
+    { to: '/journal', key: 'nav.journal', icon: 'edit' },
     { to: '/thoughts', key: 'nav.thoughts', icon: 'social', pkg: 'network' },
     { to: '/saved', key: 'nav.saved', icon: 'bookmark' },
     { to: '/close-friends', key: 'nav.closeFriends', icon: 'users' },

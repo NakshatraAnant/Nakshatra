@@ -35,6 +35,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'ads', label: 'Sponsored cards', description: 'Staff-reviewed, contextual-only sponsored cards in the feed (no ad billing).', defaultEnabled: false, api: ['/api/v1/ads', '/api/v1/admin/ads'], pages: [] },
   { key: 'partners', label: 'Partner perks', description: 'Disclosed partner offers on one Perks page, tracked links and signed conversion postbacks.', defaultEnabled: false, api: ['/api/v1/perks', '/api/v1/partners', '/api/v1/admin/partners'], pages: ['/perks'] },
   { key: 'orgs', label: 'Organisations', description: 'Team, college and community workspaces with their own circles and aggregate-only insights (set up by staff).', defaultEnabled: false, api: ['/api/v1/orgs', '/api/v1/org-invites', '/api/v1/admin/orgs'], pages: ['/orgs', '/org'] },
+  { key: 'journal', label: 'Journal & calendar', description: 'Private, encrypted journal with daily prompts, and your own month-at-a-glance calendar.', defaultEnabled: true, api: ['/api/v1/journal', '/api/v1/me/calendar'], pages: ['/journal'] },
   { key: 'people', label: 'People discovery', description: 'Opt-in Discover → People list with connection intents.', defaultEnabled: true, api: ['/api/v1/people'], pages: [] },
   { key: 'play', label: 'Games', description: 'Twelve turn-based social games.', defaultEnabled: true, api: ['/api/v1/play'], pages: ['/play'] },
   { key: 'rituals', label: 'Rituals', description: 'Daily and weekly prompts.', defaultEnabled: true, core: true, api: ['/api/v1/social-rituals'], pages: [] },

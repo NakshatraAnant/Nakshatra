@@ -43,6 +43,7 @@ import { adRoutes } from './ads';
 import { partnerRoutes } from './partners';
 import { orgRoutes } from './orgs';
 import { circleMarketRoutes } from './circleMarket';
+import { journalRoutes } from './journal';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
   /** Provider webhooks: signature-verified and idempotent (see lib/payments.ts). */
@@ -126,5 +127,6 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await partnerRoutes(app, ctx);
   await orgRoutes(app, ctx);
   await circleMarketRoutes(app, ctx);
+  await journalRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

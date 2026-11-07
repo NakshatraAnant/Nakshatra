@@ -155,6 +155,13 @@
       "when": 1794041815081,
       "tag": "0021_circle_market",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794045118946,
+      "tag": "0022_journal",
+      "breakpoints": true
     }
   ]
 }
