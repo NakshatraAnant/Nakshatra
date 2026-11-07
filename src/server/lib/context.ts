@@ -103,6 +103,7 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   quiz_taken: { meaningful: true, description: 'Member took someone else’s quiz (answers not recorded in analytics).' },
   creator_profile_created: { meaningful: true, description: 'Member set up a creator page.' },
   creator_tip_paid: { meaningful: true, description: 'A tip to a creator was paid (amount not recorded in analytics).' },
+  listing_created: { meaningful: true, description: 'Member listed something in a circle market (kind only).' },
   org_joined: { meaningful: true, description: 'Member joined an organisation workspace.' },
   perk_followed: { meaningful: true, description: 'Member followed a partner perk (category only).' },
   ad_hidden: { meaningful: false, description: 'Member hid a sponsored card (reason only).' },

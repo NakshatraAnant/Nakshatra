@@ -11,6 +11,7 @@ import { GameLauncher, SessionList } from './play';
 import { CircleQuestion } from './home';
 import { Art } from '../components/visual';
 import { AssignTier, CircleEvents, CircleModeration, TierBadge, TiersPanel, useTiers } from './circleSpaces';
+import { CircleMarket } from './circleMarket';
 import { circleCover, circleSymbol } from '../lib/visual';
 
 export const CIRCLE_THEME_COLORS: Record<string, [string, string]> = {
@@ -247,9 +248,9 @@ export function CircleDetail() {
   const { id } = useParams();
   const me = useMe().data?.user;
   const q = useQuery({ queryKey: ['circle', id], queryFn: () => get<CircleDetailResp>(`circles/${id}`), retry: false });
-  const [tab, setTab] = useState<'feed' | 'events' | 'play' | 'members' | 'moderation' | 'settings'>(() => {
+  const [tab, setTab] = useState<'feed' | 'events' | 'market' | 'play' | 'members' | 'moderation' | 'settings'>(() => {
     const t = new URLSearchParams(location.search).get('tab');
-    return t === 'events' || t === 'play' || t === 'members' || t === 'moderation' ? t : 'feed';
+    return t === 'events' || t === 'market' || t === 'play' || t === 'members' || t === 'moderation' ? t : 'feed';
   });
   const qc = useQueryClient();
   const toast = useToast();
@@ -275,11 +276,12 @@ export function CircleDetail() {
         {d.activation.contributors < d.activation.needed && (
           <Notice tone="info" className="mb-6" title="Bring your circle to life">{d.activation.contributors} of {d.activation.needed} members have joined in. Answer today’s question or start a quick game together.</Notice>
         )}
-        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'feed', label: 'Feed' }, { value: 'events', label: 'Events' }, { value: 'play', label: 'Play' }, { value: 'members', label: 'Members', count: d.members.length }, ...(d.me.isAdmin ? [{ value: 'moderation' as const, label: 'Moderation' }] : []), { value: 'settings', label: 'Settings' }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'feed', label: 'Feed' }, { value: 'events', label: 'Events' }, { value: 'market', label: 'Market' }, { value: 'play', label: 'Play' }, { value: 'members', label: 'Members', count: d.members.length }, ...(d.me.isAdmin ? [{ value: 'moderation' as const, label: 'Moderation' }] : []), { value: 'settings', label: 'Settings' }]} />
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>
             {tab === 'feed' && <CircleFeed circleId={d.circle.id} circleName={d.circle.name} />}
             {tab === 'events' && <CircleEvents circleId={d.circle.id} />}
+            {tab === 'market' && <CircleMarket circleId={d.circle.id} />}
             {tab === 'moderation' && d.me.isAdmin && <CircleModeration circleId={d.circle.id} />}
             {tab === 'play' && <div className="space-y-6"><GameLauncher circleId={d.circle.id} /><SessionList circleId={d.circle.id} /></div>}
             {tab === 'members' && (

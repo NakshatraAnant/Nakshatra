@@ -148,6 +148,13 @@
       "when": 1793978378402,
       "tag": "0020_circle_tiers",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794041815081,
+      "tag": "0021_circle_market",
+      "breakpoints": true
     }
   ]
 }

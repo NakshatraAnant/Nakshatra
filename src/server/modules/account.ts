@@ -321,6 +321,9 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.affiliateClicks).set({ viewerKey: 'deleted' }).where(eq(s.affiliateClicks.viewerKey, adKey));
     await tx.delete(s.orgMembers).where(and(eq(s.orgMembers.userId, userId), sql`${s.orgMembers.role} <> 'owner'`));
     await tx.delete(s.circleMemberTiers).where(eq(s.circleMemberTiers.userId, userId));
+    await tx.update(s.circleListings).set({ status: 'closed', description: '', imageUrls: [] }).where(eq(s.circleListings.sellerId, userId));
+    await tx.delete(s.listingInterests).where(eq(s.listingInterests.userId, userId));
+    await tx.update(s.listingMessages).set({ body: '[deleted]' }).where(eq(s.listingMessages.senderId, userId));
     await tx.delete(s.closeFriends).where(or(eq(s.closeFriends.ownerId, userId), eq(s.closeFriends.friendId, userId)));
     await tx.delete(s.postCollections).where(eq(s.postCollections.ownerId, userId));
     await tx.update(s.memberQuizzes).set({ status: 'removed' }).where(eq(s.memberQuizzes.authorId, userId));

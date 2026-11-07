@@ -3,8 +3,8 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020 (taken with the app stopped)
-- Gates (2026-11-06, latest): vitest 357/357; typecheck + lint clean; production build OK; Playwright 36/36 (no retries). Do not run vitest and Playwright at the same time (timeouts).
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021 (taken with the app stopped)
+- Gates (2026-11-07, latest): vitest 360/360; typecheck + lint clean; production build OK; Playwright 37/37 (no retries). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
   assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
@@ -31,8 +31,10 @@
   org-only circles (circle invite links refuse non-members; leaving/removal drops org circles), 404 for any cross-tenant
   access, aggregate-only opt-in team picture (min 5, averages + spread, never individual results) (0019);
   free circle membership tiers (badges, admin-assigned, ordered) + members-only channels (tier and above; enforced in
-  channel list, circle feed, main feed, post page, comments, posting; archived tier channels stay closed) (0020)
-- NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), community commerce, ad billing/self-serve,
+  channel list, circle feed, main feed, post page, comments, posting; archived tier channels stay closed) (0020);
+  circle market / community commerce (sell, swap, free, wanted inside a circle; prohibited-category check; interest notes
+  seen only by seller; seller accepts one -> private listing thread; blocks; circle mods remove; no payments) (0021)
+- NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), ad billing/self-serve, market payments/escrow,
   journal/calendar/theme studio/avatar,
   year-in-review, paid circle tiers, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: community commerce (circle marketplace listings between members, no payments: contact + safety), then journal/identity calendar
+- Next exact task if continuing: journal + identity calendar (private daily reflections linked to vibe check-ins), then year-in-review

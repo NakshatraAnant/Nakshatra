@@ -55,6 +55,7 @@ const creators = () => import('./pages/creators');
 const collections = () => import('./pages/collections');
 const perks = () => import('./pages/perks');
 const orgs = () => import('./pages/orgs');
+const circleMarket = () => import('./pages/circleMarket');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -151,6 +152,7 @@ export const router = createBrowserRouter([
           { path: '/thoughts/:id', element: page(thoughts, 'ThoughtDetail') },
           { path: '/circles', element: page(circles, 'CirclesPage') },
           { path: '/circles/:id', element: page(circles, 'CircleDetail') },
+          { path: '/circles/:id/market/:listingId', element: page(circleMarket, 'ListingPage') },
           { path: '/play', element: page(play, 'PlayPage') },
           { path: '/play/quizzes', element: page(quizzes, 'QuizzesPage') },
           { path: '/play/quizzes/new', element: page(quizzes, 'QuizBuilder') },
