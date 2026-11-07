@@ -130,6 +130,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
       gameSubmissions: await ctx.db.select({ sessionId: s.gameSubmissions.sessionId, roundIndex: s.gameSubmissions.roundIndex, payload: s.gameSubmissions.payload, createdAt: s.gameSubmissions.createdAt }).from(s.gameSubmissions).where(eq(s.gameSubmissions.userId, uid)),
       referralsMade: await ctx.db.select({ status: s.referrals.status, createdAt: s.referrals.createdAt, decidedAt: s.referrals.decidedAt }).from(s.referrals).where(eq(s.referrals.referrerId, uid)),
       // Added features: everything you created or that is about you.
+      yearCards: await ctx.db.select({ year: s.yearCards.year, facts: s.yearCards.facts, named: sql<boolean>`${s.yearCards.displayName} is not null`, views: s.yearCards.views, revokedAt: s.yearCards.revokedAt, createdAt: s.yearCards.createdAt }).from(s.yearCards).where(eq(s.yearCards.userId, uid)),
       journal: (await ctx.db.select().from(s.journalEntries).where(eq(s.journalEntries.userId, uid))).map((e) => ({ date: e.localDate, prompt: e.promptKey, body: decryptField(ctx.config.appSecret, e.bodyEnc), createdAt: e.createdAt, updatedAt: e.updatedAt })),
       vibeCheckins: await ctx.db.select({ date: s.vibeCheckins.localDate, mood: s.vibeCheckins.mood }).from(s.vibeCheckins).where(eq(s.vibeCheckins.userId, uid)),
       quizzesMade: await ctx.db.select().from(s.memberQuizzes).where(eq(s.memberQuizzes.authorId, uid)),
@@ -343,6 +344,7 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.delete(s.orgMembers).where(and(eq(s.orgMembers.userId, userId), sql`${s.orgMembers.role} <> 'owner'`));
     await tx.delete(s.circleMemberTiers).where(eq(s.circleMemberTiers.userId, userId));
     await tx.delete(s.journalEntries).where(eq(s.journalEntries.userId, userId));
+    await tx.delete(s.yearCards).where(eq(s.yearCards.userId, userId));
     await tx.update(s.circleListings).set({ status: 'closed', description: '', imageUrls: [] }).where(eq(s.circleListings.sellerId, userId));
     await tx.delete(s.listingInterests).where(eq(s.listingInterests.userId, userId));
     await tx.update(s.listingMessages).set({ body: '[deleted]' }).where(eq(s.listingMessages.senderId, userId));

@@ -15,3 +15,4 @@ export * from './partners';
 export * from './orgs';
 export * from './market';
 export * from './journal';
+export * from './yearReview';

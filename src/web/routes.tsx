@@ -57,6 +57,7 @@ const perks = () => import('./pages/perks');
 const orgs = () => import('./pages/orgs');
 const circleMarket = () => import('./pages/circleMarket');
 const journal = () => import('./pages/journal');
+const yearReview = () => import('./pages/yearReview');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -116,6 +117,7 @@ export const router = createBrowserRouter([
       { path: '/personality', element: pub(page(studio, 'PersonalityPreview')) },
       { path: '/i/:handle', element: pub(page(studio, 'PublicIdentity')) },
       { path: '/s/:slug', element: pub(page(share, 'SharedIdentity')) },
+      { path: '/y/:slug', element: pub(page(yearReview, 'SharedYearCard')) },
       { path: '/gifts/claim/:token', element: pub(page(gifts, 'GiftClaim')) },
       { path: '/c/join/:token', element: pub(page(circles, 'JoinCircle')) },
       { path: '/signin', element: pub(page(auth, 'SignIn')) },
@@ -170,6 +172,7 @@ export const router = createBrowserRouter([
           { path: '/close-friends', element: page(collections, 'CloseFriendsPage') },
           { path: '/perks', element: page(perks, 'PerksPage') },
           { path: '/journal', element: page(journal, 'JournalPage') },
+          { path: '/year', element: page(yearReview, 'YearReviewPage') },
           { path: '/orgs', element: page(orgs, 'OrgsPage') },
           { path: '/orgs/:id', element: page(orgs, 'OrgPage') },
           { path: '/org/join/:token', element: page(orgs, 'JoinOrg') },

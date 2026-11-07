@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, del, get, patch, post } from '../lib/api';
-import { Button, Card, PageHeader, Textarea, cx } from '../components/ui/primitives';
+import { Button, ButtonLink, Card, PageHeader, Textarea, cx } from '../components/ui/primitives';
 import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { JOURNAL_RULES } from '../../shared/journal';
@@ -33,7 +33,7 @@ export function JournalPage() {
   const shown = selected ? (monthEntries.data?.entries ?? []).filter((e) => e.date === selected) : recent.data?.entries ?? [];
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader kicker="You" title="Journal" subtitle="A private place to think out loud, and your month at a glance." />
+      <PageHeader kicker="You" title="Journal" subtitle="A private place to think out loud, and your month at a glance." actions={<ButtonLink to="/year" variant="secondary" size="sm">Year in review</ButtonLink>} />
       {recent.data && <Notice tone="info">{recent.data.privacy}</Notice>}
 
       <Card className="space-y-3" aria-label="Write">

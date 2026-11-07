@@ -25,6 +25,11 @@ async function metaFor(ctx: Ctx, path: string): Promise<{ title: string; descrip
     const p = sh ? PERSONA_BY_KEY[sh.key] : null;
     if (p) return { title: `${sh!.name ? `${sh!.name} is` : 'Meet'} ${p.name} — Nakshatra`, description: `${p.signature} Which kind of person are you? Find your archetype in two minutes.`, image: DEFAULT.image };
   }
+  const year = /^\/y\/([A-Za-z0-9_-]{8,32})$/.exec(path);
+  if (year) {
+    const [c] = await ctx.db.select({ year: s.yearCards.year, name: s.yearCards.displayName }).from(s.yearCards).where(and(eq(s.yearCards.slug, year[1]), isNull(s.yearCards.revokedAt)));
+    if (c) return { title: `${c.name ? `${c.name}’s` : 'A'} ${c.year} on Nakshatra`, description: 'A year of drops, circles and games with friends. Find your archetype in two minutes.', image: DEFAULT.image, noindex: true };
+  }
   if (path.startsWith('/c/join/')) return { title: 'You’re invited to a private circle on Nakshatra', description: 'Join your friends’ circle: a daily question, games and a feed only members can see.', image: '/visual/brand/png/circle-invite-og-1200x630.png', noindex: true };
   if (path.startsWith('/gifts/claim/')) return { title: 'You received a gift on Nakshatra', description: 'Open the link to see your gift.', image: DEFAULT.image, noindex: true };
   return DEFAULT;

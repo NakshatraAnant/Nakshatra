@@ -30,7 +30,7 @@ export function readAttribution(): { shareSlug?: string; referralCode?: string }
 interface ShareResp { share: { slug: string; url: string; displayName: string | null; archetype: string } }
 
 /** Copy / native-share a link. Works on desktop (clipboard) and phones (share sheet). */
-async function shareLink(url: string, text: string): Promise<'shared' | 'copied'> {
+export async function shareLink(url: string, text: string): Promise<'shared' | 'copied'> {
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   if (window.matchMedia?.('(pointer: coarse)').matches && nav.share) {
     try { await nav.share({ url, text }); return 'shared'; } catch (e) { if ((e as Error).name === 'AbortError') return 'shared'; }

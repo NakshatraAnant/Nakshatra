@@ -162,6 +162,13 @@
       "when": 1794045118946,
       "tag": "0022_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794073396732,
+      "tag": "0023_year_cards",
+      "breakpoints": true
     }
   ]
 }
