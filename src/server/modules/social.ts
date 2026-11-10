@@ -714,7 +714,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const { status } = parse(z.object({ status: z.enum(['going', 'interested', 'cancelled']) }), req.body);
     const [e] = await ctx.db.select().from(s.events).where(and(eq(s.events.id, id), eventVisibleSql(a.userId)));
     if (!e || e.status === 'cancelled') throw notFound('Event');
-    if (e.pricePaise > 0) throw badRequest('Paid events are booked through the marketplace.');
+    if (e.pricePaise > 0) throw badRequest(e.groupId ? 'This event needs a ticket. Paid tickets are refunded automatically only if the host cancels.' : 'Paid events are booked through the marketplace.');
     if (status === 'going' && e.capacity) {
       const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, id), eq(s.eventRsvps.status, 'going')));
       if (n >= e.capacity) throw conflict('This event is full.');

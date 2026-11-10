@@ -139,6 +139,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
       tournamentEntries: await ctx.db.select().from(s.tournamentEntries).where(eq(s.tournamentEntries.userId, uid)),
       creatorProfile: (await ctx.db.select().from(s.creatorProfiles).where(eq(s.creatorProfiles.userId, uid)))[0] ?? null,
       creatorOfferings: await ctx.db.select().from(s.creatorOfferings).where(eq(s.creatorOfferings.creatorId, uid)),
+      eventTickets: await ctx.db.select({ eventId: s.eventTickets.eventId, amountPaise: s.eventTickets.amountPaise, status: s.eventTickets.status, createdAt: s.eventTickets.createdAt }).from(s.eventTickets).where(eq(s.eventTickets.userId, uid)),
       unlocksBought: await ctx.db.select({ offeringId: s.creatorPurchases.offeringId, amountPaise: s.creatorPurchases.amountPaise, status: s.creatorPurchases.status, createdAt: s.creatorPurchases.createdAt }).from(s.creatorPurchases).where(eq(s.creatorPurchases.buyerId, uid)),
       circleTierPasses: await ctx.db.select({ circleId: s.circleTierPurchases.circleId, tierId: s.circleTierPurchases.tierId, amountPaise: s.circleTierPurchases.amountPaise, status: s.circleTierPurchases.status, startsAt: s.circleTierPurchases.startsAt, expiresAt: s.circleTierPurchases.expiresAt }).from(s.circleTierPurchases).where(eq(s.circleTierPurchases.userId, uid)),
       tipsSent: await ctx.db.select({ amountPaise: s.creatorTips.amountPaise, message: s.creatorTips.message, status: s.creatorTips.status, createdAt: s.creatorTips.createdAt }).from(s.creatorTips).where(eq(s.creatorTips.fromUserId, uid)),

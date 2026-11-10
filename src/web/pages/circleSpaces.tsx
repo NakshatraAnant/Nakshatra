@@ -13,8 +13,8 @@ const failWith = (toast: ReturnType<typeof useToast>) => (e: unknown) => toast(e
 
 /* ---------------- Events ---------------- */
 
-interface CircleEvent { id: string; title: string; description: string; startsAt: string; endsAt: string; mode: string; location: string | null; liveUrl: string | null; capacity: number | null; status: string; host: string; going: number; myRsvp: string | null; seriesId: string | null; repeats: Frequency | null }
-interface EventsResp { canManage: boolean; events: CircleEvent[]; series: { id: string; title: string; frequency: Frequency; until: string | null }[] }
+interface CircleEvent { id: string; title: string; description: string; startsAt: string; endsAt: string; mode: string; location: string | null; liveUrl: string | null; capacity: number | null; status: string; host: string; going: number; myRsvp: string | null; seriesId: string | null; repeats: Frequency | null; pricePaise: number; myTicket: 'paid' | 'refund_due' | 'refunded' | null; isHost: boolean }
+interface EventsResp { canManage: boolean; isOwner: boolean; ticketsAvailable: boolean; ticketLimits: { minPaise: number; maxPaise: number }; events: CircleEvent[]; series: { id: string; title: string; frequency: Frequency; until: string | null }[] }
 
 export function CircleEvents({ circleId }: { circleId: string }) {
   const qc = useQueryClient();
@@ -23,12 +23,18 @@ export function CircleEvents({ circleId }: { circleId: string }) {
   const q = useQuery({ queryKey: ['circle-events', circleId], queryFn: () => get<EventsResp>(`circles/${circleId}/events`) });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['circle-events', circleId] });
   const rsvp = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => post(`events/${id}/rsvp`, { status }), onSuccess: refresh, onError: failWith(toast) });
-  const cancel = useMutation({ mutationFn: (id: string) => post(`circles/${circleId}/events/${id}/cancel`), onSuccess: () => { refresh(); toast('Cancelled — people going were told', 'success'); }, onError: failWith(toast) });
+  const cancel = useMutation({ mutationFn: (id: string) => post<{ ticketsRefunded: number }>(`circles/${circleId}/events/${id}/cancel`), onSuccess: (r) => { refresh(); toast(r.ticketsRefunded ? `Cancelled — ${r.ticketsRefunded} ticket${r.ticketsRefunded === 1 ? '' : 's'} refunded automatically` : 'Cancelled — people going were told', 'success'); }, onError: failWith(toast) });
+  const nav = useNavigate();
+  const ticket = useMutation({
+    mutationFn: (id: string) => post<{ checkout: { checkoutPath: string | null } }>(`circles/${circleId}/events/${id}/ticket`, { idempotencyKey: `ticket-${id}-${Date.now()}` }),
+    onSuccess: (r) => { if (r.checkout.checkoutPath) nav(r.checkout.checkoutPath); else toast('Complete the payment to get your ticket.', 'info'); },
+    onError: failWith(toast),
+  });
   const end = useMutation({ mutationFn: (id: string) => post<{ cancelled: number }>(`circles/${circleId}/series/${id}/end`), onSuccess: (r) => { refresh(); toast(`Stopped repeating; ${r.cancelled} upcoming cancelled`, 'success'); }, onError: failWith(toast) });
   return (
     <QueryState q={q}>{(d) => (
       <div className="space-y-4">
-        {d.canManage && (creating ? <NewEvent circleId={circleId} onDone={() => { setCreating(false); refresh(); }} /> : <Button onClick={() => setCreating(true)}>Schedule an event</Button>)}
+        {d.canManage && (creating ? <NewEvent circleId={circleId} canSell={d.isOwner} limits={d.ticketLimits} onDone={() => { setCreating(false); refresh(); }} /> : <Button onClick={() => setCreating(true)}>Schedule an event</Button>)}
         {d.events.length === 0 ? <EmptyState icon="calendar" title="Nothing scheduled" body={d.canManage ? 'Set up a one-off meetup or a weekly ritual — members get a reminder an hour before.' : 'Circle admins can schedule meetups here.'} /> : (
           <ul className="space-y-3">{d.events.map((e) => (
             <li key={e.id} className={cx('card p-4', e.status === 'cancelled' && 'opacity-60')} aria-label={`${e.title}, ${fmt(e.startsAt)}`}>
@@ -36,13 +42,19 @@ export function CircleEvents({ circleId }: { circleId: string }) {
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.14em] text-fg-3">{fmt(e.startsAt)}{e.repeats ? ` · ${FREQUENCY_LABEL[e.repeats].toLowerCase()}` : ''}</p>
                   <h3 className="font-display text-xl">{e.title}</h3>
-                  <p className="text-sm text-fg-2">{e.mode === 'online' ? 'Online' : e.location ?? 'In person'} · hosted by {e.host} · {e.going} going{e.capacity ? ` of ${e.capacity}` : ''}</p>
+                  <p className="text-sm text-fg-2">{e.mode === 'online' ? 'Online' : e.location ?? 'In person'} · hosted by {e.host} · {e.going} going{e.capacity ? ` of ${e.capacity}` : ''}{e.pricePaise > 0 ? ` · ticket ${rupeesLabel(e.pricePaise)}` : ''}</p>
+                  {e.pricePaise > 0 && <p className="text-xs text-fg-3">{e.myTicket === 'refund_due' || e.myTicket === 'refunded' ? `Your ticket ${e.myTicket === 'refunded' ? 'was refunded' : 'is being refunded'}.` : 'If the host cancels, every ticket is refunded automatically.'}</p>}
                   {e.description && <p className="mt-1 text-sm text-fg-2">{e.description}</p>}
                   {e.liveUrl && <a href={e.liveUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-sm text-accent underline underline-offset-2">Join link ↗</a>}
                 </div>
                 {e.status === 'cancelled' ? <Badge tone="danger">Cancelled</Badge> : (
                   <div className="flex flex-wrap gap-1">
-                    {e.myRsvp === 'going'
+                    {e.pricePaise > 0 ? (
+                      e.myTicket === 'paid' ? <Badge tone="success">✓ Ticket</Badge>
+                        : e.isHost ? null
+                        : d.ticketsAvailable ? <Button size="sm" loading={ticket.isPending && ticket.variables === e.id} onClick={() => ticket.mutate(e.id)}>Get ticket — {rupeesLabel(e.pricePaise)}</Button>
+                        : <span className="text-xs text-fg-3">Tickets open when payments are on</span>
+                    ) : e.myRsvp === 'going'
                       ? <Button size="sm" variant="secondary" aria-pressed onClick={() => rsvp.mutate({ id: e.id, status: 'cancelled' })}>✓ Going</Button>
                       : <Button size="sm" onClick={() => rsvp.mutate({ id: e.id, status: 'going' })}>I’m going</Button>}
                     {d.canManage && <Button size="sm" variant="ghost" onClick={() => cancel.mutate(e.id)}>Cancel{e.seriesId ? ' this one' : ''}</Button>}
@@ -65,7 +77,7 @@ export function CircleEvents({ circleId }: { circleId: string }) {
   );
 }
 
-function NewEvent({ circleId, onDone }: { circleId: string; onDone: () => void }) {
+function NewEvent({ circleId, canSell, limits, onDone }: { circleId: string; canSell: boolean; limits: { minPaise: number; maxPaise: number }; onDone: () => void }) {
   const toast = useToast();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
   const [title, setTitle] = useState('');
@@ -76,12 +88,14 @@ function NewEvent({ circleId, onDone }: { circleId: string; onDone: () => void }
   const [place, setPlace] = useState('');
   const [repeat, setRepeat] = useState<'none' | Frequency>('none');
   const [until, setUntil] = useState('');
+  const [price, setPrice] = useState('');
   const [error, setError] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: () => post(`circles/${circleId}/events`, {
       title, description, startsAt: new Date(when).toISOString(), durationMinutes: Number(duration), mode, timezone: tz,
       ...(mode === 'online' ? (place ? { liveUrl: place } : {}) : { location: place || undefined }),
       repeat, ...(repeat !== 'none' && until ? { until: new Date(`${until}T23:59:59`).toISOString() } : {}),
+      ...(canSell && repeat === 'none' && price ? { ticketPricePaise: Math.round(Number(price) * 100) } : {}),
     }),
     onSuccess: () => { toast('Scheduled — members were notified', 'success'); onDone(); },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not schedule'),
@@ -96,6 +110,7 @@ function NewEvent({ circleId, onDone }: { circleId: string; onDone: () => void }
         <Field label="Where">{(id) => <Select id={id} value={mode} onChange={(e) => setMode(e.target.value as 'online' | 'in_person')}><option value="online">Online</option><option value="in_person">In person</option></Select>}</Field>
         <Field label={mode === 'online' ? 'Join link (https, optional)' : 'Place (optional)'}>{(id) => <Input id={id} value={place} onChange={(e) => setPlace(e.target.value)} placeholder={mode === 'online' ? 'https://' : 'Cubbon Park gate 2'} />}</Field>
         <Field label="Repeats">{(id) => <Select id={id} value={repeat} onChange={(e) => setRepeat(e.target.value as 'none' | Frequency)}><option value="none">Doesn’t repeat</option>{FREQUENCIES.map((f) => <option key={f} value={f}>{FREQUENCY_LABEL[f]}</option>)}</Select>}</Field>
+        {canSell && repeat === 'none' && <Field label="Ticket price in ₹ (optional)" hint={`Leave empty for a free event. ${rupeesLabel(limits.minPaise)}–${rupeesLabel(limits.maxPaise)}; if you cancel, every ticket is refunded automatically.`}>{(id) => <Input id={id} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="Free" />}</Field>}
         {repeat !== 'none' && <Field label="Until (optional)">{(id) => <Input id={id} type="date" value={until} onChange={(e) => setUntil(e.target.value)} />}</Field>}
       </div>
       {repeat !== 'none' && <p className="text-xs text-fg-3">Keeps the same local time ({tz}). The next few are scheduled ahead; members RSVP to each one.</p>}

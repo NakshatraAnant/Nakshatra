@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp, index, integer, primaryKey } from 'drizzle-orm/pg-core';
 import { users } from './auth';
-import { groups, reports } from './social';
+import { events, groups, reports } from './social';
 
 /** Topic channels inside a circle. Posts with no channel are in "General". Archived, never deleted. */
 export const circleChannels = pgTable('circle_channels', {
@@ -102,3 +102,15 @@ export const circleTierPurchases = pgTable('circle_tier_purchases', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('circle_tier_purchases_user_idx').on(t.userId), index('circle_tier_purchases_circle_idx').on(t.circleId)]);
+
+/** A ticket to a paid circle event. Going is recorded only when a verified payment succeeds. */
+export const eventTickets = pgTable('event_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'restrict' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  amountPaise: integer('amount_paise').notNull(),
+  /** pending | paid | failed | refund_due | refunded */
+  status: text('status').notNull().default('pending'),
+  paymentId: uuid('payment_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('event_tickets_event_idx').on(t.eventId, t.status), index('event_tickets_user_idx').on(t.userId)]);

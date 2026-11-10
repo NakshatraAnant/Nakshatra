@@ -3,7 +3,7 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024, -0025-0026 (taken with the app stopped)
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024, -0025-0026, -0027 (taken with the app stopped)
 - Gates (2026-11-07, latest): vitest 363/363; typecheck + lint clean; production build OK; Playwright 38/38 (Journey B timed out once under heavy load, passed on re-run). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
@@ -50,10 +50,13 @@
   unlocks: digital offerings with unlock text/https link shown only to creator + buyers, /unlocks page, refund removes
   access; both closed when payments are off; fixed offering PATCH resetting price/description/status (0026);
   revenue registry statuses corrected (duo, student, paid unlocks, circle share, contextual ads, affiliate, partner
-  offers, merch -> infrastructure)
+  offers, merch -> infrastructure);
+  paid circle event tickets (owner-only price ₹19–₹4,999, one-off events only): going only after verified payment,
+  capacity counts 30-min unpaid holds, host 85% held; host cancels -> every ticket refunded automatically (user decision
+  2026-11-11); payment landing after cancel/start/full -> refund_due -> auto refund; scheduler retries failed refunds;
+  members can't self-cancel paid tickets; registry #35 -> infrastructure (0027)
 - NOT built (honest gaps): creator payouts + real settlement (forbidden by directive: needs KYC/payout provider);
-  market payments/escrow (needs a licensed escrow provider); ad billing/self-serve; paid event tickets (needs a decision
-  on refunds when a paid event is cancelled); creator memberships/sessions/workshops/newsletters (recurring billing /
+  market payments/escrow (needs a licensed escrow provider); ad billing/self-serve; creator memberships/sessions/workshops/newsletters (recurring billing /
   scheduling); content-heavy models (programmes, workbooks, audio, packs); sponsored quizzes/quests/seasons/games,
   promoted discovery, rewarded ads; 3D additions
-- Next exact task if continuing: decide refund policy for paid event tickets, then build them on the paid-access pattern
+- Next exact task if continuing: sponsored quizzes/quests on the ads review pipeline (contextual, disclosed), or stop

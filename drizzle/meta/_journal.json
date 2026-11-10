@@ -190,6 +190,13 @@
       "when": 1794338030326,
       "tag": "0026_paid_access",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794340971948,
+      "tag": "0027_event_tickets",
+      "breakpoints": true
     }
   ]
 }

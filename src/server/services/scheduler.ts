@@ -5,6 +5,7 @@ import type { Ctx } from '../lib/context';
 import { deliverOutbox, notify, type NotificationCategory } from '../lib/notify';
 import { expireGifts } from './gifts';
 import { materialiseAllSeries } from './circleSpaces';
+import { refundDueTickets } from './eventTickets';
 
 /**
  * In-process scheduler for time-based state transitions. Each job is idempotent,
@@ -75,6 +76,9 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
 
   // 6b. Keep repeating circle events stocked a few weeks ahead.
   results.eventOccurrences = await materialiseAllSeries(ctx.db, now);
+
+  // 6c. Paid tickets for cancelled events are refunded automatically (retries provider failures).
+  results.ticketRefunds = await refundDueTickets(ctx);
 
   // 7. Retention: sign-in links and sessions are security material; keep them only as long as needed.
   results.retention = await runRetention(ctx, now);

@@ -478,6 +478,10 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
       const [c] = await ctx.db.select({ handle: s.profiles.handle }).from(s.creatorPurchases).innerJoin(s.profiles, eq(s.profiles.userId, s.creatorPurchases.creatorId)).where(eq(s.creatorPurchases.id, p.purposeId));
       returnPath = c ? '/creators/' + c.handle : '/unlocks';
     }
+    if (p.purpose === 'event_ticket') {
+      const [c] = await ctx.db.select({ groupId: s.events.groupId }).from(s.eventTickets).innerJoin(s.events, eq(s.events.id, s.eventTickets.eventId)).where(eq(s.eventTickets.id, p.purposeId));
+      returnPath = c?.groupId ? `/circles/${c.groupId}?tab=events` : '/circles';
+    }
     if (p.purpose === 'circle_tier') {
       const [c] = await ctx.db.select({ circleId: s.circleTierPurchases.circleId }).from(s.circleTierPurchases).where(eq(s.circleTierPurchases.id, p.purposeId));
       returnPath = c ? '/circles/' + c.circleId : '/circles';

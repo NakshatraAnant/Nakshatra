@@ -105,6 +105,7 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   creator_tip_paid: { meaningful: true, description: 'A tip to a creator was paid (amount not recorded in analytics).' },
   circle_tier_purchased: { meaningful: true, description: 'A circle tier pass was paid (amount not recorded in analytics).' },
   creator_unlock_purchased: { meaningful: true, description: 'A creator unlock was paid (amount not recorded in analytics).' },
+  event_ticket_purchased: { meaningful: true, description: 'A paid circle event ticket was paid (amount not recorded in analytics).' },
   avatar_built: { meaningful: true, description: 'Member saved an avatar from the avatar creator (parts not recorded).' },
   year_review_viewed: { meaningful: true, description: 'Member opened their year in review (year only).' },
   year_card_created: { meaningful: true, description: 'Member shared a year card (number of facts and whether named; never the values).' },

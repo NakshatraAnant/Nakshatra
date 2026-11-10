@@ -13,7 +13,8 @@ import { displayNames } from '../services/identity';
 import { circleMembership, isAdmin, requireCircle } from '../services/circles';
 import { activeTier, hiddenChannels, materialiseSeries } from '../services/circleSpaces';
 import { createPayment, registerPaymentHandlers } from '../lib/payments';
-import { CIRCLE_TIER_FEE, PAID_RULES as PR, paidSplit, passWindow, rupeesLabel } from '../../shared/paidAccess';
+import { CIRCLE_TIER_FEE, PAID_RULES as PR, TICKET_FEE, paidSplit, passWindow, rupeesLabel } from '../../shared/paidAccess';
+import { refundDueTickets } from '../services/eventTickets';
 import { FREQUENCIES, RECURRENCE_RULES as RR } from '../../shared/recurrence';
 
 /** Circle channels, circle events (one-off and recurring) and the circle moderator dashboard. */
@@ -249,6 +250,76 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
 
   /* ---------------- Events ---------------- */
 
+  registerPaymentHandlers('event_ticket', {
+    onSucceeded: async (c, tx, payment) => {
+      const [t] = await tx.select().from(s.eventTickets).where(and(eq(s.eventTickets.id, payment.purposeId), inArray(s.eventTickets.status, ['pending', 'failed'])));
+      if (!t) return;
+      const [e] = await tx.select().from(s.events).where(eq(s.events.id, t.eventId));
+      const simulated = payment.provider === 'dev_simulator';
+      const [{ going }] = await tx.select({ going: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, e.id), eq(s.eventRsvps.status, 'going')));
+      // Paid after the event was cancelled, started or filled up: refund automatically.
+      if (e.status === 'cancelled' || e.startsAt <= new Date() || (e.capacity && going >= e.capacity)) {
+        await tx.update(s.eventTickets).set({ status: 'refund_due' }).where(eq(s.eventTickets.id, t.id));
+        await notify(c, tx, { userId: t.userId, category: 'circles', title: `We’re refunding your ticket for ${e.title}`, body: e.status === 'cancelled' ? 'The event was cancelled.' : 'The event filled up or started before your payment arrived.', link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-late:${t.id}` });
+        return;
+      }
+      await tx.update(s.eventTickets).set({ status: 'paid' }).where(eq(s.eventTickets.id, t.id));
+      await tx.insert(s.eventRsvps).values({ eventId: e.id, userId: t.userId, status: 'going' }).onConflictDoUpdate({ target: [s.eventRsvps.eventId, s.eventRsvps.userId], set: { status: 'going' } });
+      await tx.insert(s.scheduledReminders).values({ userId: t.userId, category: 'social', title: `Starting soon: ${e.title}`, link: `/circles/${e.groupId}?tab=events`, dueAt: new Date(e.startsAt.getTime() - 3600000), sourceKey: `event:${e.id}` }).onConflictDoNothing();
+      await tx.insert(s.creatorLedger).values({ creatorId: e.hostId, kind: 'event_ticket', sourceId: t.id, ...paidSplit(t.amountPaise, TICKET_FEE), status: 'held', simulated }).onConflictDoNothing();
+      await notify(c, tx, { userId: t.userId, category: 'circles', title: `You’re going: ${e.title}`, body: 'If the host cancels, your ticket is refunded automatically.', link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket:${t.id}` });
+      await notify(c, tx, { userId: e.hostId, category: 'circles', title: `Ticket sold: ${e.title}`, body: rupeesLabel(t.amountPaise), link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-sale:${t.id}` });
+      await track(tx, t.userId, 'event_ticket_purchased', { simulated });
+    },
+    onFailed: async (_c, tx, payment) => {
+      await tx.update(s.eventTickets).set({ status: 'failed' }).where(and(eq(s.eventTickets.id, payment.purposeId), eq(s.eventTickets.status, 'pending')));
+    },
+    onRefunded: async (c, tx, payment, amountPaise) => {
+      const [t] = await tx.select().from(s.eventTickets).where(eq(s.eventTickets.id, payment.purposeId));
+      if (!t) return;
+      const [orig] = await tx.select().from(s.creatorLedger).where(and(eq(s.creatorLedger.kind, 'event_ticket'), eq(s.creatorLedger.sourceId, t.id)));
+      if (orig) {
+        const fee = Math.round((orig.feePaise * amountPaise) / orig.grossPaise);
+        await tx.insert(s.creatorLedger).values({ creatorId: orig.creatorId, kind: 'event_ticket_refund', sourceId: t.id, grossPaise: -amountPaise, feePaise: -fee, netPaise: -(amountPaise - fee), status: 'held', simulated: orig.simulated }).onConflictDoNothing();
+      }
+      if (payment.refundedPaise >= payment.amountPaise) {
+        await tx.update(s.eventTickets).set({ status: 'refunded' }).where(eq(s.eventTickets.id, t.id));
+        await tx.update(s.eventRsvps).set({ status: 'cancelled' }).where(and(eq(s.eventRsvps.eventId, t.eventId), eq(s.eventRsvps.userId, t.userId)));
+        const [e] = await tx.select({ title: s.events.title, groupId: s.events.groupId }).from(s.events).where(eq(s.events.id, t.eventId));
+        await notify(c, tx, { userId: t.userId, category: 'circles', title: `Refunded: ${e.title}`, body: `${rupeesLabel(amountPaise)} is on its way back to you.`, link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-refunded:${t.id}` });
+      }
+    },
+  });
+
+  /** Buy a ticket to a paid circle event. You're going only once a verified payment succeeds. */
+  app.post('/api/v1/circles/:id/events/:eventId/ticket', { config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    if (!a.emailVerified) throw forbidden('Verify your email before buying a ticket.');
+    const { id, eventId } = parse(z.object({ id: z.uuid(), eventId: z.uuid() }), req.params);
+    const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().min(8).max(80) }), req.body);
+    await requireCircle(db, id, a.userId);
+    const [e] = await db.select().from(s.events).where(and(eq(s.events.id, eventId), eq(s.events.groupId, id)));
+    if (!e || e.status === 'cancelled') throw notFound('Event');
+    if (!e.pricePaise) throw badRequest('This event is free — just say you’re going.');
+    if (e.hostId === a.userId) throw badRequest('You’re hosting this event.');
+    if (e.startsAt <= new Date()) throw badRequest('This event has already started.');
+    if (ctx.config.PAYMENT_PROVIDER === 'none') throw badRequest('Tickets can be bought once payments are switched on.');
+    const [held] = await db.select().from(s.eventTickets).where(and(eq(s.eventTickets.eventId, e.id), eq(s.eventTickets.userId, a.userId), inArray(s.eventTickets.status, ['paid', 'refund_due'])));
+    if (held) throw conflict('You already have a ticket.');
+    if (e.capacity) {
+      const holdFrom = new Date(Date.now() - PR.ticketHoldMinutes * 60000);
+      const [{ going }] = await db.select({ going: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, e.id), eq(s.eventRsvps.status, 'going')));
+      const [{ pending }] = await db.select({ pending: sql<number>`count(*)::int` }).from(s.eventTickets).where(and(eq(s.eventTickets.eventId, e.id), eq(s.eventTickets.status, 'pending'), gte(s.eventTickets.createdAt, holdFrom), ne(s.eventTickets.userId, a.userId)));
+      if (going + pending >= e.capacity) throw conflict('This event is full.');
+    }
+    return db.transaction(async (tx) => {
+      const [t] = await tx.insert(s.eventTickets).values({ eventId: e.id, userId: a.userId, amountPaise: e.pricePaise }).returning();
+      const checkout = await createPayment(ctx, tx, { userId: a.userId, purpose: 'event_ticket', purposeId: t.id, amountPaise: e.pricePaise, idempotencyKey: `ticket:${a.userId}:${idempotencyKey}` });
+      await tx.update(s.eventTickets).set({ paymentId: checkout.paymentId }).where(eq(s.eventTickets.id, t.id));
+      return { ticket: { id: t.id }, checkout };
+    });
+  });
+
   app.get('/api/v1/circles/:id/events', async (req) => {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
@@ -259,12 +330,14 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const counts = ids.length ? await db.select({ e: s.eventRsvps.eventId, n: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(inArray(s.eventRsvps.eventId, ids), eq(s.eventRsvps.status, 'going'))).groupBy(s.eventRsvps.eventId) : [];
     const series = await db.select().from(s.eventSeries).where(and(eq(s.eventSeries.circleId, id), isNull(s.eventSeries.endedAt)));
     const names = await displayNames(db, rows.map((r) => r.hostId));
+    const tickets = ids.length ? await db.select({ e: s.eventTickets.eventId, status: s.eventTickets.status }).from(s.eventTickets).where(and(eq(s.eventTickets.userId, a.userId), inArray(s.eventTickets.eventId, ids), inArray(s.eventTickets.status, ['paid', 'refund_due', 'refunded']))) : [];
+    const ticketOf = (eventId: string) => (['paid', 'refund_due', 'refunded'] as const).map((st) => tickets.find((t) => t.e === eventId && t.status === st)).find(Boolean)?.status ?? null;
     return {
-      canManage: isAdmin(member),
+      canManage: isAdmin(member), isOwner: member.role === 'owner', ticketsAvailable: ctx.config.PAYMENT_PROVIDER !== 'none', ticketLimits: { minPaise: PR.ticketMinPaise, maxPaise: PR.ticketMaxPaise },
       events: rows.map((e) => {
         const r = mine.find((x) => x.eventId === e.id);
         const sr = series.find((x) => x.id === e.seriesId);
-        return { id: e.id, title: e.title, description: e.description, startsAt: e.startsAt, endsAt: e.endsAt, mode: e.mode, location: e.location, liveUrl: r?.status === 'going' ? e.liveUrl : null, capacity: e.capacity, status: e.status, host: names.get(e.hostId)?.displayName ?? 'Member', going: counts.find((c) => c.e === e.id)?.n ?? 0, myRsvp: r?.status ?? null, seriesId: e.seriesId, repeats: sr?.frequency ?? null };
+        return { id: e.id, title: e.title, description: e.description, startsAt: e.startsAt, endsAt: e.endsAt, mode: e.mode, location: e.location, liveUrl: r?.status === 'going' ? e.liveUrl : null, capacity: e.capacity, status: e.status, host: names.get(e.hostId)?.displayName ?? 'Member', going: counts.find((c) => c.e === e.id)?.n ?? 0, myRsvp: r?.status ?? null, seriesId: e.seriesId, repeats: sr?.frequency ?? null, pricePaise: e.pricePaise, myTicket: ticketOf(e.id), isHost: e.hostId === a.userId };
       }),
       series: series.map((x) => ({ id: x.id, title: x.title, frequency: x.frequency, until: x.until })),
     };
@@ -279,9 +352,15 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       startsAt: z.iso.datetime(), durationMinutes: z.number().int().min(15).max(12 * 60).default(60),
       mode: z.enum(['online', 'in_person']), location: z.string().trim().max(200).optional(), liveUrl: z.url().startsWith('https://').optional(),
       capacity: z.number().int().min(2).max(500).optional(),
+      ticketPricePaise: z.number().int().min(PR.ticketMinPaise).max(PR.ticketMaxPaise).optional(),
       repeat: z.enum(['none', ...FREQUENCIES]).default('none'), until: z.iso.datetime().optional(), timezone: z.string().max(60).default('Asia/Kolkata'),
     }), req.body);
     await screen([body.title, body.description, body.location ?? '']);
+    if (body.ticketPricePaise) {
+      const { member } = await requireCircle(db, id, a.userId);
+      if (member.role !== 'owner') throw forbidden('Only the circle owner can sell tickets.');
+      if (body.repeat !== 'none') throw badRequest('Tickets can be sold for one-off events only.');
+    }
     const startsAt = new Date(body.startsAt);
     if (startsAt.getTime() < Date.now() + 5 * 60000) throw badRequest('Pick a start time in the future.');
     if (startsAt.getTime() > Date.now() + 365 * 864e5) throw badRequest('Pick a date within the next year.');
@@ -290,7 +369,7 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     let eventId: string | null = null;
     let seriesId: string | null = null;
     if (body.repeat === 'none') {
-      const [e] = await db.insert(s.events).values({ ...common, hostId: a.userId, groupId: id, startsAt, endsAt: new Date(startsAt.getTime() + body.durationMinutes * 60000), kind: 'community' }).returning();
+      const [e] = await db.insert(s.events).values({ ...common, hostId: a.userId, groupId: id, startsAt, endsAt: new Date(startsAt.getTime() + body.durationMinutes * 60000), kind: 'community', pricePaise: body.ticketPricePaise ?? 0 }).returning();
       eventId = e.id;
     } else {
       const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.eventSeries).where(and(eq(s.eventSeries.circleId, id), isNull(s.eventSeries.endedAt)));
@@ -315,10 +394,12 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const [e] = await db.update(s.events).set({ status: 'cancelled' }).where(and(eq(s.events.id, eventId), eq(s.events.groupId, id), ne(s.events.status, 'cancelled'))).returning();
     if (!e) throw notFound('Event');
     const going = await db.select({ u: s.eventRsvps.userId }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, eventId), eq(s.eventRsvps.status, 'going')));
-    for (const { u } of going) await notify(ctx, db, { userId: u, category: 'circles', title: `Cancelled: ${e.title}`, body: e.startsAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }), link: `/circles/${id}?tab=events`, dedupeKey: `event-cancel:${eventId}` });
+    const refunding = e.pricePaise > 0 ? await db.update(s.eventTickets).set({ status: 'refund_due' }).where(and(eq(s.eventTickets.eventId, eventId), eq(s.eventTickets.status, 'paid'))).returning({ id: s.eventTickets.id }) : [];
+    for (const { u } of going) await notify(ctx, db, { userId: u, category: 'circles', title: `Cancelled: ${e.title}`, body: `${e.startsAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}${e.pricePaise > 0 ? ' — your ticket is being refunded automatically.' : ''}`, link: `/circles/${id}?tab=events`, dedupeKey: `event-cancel:${eventId}` });
     await db.update(s.scheduledReminders).set({ cancelledAt: new Date() }).where(and(eq(s.scheduledReminders.sourceKey, `event:${eventId}`), isNull(s.scheduledReminders.sentAt)));
-    await audit(db, { actorId: a.userId, action: 'circle.event_cancelled', targetType: 'group', targetId: id, meta: { title: e.title } });
-    return { ok: true };
+    await audit(db, { actorId: a.userId, action: 'circle.event_cancelled', targetType: 'group', targetId: id, meta: { title: e.title, ticketsRefunded: refunding.length } });
+    if (refunding.length) await refundDueTickets(ctx);
+    return { ok: true, ticketsRefunded: refunding.length };
   });
 
   /** Stop a repeating event: no new occurrences, and upcoming ones are cancelled. */
