@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adPolicyIssues, canMoveAd, matchesContext, whyThisAd } from './ads';
+import { adPolicyIssues, canMoveAd, matchesContext, whyThisAd, sponsoredContentIssues } from './ads';
 
 const ok = { headline: 'Fresh filter coffee, delivered', body: 'Small-batch beans from Chikmagalur.', ctaLabel: 'Order', destinationUrl: 'https://example.com/coffee' };
 
@@ -32,5 +32,25 @@ describe('ad policy', () => {
     expect(canMoveAd('in_review', 'approved')).toBe(true);
     expect(canMoveAd('ended', 'approved')).toBe(false);
     expect(canMoveAd('approved', 'paused')).toBe(true);
+  });
+});
+
+describe('sponsored quizzes and challenges', () => {
+  const trivia = { kind: 'trivia' as const, title: 'Monsoon snacks', description: '', outcomes: [], questions: [
+    { text: 'Which pairs best with chai?', options: [{ text: 'Pakoras', correct: true }, { text: 'Ice cream', correct: false }] },
+    { text: 'Vada pav is from…', options: [{ text: 'Mumbai', correct: true }, { text: 'Kochi', correct: false }] },
+  ] };
+  it('accepts clean trivia and challenges', () => {
+    expect(sponsoredContentIssues('quiz', trivia)).toEqual([]);
+    expect(sponsoredContentIssues('quest', { title: 'Cook something new', description: 'This week', steps: ['Pick a recipe', 'Share a photo drop'] })).toEqual([]);
+    expect(sponsoredContentIssues('feed', null)).toEqual([]);
+  });
+  it('refuses outcome quizzes, sensitive topics and malformed content', () => {
+    expect(sponsoredContentIssues('quiz', { ...trivia, kind: 'outcome' })[0]).toMatch(/profile people/);
+    expect(sponsoredContentIssues('quiz', { ...trivia, title: 'Snacks for introverts' })[0]).toMatch(/sensitive/);
+    expect(sponsoredContentIssues('quest', { title: 'Scorpios unite', description: '', steps: ['Go'] })[0]).toMatch(/sensitive/);
+    expect(sponsoredContentIssues('quest', { title: 'Ok title', description: '', steps: [] })[0]).toMatch(/steps/);
+    expect(sponsoredContentIssues('quiz', null)).toHaveLength(1);
+    expect(sponsoredContentIssues('feed', trivia)).toHaveLength(1);
   });
 });

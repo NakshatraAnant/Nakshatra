@@ -6,6 +6,7 @@ import { Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Select, Text
 import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { QUIZ_LIMITS as L, QuizError, validateQuiz, type QuizDefinition, type QuizKind, type QuizQuestion } from '../../shared/quiz';
+import { SponsoredQuizzes } from '../components/SponsoredExtras';
 
 interface QuizCard { id: string; kind: QuizKind; title: string; description: string; author: string; isMine: boolean; takes: number; taken: boolean }
 
@@ -14,6 +15,7 @@ export function QuizzesPage() {
   return (
     <div className="space-y-6">
       <PageHeader kicker="Play" title="Quizzes" subtitle="Made by members, for friends. Just for fun — not personality tests." actions={<ButtonLink to="/play/quizzes/new">Make a quiz</ButtonLink>} />
+      <SponsoredQuizzes />
       <QueryState q={q} empty={(d) => (!d.quizzes.length ? <EmptyState icon="rewards" title="No quizzes yet" body="Make the first one — “How well do you know me?” is a classic." action={<ButtonLink to="/play/quizzes/new" size="sm">Make a quiz</ButtonLink>} /> : null)}>{(d) => (
         <ul className="grid gap-3 sm:grid-cols-2">{d.quizzes.map((z) => (
           <li key={z.id}><Link to={`/play/quizzes/${z.id}`} className="card block h-full p-4 hover:border-line-strong">

@@ -9,7 +9,8 @@ import { requireAuth, requireCapability } from '../lib/auth';
 import { hmac, safeEqual } from '../lib/crypto';
 import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
 import { plusStatus } from '../services/entitlements';
-import { AD_LANGUAGES, AD_RULES, AD_TOPICS, adDisclosure, adPolicyIssues, canMoveAd, matchesContext, whyThisAd, type AdStatus, type AdTargeting } from '../../shared/ads';
+import { AD_LANGUAGES, AD_PLACEMENTS, AD_RULES, AD_TOPICS, adDisclosure, adPolicyIssues, canMoveAd, matchesContext, sponsoredContentIssues, whyThisAd, type AdStatus, type AdTargeting, type SponsoredQuest } from '../../shared/ads';
+import { publicQuestions, scoreQuiz, type QuizDefinition } from '../../shared/quiz';
 
 /** Pseudonymous key for frequency caps and hides; the raw member id is never stored with ad data. */
 export const adViewerKey = (secret: string, userId: string) => hmac(secret, `ad-viewer:${userId}`);
@@ -82,6 +83,78 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
+  /* ---------------- Sponsored quizzes and challenges ---------------- */
+
+  /** Live sponsored quizzes or challenges for this member, with their own progress. No rewards are attached. */
+  app.get('/api/v1/ads/sponsored', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
+    const a = requireAuth(req);
+    const q = parse(z.object({ placement: z.enum(['quiz', 'quest']) }), req.query);
+    if ((await plusStatus(db, a.userId)).active) return { items: [], reason: 'plus' };
+    const [p] = await db.select({ language: s.profiles.language }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
+    const context = { topic: null, language: p?.language ?? 'en' };
+    const now = new Date();
+    const rows = await db.select({ c: s.adCampaigns, advertiser: s.adAdvertisers.name }).from(s.adCampaigns).innerJoin(s.adAdvertisers, eq(s.adAdvertisers.id, s.adCampaigns.advertiserId))
+      .where(and(eq(s.adCampaigns.status, 'approved'), eq(s.adCampaigns.placement, q.placement), lte(s.adCampaigns.startsAt, now), gt(s.adCampaigns.endsAt, now), eq(s.adAdvertisers.status, 'active'))).limit(10);
+    const viewer = adViewerKey(ctx.config.appSecret, a.userId);
+    const ids = rows.map((r) => r.c.id);
+    if (!ids.length) return { items: [] };
+    const hidden = new Set((await db.select({ c: s.adHides.campaignId }).from(s.adHides).where(and(eq(s.adHides.viewerKey, viewer), inArray(s.adHides.campaignId, ids)))).map((r) => r.c));
+    const mine = await db.select().from(s.adParticipation).where(and(eq(s.adParticipation.viewerKey, viewer), inArray(s.adParticipation.campaignId, ids)));
+    return {
+      items: rows.filter((r) => !hidden.has(r.c.id) && r.c.content && matchesContext(r.c.targeting as AdTargeting, context)).slice(0, 3).map((r) => {
+        const own = mine.filter((m) => m.campaignId === r.c.id);
+        const quiz = own.find((m) => m.kind === 'quiz');
+        return {
+          id: r.c.id, disclosure: adDisclosure(r.advertiser), why: 'Shown to everyone on this page. Sponsored content on Nakshatra is never based on your profile, personality or activity, and taking part earns no rewards.',
+          ctaLabel: r.c.ctaLabel, url: r.c.destinationUrl, endsAt: r.c.endsAt,
+          ...(q.placement === 'quiz'
+            ? { quiz: { title: (r.c.content as QuizDefinition).title, description: (r.c.content as QuizDefinition).description, questions: publicQuestions(r.c.content as QuizDefinition) }, myScore: quiz?.score ?? null, total: (r.c.content as QuizDefinition).questions.length }
+            : { quest: r.c.content as SponsoredQuest, accepted: own.some((m) => m.kind === 'quest_accepted'), done: own.some((m) => m.kind === 'quest_done') }),
+        };
+      }),
+    };
+  });
+
+  async function liveSponsored(id: string, placement: 'quiz' | 'quest') {
+    const now = new Date();
+    const [r] = await db.select({ c: s.adCampaigns }).from(s.adCampaigns).innerJoin(s.adAdvertisers, eq(s.adAdvertisers.id, s.adCampaigns.advertiserId))
+      .where(and(eq(s.adCampaigns.id, id), eq(s.adCampaigns.status, 'approved'), eq(s.adCampaigns.placement, placement), lte(s.adCampaigns.startsAt, now), gt(s.adCampaigns.endsAt, now), eq(s.adAdvertisers.status, 'active')));
+    if (!r?.c.content) throw notFound('Sponsored item');
+    return r.c;
+  }
+
+  /** Answer a sponsored quiz once. Scored on the server; the sponsor only ever sees totals. */
+  app.post('/api/v1/ads/:id/quiz', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const { answers } = parse(z.object({ answers: z.array(z.number().int().min(0).max(3)).max(12) }), req.body);
+    const c = await liveSponsored(id, 'quiz');
+    const def = c.content as QuizDefinition;
+    if (answers.length !== def.questions.length) throw badRequest('Answer every question.');
+    const viewer = adViewerKey(ctx.config.appSecret, a.userId);
+    const [done] = await db.select().from(s.adParticipation).where(and(eq(s.adParticipation.campaignId, id), eq(s.adParticipation.viewerKey, viewer), eq(s.adParticipation.kind, 'quiz')));
+    if (done) throw conflict('You’ve already taken this quiz.');
+    const result = scoreQuiz(def, answers);
+    await db.insert(s.adParticipation).values({ campaignId: id, viewerKey: viewer, kind: 'quiz', score: result.score }).onConflictDoNothing();
+    return { score: result.score, total: result.total, correct: result.correct, answers: def.questions.map((q) => q.options.findIndex((o) => o.correct)) };
+  });
+
+  /** Join, finish or leave a sponsored challenge. Self-reported, and it earns nothing. */
+  app.post('/api/v1/ads/:id/quest', { config: { rateLimit: { max: 30, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const { action } = parse(z.object({ action: z.enum(['accept', 'done', 'leave']) }), req.body);
+    await liveSponsored(id, 'quest');
+    const viewer = adViewerKey(ctx.config.appSecret, a.userId);
+    const key = { campaignId: id, viewerKey: viewer };
+    if (action === 'leave') await db.delete(s.adParticipation).where(and(eq(s.adParticipation.campaignId, id), eq(s.adParticipation.viewerKey, viewer)));
+    else {
+      await db.insert(s.adParticipation).values({ ...key, kind: 'quest_accepted' }).onConflictDoNothing();
+      if (action === 'done') await db.insert(s.adParticipation).values({ ...key, kind: 'quest_done' }).onConflictDoNothing();
+    }
+    return { ok: true };
+  });
+
   /* ---------------- Staff ---------------- */
 
   const Campaign = z.object({
@@ -91,7 +164,14 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     targeting: z.object({ topics: z.array(z.enum(AD_TOPICS)).max(6).default([]), languages: z.array(z.enum(AD_LANGUAGES)).max(2).default([]) }).strict().default({ topics: [], languages: [] }),
     startsAt: z.iso.datetime(), endsAt: z.iso.datetime(),
     frequencyCapPerDay: z.number().int().min(1).max(AD_RULES.maxCapPerDay).default(AD_RULES.defaultCapPerDay),
+    placement: z.enum(AD_PLACEMENTS).default('feed'), content: z.unknown().optional(),
   });
+  /** Edits change only the fields sent (no defaults, so an edit never resets text, targeting or caps). */
+  const CampaignPatch = z.object({
+    name: z.string().trim().min(2).max(80), headline: z.string().trim().min(3).max(AD_RULES.headline), body: z.string().trim().max(AD_RULES.body), ctaLabel: z.string().trim().min(2).max(AD_RULES.cta),
+    destinationUrl: z.string().trim().max(500), targeting: z.object({ topics: z.array(z.enum(AD_TOPICS)).max(6), languages: z.array(z.enum(AD_LANGUAGES)).max(2) }).strict(),
+    startsAt: z.iso.datetime(), endsAt: z.iso.datetime(), frequencyCapPerDay: z.number().int().min(1).max(AD_RULES.maxCapPerDay), content: z.unknown(),
+  }).partial();
 
   async function loadCampaign(id: string): Promise<Campaign> {
     const [c] = await db.select().from(s.adCampaigns).where(eq(s.adCampaigns.id, id));
@@ -102,7 +182,7 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     if (endsAt <= startsAt) throw badRequest('End must be after start.');
     if (endsAt.getTime() - startsAt.getTime() > AD_RULES.maxDays * 864e5) throw badRequest(`Campaigns run for at most ${AD_RULES.maxDays} days.`);
   }
-  const issuesOf = (c: Pick<Campaign, 'headline' | 'body' | 'ctaLabel' | 'destinationUrl' | 'targeting'>) => adPolicyIssues(c, c.targeting as AdTargeting);
+  const issuesOf = (c: Pick<Campaign, 'headline' | 'body' | 'ctaLabel' | 'destinationUrl' | 'targeting' | 'placement' | 'content'>) => [...adPolicyIssues(c, c.targeting as AdTargeting), ...sponsoredContentIssues(c.placement, c.content ?? null)];
 
   app.get('/api/v1/admin/ads', async (req) => {
     requireCapability(req, 'moderation');
@@ -111,13 +191,15 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     const ids = campaigns.map((c) => c.id);
     const stats = ids.length ? await db.select({ c: s.adDelivery.campaignId, impressions: sql<number>`sum(${s.adDelivery.impressions})::int`, clicks: sql<number>`sum(${s.adDelivery.clicks})::int`, reach: sql<number>`count(distinct ${s.adDelivery.viewerKey})::int` }).from(s.adDelivery).where(inArray(s.adDelivery.campaignId, ids)).groupBy(s.adDelivery.campaignId) : [];
     const hides = ids.length ? await db.select({ c: s.adHides.campaignId, n: sql<number>`count(*)::int` }).from(s.adHides).where(inArray(s.adHides.campaignId, ids)).groupBy(s.adHides.campaignId) : [];
+    const part = ids.length ? await db.select({ c: s.adParticipation.campaignId, kind: s.adParticipation.kind, n: sql<number>`count(*)::int`, avg: sql<number | null>`round(avg(${s.adParticipation.score}), 1)::float` }).from(s.adParticipation).where(inArray(s.adParticipation.campaignId, ids)).groupBy(s.adParticipation.campaignId, s.adParticipation.kind) : [];
+    const pick = (id: string, kind: string) => part.find((x) => x.c === id && x.kind === kind);
     return {
       advertisers,
       campaigns: campaigns.map((c) => {
         const st = stats.find((x) => x.c === c.id);
-        return { ...c, advertiser: advertisers.find((x) => x.id === c.advertiserId)?.name ?? '—', impressions: st?.impressions ?? 0, clicks: st?.clicks ?? 0, reach: st?.reach ?? 0, hides: hides.find((x) => x.c === c.id)?.n ?? 0, policyIssues: issuesOf(c) };
+        return { ...c, advertiser: advertisers.find((x) => x.id === c.advertiserId)?.name ?? '—', impressions: st?.impressions ?? 0, clicks: st?.clicks ?? 0, reach: st?.reach ?? 0, hides: hides.find((x) => x.c === c.id)?.n ?? 0, quizTakes: pick(c.id, 'quiz')?.n ?? 0, quizAverage: pick(c.id, 'quiz')?.avg ?? null, questAccepted: pick(c.id, 'quest_accepted')?.n ?? 0, questDone: pick(c.id, 'quest_done')?.n ?? 0, policyIssues: issuesOf(c) };
       }),
-      rules: { topics: AD_TOPICS, languages: AD_LANGUAGES, maxCapPerDay: AD_RULES.maxCapPerDay, maxDays: AD_RULES.maxDays },
+      rules: { topics: AD_TOPICS, languages: AD_LANGUAGES, placements: AD_PLACEMENTS, maxCapPerDay: AD_RULES.maxCapPerDay, maxDays: AD_RULES.maxDays },
       billing: 'Not built: campaigns are arranged by Nakshatra staff; nothing is charged in the app.',
     };
   });
@@ -147,7 +229,7 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!adv) throw notFound('Advertiser');
     const startsAt = new Date(body.startsAt), endsAt = new Date(body.endsAt);
     checkDates(startsAt, endsAt);
-    const [c] = await db.insert(s.adCampaigns).values({ ...body, startsAt, endsAt, createdBy: a.userId }).returning();
+    const [c] = await db.insert(s.adCampaigns).values({ ...body, content: body.content ?? null, startsAt, endsAt, createdBy: a.userId }).returning();
     await audit(db, { actorId: a.userId, action: 'ads.campaign_created', targetType: 'ad_campaign', targetId: c.id, meta: { name: c.name } });
     return reply.code(201).send({ campaign: c, policyIssues: issuesOf(c) });
   });
@@ -158,7 +240,7 @@ export async function adRoutes(app: FastifyInstance, ctx: Ctx) {
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const c = await loadCampaign(id);
     if (c.status === 'ended') throw badRequest('Ended campaigns can’t be edited.');
-    const body = parse(Campaign.partial(), req.body);
+    const body = parse(CampaignPatch, req.body);
     const startsAt = body.startsAt ? new Date(body.startsAt) : c.startsAt, endsAt = body.endsAt ? new Date(body.endsAt) : c.endsAt;
     checkDates(startsAt, endsAt);
     const [u] = await db.update(s.adCampaigns).set({ ...body, startsAt, endsAt, status: 'draft', reviewedBy: null, reviewedAt: null, reviewNote: null, updatedAt: new Date() }).where(eq(s.adCampaigns.id, id)).returning();

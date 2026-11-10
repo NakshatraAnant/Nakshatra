@@ -5,6 +5,7 @@ import { QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { ProgressBar, useCelebrate } from '../components/motion';
 import { levelBadge, achievementArt } from '../lib/visual';
+import { SponsoredChallenges } from '../components/SponsoredExtras';
 
 interface Step { metric: string; target: number; label: string; value: number }
 interface Quest { key: string; period: 'daily' | 'weekly' | 'once' | 'season'; category: string; title: string; description: string; xp: number; steps: Step[]; complete: boolean; claimed: boolean; claimable: boolean; resetsAt: string | null }
@@ -144,6 +145,7 @@ export function ProgressPage() {
   return (
     <div className="space-y-8">
       <PageHeader kicker="Progress" title="Quests & streaks" subtitle="Small rewards for showing up for yourself and your people. Nothing expires that you already earned." />
+      <SponsoredChallenges />
       <QueryState q={q}>{(p) => {
         const season = p.seasons.find((s) => s.key === p.current) ?? p.seasons[0];
         const groups: [string, Quest[]][] = [['Today', p.quests.filter((x) => x.period === 'daily')], ['This week', p.quests.filter((x) => x.period === 'weekly')], ['Explore', p.quests.filter((x) => x.period === 'once')]];

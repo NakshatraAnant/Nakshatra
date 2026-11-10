@@ -21,8 +21,10 @@ export const adCampaigns = pgTable('ad_campaigns', {
   body: text('body').notNull().default(''),
   ctaLabel: text('cta_label').notNull().default('Learn more'),
   destinationUrl: text('destination_url').notNull(),
-  /** feed */
+  /** feed | quiz | quest */
   placement: text('placement').notNull().default('feed'),
+  /** Sponsored quiz (trivia QuizDefinition) or challenge ({ title, description, steps }); null for feed cards. */
+  content: jsonb('content'),
   /** { topics: AdTopic[], languages: string[] } — contextual only */
   targeting: jsonb('targeting').notNull().default({ topics: [], languages: [] }),
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
@@ -58,3 +60,15 @@ export const adHides = pgTable('ad_hides', {
   reason: text('reason').notNull().default('not_relevant'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.campaignId, t.viewerKey] })]);
+
+/**
+ * Taking part in a sponsored quiz or challenge, keyed by the same pseudonymous viewer key as ads (never the member id).
+ * kind: quiz (score set) | quest_accepted | quest_done. Sponsors see totals only. Deleted after 90 days.
+ */
+export const adParticipation = pgTable('ad_participation', {
+  campaignId: uuid('campaign_id').notNull().references(() => adCampaigns.id, { onDelete: 'cascade' }),
+  viewerKey: text('viewer_key').notNull(),
+  kind: text('kind').notNull(),
+  score: integer('score'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.campaignId, t.viewerKey, t.kind] })]);

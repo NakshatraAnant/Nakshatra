@@ -6,10 +6,12 @@ import { useModules } from '../lib/modules';
 import { Badge, Button, Card, Field, Input, Select, Textarea, cx } from '../components/ui/primitives';
 import { Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
-import { AD_RULES, AD_TOPICS, adPolicyIssues } from '../../shared/ads';
+import { AD_RULES, AD_TOPICS, adPolicyIssues, sponsoredContentIssues, type AdPlacement } from '../../shared/ads';
+import { QuestionCards, blankQuestion } from './quizzes';
+import type { QuizQuestion } from '../../shared/quiz';
 
 interface Advertiser { id: string; name: string; website: string; status: string }
-interface CampaignRow { id: string; name: string; advertiser: string; headline: string; body: string; status: string; startsAt: string; endsAt: string; frequencyCapPerDay: number; targeting: { topics: string[] }; createdBy: string; submittedBy: string | null; reviewNote: string | null; impressions: number; clicks: number; reach: number; hides: number; policyIssues: string[] }
+interface CampaignRow { id: string; name: string; advertiser: string; headline: string; body: string; status: string; startsAt: string; endsAt: string; frequencyCapPerDay: number; targeting: { topics: string[] }; createdBy: string; submittedBy: string | null; reviewNote: string | null; impressions: number; clicks: number; reach: number; hides: number; policyIssues: string[]; placement: AdPlacement; quizTakes: number; quizAverage: number | null; questAccepted: number; questDone: number }
 interface AdsResp { advertisers: Advertiser[]; campaigns: CampaignRow[]; billing: string }
 
 const TONE: Record<string, 'success' | 'neutral' | 'warning' | 'danger' | 'accent'> = { approved: 'success', in_review: 'warning', draft: 'neutral', rejected: 'danger', paused: 'neutral', ended: 'neutral' };
@@ -41,7 +43,7 @@ export function AdsAdmin() {
               </div>
               <p className="text-sm text-fg">“{c.headline}” {c.body && <span className="text-fg-2">— {c.body}</span>}</p>
               <p className="text-xs text-fg-3">{new Date(c.startsAt).toLocaleDateString()} → {new Date(c.endsAt).toLocaleDateString()} · up to {c.frequencyCapPerDay}/day per person · {c.targeting.topics.length ? `topics: ${c.targeting.topics.join(', ')}` : 'everyone (no topic)'}</p>
-              <p className="text-xs text-fg-3 numeric">{c.impressions} showings · {c.reach} people · {c.clicks} clicks · {c.hides} hid it</p>
+              <p className="text-xs text-fg-3 numeric">{c.placement === 'quiz' ? `Sponsored quiz · ${c.quizTakes} played${c.quizAverage !== null ? ` · average ${c.quizAverage}` : ''} · ${c.hides} hid it` : c.placement === 'quest' ? `Sponsored challenge · ${c.questAccepted} joined · ${c.questDone} finished · ${c.hides} hid it` : `${c.impressions} showings · ${c.reach} people · ${c.clicks} clicks · ${c.hides} hid it`}</p>
               {c.policyIssues.length > 0 && <Notice tone="danger">{c.policyIssues.join(' ')}</Notice>}
               {c.reviewNote && <p className="text-xs text-fg-2">Review note: {c.reviewNote}</p>}
               <div className="flex flex-wrap gap-2">
@@ -88,10 +90,14 @@ function NewCampaign({ advertisers, onDone }: { advertisers: Advertiser[]; onDon
   const toast = useToast();
   const [f, setF] = useState({ advertiserId: advertisers[0]?.id ?? '', name: '', headline: '', body: '', ctaLabel: 'Learn more', destinationUrl: 'https://', days: '14', cap: String(AD_RULES.defaultCapPerDay) });
   const [topics, setTopics] = useState<string[]>([]);
+  const [placement, setPlacement] = useState<AdPlacement>('feed');
+  const [quiz, setQuiz] = useState({ title: '', description: '', questions: [blankQuestion('trivia'), blankQuestion('trivia')] as QuizQuestion[] });
+  const [quest, setQuest] = useState({ title: '', description: '', steps: '' });
+  const content = placement === 'quiz' ? { kind: 'trivia', title: quiz.title, description: quiz.description, questions: quiz.questions, outcomes: [] } : placement === 'quest' ? { title: quest.title, description: quest.description, steps: quest.steps.split('\n').map((x) => x.trim()).filter(Boolean) } : null;
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const issues = adPolicyIssues({ headline: f.headline, body: f.body, ctaLabel: f.ctaLabel, destinationUrl: f.destinationUrl }, { topics: topics as never, languages: [] });
+  const issues = [...adPolicyIssues({ headline: f.headline, body: f.body, ctaLabel: f.ctaLabel, destinationUrl: f.destinationUrl }, { topics: topics as never, languages: [] }), ...(placement !== 'feed' && (quiz.title || quest.title) ? sponsoredContentIssues(placement, content) : [])];
   const m = useMutation({
-    mutationFn: () => post('admin/ads/campaigns', { advertiserId: f.advertiserId || advertisers[0]?.id, name: f.name, headline: f.headline, body: f.body, ctaLabel: f.ctaLabel, destinationUrl: f.destinationUrl, targeting: { topics, languages: [] }, startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + Number(f.days) * 864e5).toISOString(), frequencyCapPerDay: Number(f.cap) }),
+    mutationFn: () => post('admin/ads/campaigns', { advertiserId: f.advertiserId || advertisers[0]?.id, name: f.name, headline: f.headline, body: f.body, ctaLabel: f.ctaLabel, destinationUrl: f.destinationUrl, targeting: { topics: placement === 'feed' ? topics : [], languages: [] }, placement, ...(content ? { content } : {}), startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + Number(f.days) * 864e5).toISOString(), frequencyCapPerDay: Number(f.cap) }),
     onSuccess: () => { setF({ ...f, name: '', headline: '', body: '' }); setTopics([]); onDone(); toast('Draft saved', 'success'); },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error'),
   });
@@ -110,13 +116,31 @@ function NewCampaign({ advertisers, onDone }: { advertisers: Advertiser[]; onDon
         </div>
       </div>
       <Field label="Ad text">{(id) => <Textarea id={id} rows={2} maxLength={AD_RULES.body} value={f.body} onChange={set('body')} />}</Field>
-      <fieldset>
+      <Field label="Shows as">{(id) => <Select id={id} value={placement} onChange={(e) => setPlacement(e.target.value as AdPlacement)}><option value="feed">Feed card</option><option value="quiz">Sponsored quiz (Play → Quizzes)</option><option value="quest">Sponsored challenge (Progress)</option></Select>}</Field>
+      {placement === 'quiz' && (
+        <div className="space-y-3 rounded-[var(--radius-sm)] border border-line p-3">
+          <p className="text-xs text-fg-3">Trivia only — never “which type are you” quizzes. Playing earns no rewards; the sponsor sees totals only.</p>
+          <Field label="Quiz title">{(id) => <Input id={id} maxLength={80} value={quiz.title} onChange={(e) => setQuiz({ ...quiz, title: e.target.value })} />}</Field>
+          <Field label="Quiz description">{(id) => <Input id={id} maxLength={300} value={quiz.description} onChange={(e) => setQuiz({ ...quiz, description: e.target.value })} />}</Field>
+          <QuestionCards kind="trivia" outcomes={[]} questions={quiz.questions} setQuestions={(questions) => setQuiz({ ...quiz, questions })} />
+          {quiz.questions.length < 12 && <Button size="sm" variant="ghost" onClick={() => setQuiz({ ...quiz, questions: [...quiz.questions, blankQuestion('trivia')] })}>Add a question</Button>}
+        </div>
+      )}
+      {placement === 'quest' && (
+        <div className="space-y-3 rounded-[var(--radius-sm)] border border-line p-3">
+          <p className="text-xs text-fg-3">Self-reported and just for fun — no XP or rewards. The sponsor sees totals only.</p>
+          <Field label="Challenge title">{(id) => <Input id={id} maxLength={60} value={quest.title} onChange={(e) => setQuest({ ...quest, title: e.target.value })} />}</Field>
+          <Field label="Challenge description">{(id) => <Input id={id} maxLength={300} value={quest.description} onChange={(e) => setQuest({ ...quest, description: e.target.value })} />}</Field>
+          <Field label="Steps (one per line, up to 5)">{(id) => <Textarea id={id} rows={4} value={quest.steps} onChange={(e) => setQuest({ ...quest, steps: e.target.value })} />}</Field>
+        </div>
+      )}
+      {placement === 'feed' && <fieldset>
         <legend className="text-sm text-fg-2">Show only when browsing these topics (leave empty for everyone)</legend>
         <div className="mt-2 flex flex-wrap gap-2">{AD_TOPICS.map((t) => {
           const on = topics.includes(t);
           return <button key={t} type="button" aria-pressed={on} onClick={() => setTopics(on ? topics.filter((x) => x !== t) : [...topics, t])} className={cx('min-h-9 rounded-full border px-3 text-sm', on ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-2')}>{t}</button>;
         })}</div>
-      </fieldset>
+      </fieldset>}
       {f.headline && issues.length > 0 && <Notice tone="warning">{issues.join(' ')}</Notice>}
       <Button size="sm" disabled={!f.name || !f.headline} loading={m.isPending} onClick={() => m.mutate()}>Save draft</Button>
     </Card>

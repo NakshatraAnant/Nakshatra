@@ -1,3 +1,5 @@
+import { QuizError, validateQuiz, type QuizDefinition } from './quiz';
+
 /**
  * Ads (ads-v1): staff-managed, contextual-only sponsored cards.
  *
@@ -11,11 +13,15 @@
  *    one ad every AD_RULES.minPostsBetweenAds posts in a feed.
  *  - Nakshatra+ members see no ads. Members can hide any ad.
  *  - Nothing here bills anyone: there is no self-serve buying and no ad payments yet.
+ *  - Sponsored quizzes (trivia only — never "which type are you" quizzes, which would profile people) and sponsored
+ *    challenges go through the same review. Taking part earns no XP or rewards, so sponsors can't buy progress;
+ *    sponsors only ever see totals.
  */
 export const AD_TOPICS = ['friendship', 'work', 'study', 'music', 'film', 'food', 'travel', 'tech', 'sport', 'fun', 'learning', 'life'] as const;
 export type AdTopic = (typeof AD_TOPICS)[number];
 export const AD_LANGUAGES = ['en', 'hi'] as const;
-export const AD_PLACEMENTS = ['feed'] as const;
+export const AD_PLACEMENTS = ['feed', 'quiz', 'quest'] as const;
+export type AdPlacement = (typeof AD_PLACEMENTS)[number];
 export type AdStatus = 'draft' | 'in_review' | 'approved' | 'rejected' | 'paused' | 'ended';
 
 export const AD_RULES = { minPostsBetweenAds: 6, maxCapPerDay: 5, defaultCapPerDay: 2, headline: 60, body: 200, cta: 20, maxDays: 90 } as const;
@@ -82,3 +88,39 @@ export const AD_TRANSITIONS: Record<AdStatus, AdStatus[]> = {
   ended: [],
 };
 export const canMoveAd = (from: AdStatus, to: AdStatus) => AD_TRANSITIONS[from].includes(to);
+
+/* ---------------- Sponsored quizzes and challenges ---------------- */
+
+export interface SponsoredQuest { title: string; description: string; steps: string[] }
+export const SPONSORED_RULES = { questTitle: 60, questDescription: 300, minSteps: 1, maxSteps: 5, step: 100 } as const;
+
+function sensitiveHits(text: string): string[] {
+  const t = ` ${text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ')} `;
+  return SENSITIVE.filter((w) => t.includes(` ${w} `) || t.includes(` ${w}s `) || t.includes(` ${w}es `));
+}
+
+/** Problems with a sponsored quiz or challenge that block submission. Feed cards carry no content. */
+export function sponsoredContentIssues(placement: string, content: unknown): string[] {
+  if (placement === 'feed') return content == null ? [] : ['Feed cards don’t carry a quiz or challenge.'];
+  if (!content || typeof content !== 'object') return [placement === 'quiz' ? 'Add the quiz questions.' : 'Add the challenge.'];
+  if (placement === 'quiz') {
+    const q = content as QuizDefinition;
+    if (q.kind !== 'trivia') return ['Sponsored quizzes must be trivia. “Which type are you” quizzes would profile people.'];
+    try { validateQuiz(q); } catch (e) { return [e instanceof QuizError ? e.message : 'The quiz isn’t valid.']; }
+    const hits = sensitiveHits([q.title, q.description, ...q.questions.flatMap((x) => [x.text, ...x.options.map((o) => o.text)])].join(' '));
+    return hits.length ? [`The quiz mentions a sensitive or identity topic (${hits.slice(0, 3).join(', ')}).`] : [];
+  }
+  if (placement === 'quest') {
+    const q = content as SponsoredQuest;
+    const issues: string[] = [];
+    if (typeof q.title !== 'string' || q.title.trim().length < 3 || q.title.length > SPONSORED_RULES.questTitle) issues.push(`Give the challenge a title (up to ${SPONSORED_RULES.questTitle} characters).`);
+    if (typeof q.description !== 'string' || q.description.length > SPONSORED_RULES.questDescription) issues.push(`The challenge description is over ${SPONSORED_RULES.questDescription} characters.`);
+    if (!Array.isArray(q.steps) || q.steps.length < SPONSORED_RULES.minSteps || q.steps.length > SPONSORED_RULES.maxSteps || q.steps.some((x) => typeof x !== 'string' || !x.trim() || x.length > SPONSORED_RULES.step)) issues.push(`A challenge has ${SPONSORED_RULES.minSteps}–${SPONSORED_RULES.maxSteps} steps of up to ${SPONSORED_RULES.step} characters.`);
+    if (!issues.length) {
+      const hits = sensitiveHits([q.title, q.description, ...q.steps].join(' '));
+      if (hits.length) issues.push(`The challenge mentions a sensitive or identity topic (${hits.slice(0, 3).join(', ')}).`);
+    }
+    return issues;
+  }
+  return ['Unknown placement.'];
+}
