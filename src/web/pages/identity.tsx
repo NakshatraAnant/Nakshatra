@@ -286,6 +286,7 @@ function CustomiseDialog({ open, onClose }: { open: boolean; onClose: () => void
         <section className="grid gap-4 sm:grid-cols-2">
           <Field label="Status">{(id) => <Input id={id} maxLength={80} defaultValue={profile.data?.profile.statusText} onChange={(e) => setStatus(e.target.value)} placeholder="Learning my nakshatra ✦" />}</Field>
           <Field label="Profile photo">{(id) => <Input id={id} type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files?.[0] && avatar.mutate(e.target.files[0])} />}</Field>
+          <Link to="/avatar" className="text-sm text-accent hover:underline">Or build a drawn avatar — no photo needed →</Link>
           <Field label="Bio" className="sm:col-span-2">{(id) => <Textarea id={id} maxLength={500} rows={3} defaultValue={profile.data?.profile.bio} onChange={(e) => setBio(e.target.value)} />}</Field>
         </section>
         <p className="text-xs text-fg-3">Interests, field visibility and public/private mode are in <Link to="/settings/privacy" className="text-accent underline">Settings → Privacy</Link>.</p>

@@ -65,7 +65,7 @@ describe('Circle membership tiers', () => {
     const list = await founder.c.get(`/api/v1/circles/${circle.id}/tiers`);
     expect(list.tiers.map((x: { name: string }) => x.name)).toEqual(['Core crew']);
     expect(list.myTierId).toBeNull();
-    expect(list.paidNote).toMatch(/aren’t available/);
+    expect(list.paidNote).toMatch(/payouts to circle owners aren’t built/);
 
     // Members list shows the tier badge; leaving drops it.
     await owner.c.put(`/api/v1/circles/${circle.id}/members/${regular.userId}/tier`, { tierId: coreTier.id });

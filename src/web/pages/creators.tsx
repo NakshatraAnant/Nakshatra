@@ -46,7 +46,7 @@ export function CreatorsDirectory() {
 interface CreatorView {
   creator: { id: string; handle: string; name: string; avatarUrl: string | null; headline: string; about: string; categories: string[]; links: Link[]; status: string; isMe: boolean };
   featured: { id: string; kind: string; body: string; imageUrl: string | null }[];
-  offerings: { id: string; kind: OfferingKind; title: string; description: string; pricePaise: number | null; interested: boolean }[];
+  offerings: { id: string; kind: OfferingKind; title: string; description: string; pricePaise: number | null; interested: boolean; buyable: boolean; paidUnlock: boolean; owned: boolean; unlock: { content: string | null; link: string | null } | null }[];
   tips: { enabled: boolean; available: boolean; presetsPaise: number[]; minPaise: number; maxPaise: number; testMode: boolean };
   supporters: { name: string; message: string; createdAt: string }[];
 }
@@ -60,6 +60,12 @@ export function CreatorPage() {
   const interest = useMutation({
     mutationFn: ({ id, on }: { id: string; on: boolean }) => post(`creators/${handle}/offerings/${id}/interest`, { on }),
     onSuccess: (_r, v) => { void qc.invalidateQueries({ queryKey: ['creator', handle] }); toast(v.on ? 'We’ll let you know when it’s available.' : 'Removed', 'success'); },
+    onError: fail(toast),
+  });
+  const nav = useNavigate();
+  const buy = useMutation({
+    mutationFn: (id: string) => post<{ checkout: { checkoutPath: string | null } }>(`creators/${handle}/offerings/${id}/purchase`, { idempotencyKey: `unlock-${id}-${Date.now()}` }),
+    onSuccess: (r) => { if (r.checkout.checkoutPath) nav(r.checkout.checkoutPath); else toast('Complete the payment to unlock it.', 'info'); },
     onError: fail(toast),
   });
   return (
@@ -98,16 +104,26 @@ export function CreatorPage() {
         {d.offerings.length > 0 && (
           <section aria-labelledby="offers-h" className="space-y-3">
             <h2 id="offers-h" className="font-display text-2xl">Offerings</h2>
-            <p className="text-sm text-fg-3">Paid offerings aren’t open yet. Tap “Notify me” and you’ll hear when this one is.</p>
+            <p className="text-sm text-fg-3">Digital unlocks can be bought when payments are on; for everything else, tap “Notify me” to hear when it opens.</p>
             <ul className="space-y-3">{d.offerings.map((o) => (
               <li key={o.id} className="card flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.14em] text-fg-3">{OFFERING_LABEL[o.kind]}</p>
                   <p className="font-semibold text-fg">{o.title}</p>
                   {o.description && <p className="text-sm text-fg-2">{o.description}</p>}
-                  {o.pricePaise != null && <p className="mt-1 text-sm text-fg-3">Planned price {rupees(o.pricePaise)}{o.kind === 'membership' ? ' / month' : ''}</p>}
+                  {o.pricePaise != null && <p className="mt-1 text-sm text-fg-3">{o.paidUnlock ? 'Unlock for' : 'Planned price'} {rupees(o.pricePaise)}{o.kind === 'membership' ? ' / month' : ''}</p>}
+                  {o.unlock && (
+                    <div className="mt-2 space-y-1 rounded-[var(--radius-sm)] border border-line bg-surface-2 p-3" aria-label={`Unlocked: ${o.title}`}>
+                      {o.unlock.content && <p className="whitespace-pre-wrap text-sm text-fg">{o.unlock.content}</p>}
+                      {o.unlock.link && <a href={o.unlock.link} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-accent hover:underline">Open the link ↗</a>}
+                    </div>
+                  )}
                 </div>
-                {!d.creator.isMe && <Button size="sm" variant={o.interested ? 'ghost' : 'secondary'} aria-pressed={o.interested} onClick={() => interest.mutate({ id: o.id, on: !o.interested })}>{o.interested ? '✓ You’ll be notified' : 'Notify me'}</Button>}
+                {!d.creator.isMe && o.paidUnlock && !o.owned && (o.buyable
+                  ? <Button size="sm" loading={buy.isPending && buy.variables === o.id} onClick={() => buy.mutate(o.id)}>Unlock — {rupees(o.pricePaise!)}</Button>
+                  : <span className="text-xs text-fg-3">Opens when payments are switched on</span>)}
+                {!d.creator.isMe && o.owned && <span className="text-sm text-success">✓ Unlocked</span>}
+                {!d.creator.isMe && !o.paidUnlock && <Button size="sm" variant={o.interested ? 'ghost' : 'secondary'} aria-pressed={o.interested} onClick={() => interest.mutate({ id: o.id, on: !o.interested })}>{o.interested ? '✓ You’ll be notified' : 'Notify me'}</Button>}
               </li>
             ))}</ul>
           </section>
@@ -169,7 +185,7 @@ function TipBox({ handle, name, tips }: { handle: string; name: string; tips: Cr
 
 /* ---------------- Studio ---------------- */
 
-interface Offering { id: string; kind: OfferingKind; title: string; description: string; pricePaise: number | null; status: 'draft' | 'listed' | 'archived'; interested: number }
+interface Offering { id: string; kind: OfferingKind; title: string; description: string; pricePaise: number | null; status: 'draft' | 'listed' | 'archived'; interested: number; buyable: boolean; unlocks: number }
 interface Studio {
   profile: null | { headline: string; about: string; categories: string[]; links: Link[]; featuredPostIds: string[]; tipsEnabled: boolean; status: string };
   handle: string | null;
@@ -279,10 +295,12 @@ function Offerings({ offerings }: { offerings: Offering[] }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [unlockContent, setUnlockContent] = useState('');
+  const [unlockLink, setUnlockLink] = useState('');
   const refresh = () => void qc.invalidateQueries({ queryKey: ['creator-studio'] });
   const add = useMutation({
-    mutationFn: () => post('creators/me/offerings', { kind, title, description, pricePaise: price ? Math.round(Number(price) * 100) : null, status: 'listed' }),
-    onSuccess: () => { setTitle(''); setDescription(''); setPrice(''); refresh(); toast('Listed', 'success'); },
+    mutationFn: () => post('creators/me/offerings', { kind, title, description, pricePaise: price ? Math.round(Number(price) * 100) : null, status: 'listed', ...(kind === 'digital' && (unlockContent.trim() || unlockLink.trim()) ? { unlockContent: unlockContent.trim() || null, unlockLink: unlockLink.trim() || null } : {}) }),
+    onSuccess: () => { setTitle(''); setDescription(''); setPrice(''); setUnlockContent(''); setUnlockLink(''); refresh(); toast('Listed', 'success'); },
     onError: fail(toast),
   });
   const update = useMutation({ mutationFn: ({ id, status }: { id: string; status: Offering['status'] }) => patch(`creators/me/offerings/${id}`, { status }), onSuccess: refresh, onError: fail(toast) });
@@ -290,12 +308,12 @@ function Offerings({ offerings }: { offerings: Offering[] }) {
     <Card className="space-y-4" aria-label="Offerings">
       <div>
         <h2 className="font-display text-2xl">Offerings</h2>
-        <p className="text-sm text-fg-2">List what you’re planning — a membership, a download, a workshop. Members can tap “Notify me”, so you see demand before anything is for sale. Selling offerings isn’t built yet.</p>
+        <p className="text-sm text-fg-2">Sell a digital unlock (text or a link shown only to buyers), or list what you’re planning — a membership, a workshop — so members can tap “Notify me”. Your share of sales (85%) is held; payouts aren’t built yet.</p>
       </div>
       {offerings.length > 0 && (
         <ul className="divide-y divide-line">{offerings.map((o) => (
           <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <span className="min-w-0"><span className="text-fg">{o.title}</span> <span className="text-xs text-fg-3">· {OFFERING_LABEL[o.kind]} · {o.status} · {o.interested} want{o.interested === 1 ? 's' : ''} it</span></span>
+            <span className="min-w-0"><span className="text-fg">{o.title}</span> <span className="text-xs text-fg-3">· {OFFERING_LABEL[o.kind]} · {o.status} · {o.buyable ? `${o.unlocks} unlock${o.unlocks === 1 ? '' : 's'}` : `${o.interested} want${o.interested === 1 ? 's' : ''} it`}</span></span>
             <span className="flex gap-1">
               {o.status === 'listed' ? <Button size="sm" variant="ghost" onClick={() => update.mutate({ id: o.id, status: 'draft' })}>Unlist</Button> : <Button size="sm" variant="ghost" onClick={() => update.mutate({ id: o.id, status: 'listed' })}>List</Button>}
               <Button size="sm" variant="ghost" onClick={() => update.mutate({ id: o.id, status: 'archived' })}>Remove</Button>
@@ -305,11 +323,37 @@ function Offerings({ offerings }: { offerings: Offering[] }) {
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Kind">{(id) => <Select id={id} value={kind} onChange={(e) => setKind(e.target.value as OfferingKind)}>{OFFERING_KINDS.map((k) => <option key={k} value={k}>{OFFERING_LABEL[k]}</option>)}</Select>}</Field>
-        <Field label="Planned price in ₹ (optional)">{(id) => <Input id={id} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} />}</Field>
+        <Field label={kind === 'digital' ? 'Price in ₹' : 'Planned price in ₹ (optional)'}>{(id) => <Input id={id} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} />}</Field>
       </div>
       <Field label="Offering title">{(id) => <Input id={id} maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Monsoon zine (PDF)" />}</Field>
       <Field label="Offering description">{(id) => <Textarea id={id} rows={2} maxLength={600} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
+      {kind === 'digital' && (
+        <>
+          <Field label="What buyers unlock (optional)" hint="Only you and people who pay can see this. Leave both empty to just collect interest.">{(id) => <Textarea id={id} rows={3} maxLength={3000} value={unlockContent} onChange={(e) => setUnlockContent(e.target.value)} />}</Field>
+          <Field label="Unlock link (https, optional)">{(id) => <Input id={id} type="url" maxLength={500} value={unlockLink} onChange={(e) => setUnlockLink(e.target.value)} placeholder="https://…" />}</Field>
+        </>
+      )}
       <Button variant="secondary" disabled={title.trim().length < 3} loading={add.isPending} onClick={() => add.mutate()}>List offering</Button>
     </Card>
+  );
+}
+
+/** Everything you've unlocked from creators. */
+export function UnlocksPage() {
+  const q = useQuery({ queryKey: ['my-unlocks'], queryFn: () => get<{ unlocks: { id: string; title: string; description: string; creator: { handle: string; name: string }; amountPaise: number; simulated: boolean; content: string | null; link: string | null; unlockedAt: string }[] }>('creators/unlocks/mine') });
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader kicker="You" title="Your unlocks" subtitle="Things you’ve bought from creators. They stay here even if the creator stops selling them." />
+      <QueryState q={q}>{(d) => d.unlocks.length === 0 ? <EmptyState icon="star" title="Nothing unlocked yet" body="When you unlock something on a creator’s page, it appears here." /> : (
+        <ul className="space-y-3">{d.unlocks.map((u) => (
+          <li key={u.id} className="card space-y-2 p-4">
+            <p className="text-xs uppercase tracking-[0.14em] text-fg-3"><Link to={`/creators/${u.creator.handle}`} className="hover:underline">{u.creator.name}</Link> · {rupees(u.amountPaise)}{u.simulated ? ' · test payment' : ''}</p>
+            <p className="font-semibold text-fg">{u.title}</p>
+            {u.content && <p className="whitespace-pre-wrap text-sm text-fg">{u.content}</p>}
+            {u.link && <a href={u.link} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-accent hover:underline">Open the link ↗</a>}
+          </li>
+        ))}</ul>
+      )}</QueryState>
+    </div>
   );
 }

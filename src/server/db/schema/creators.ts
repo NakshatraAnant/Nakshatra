@@ -27,8 +27,11 @@ export const creatorOfferings = pgTable('creator_offerings', {
   kind: text('kind').notNull(),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
-  /** Indicative price shown to members; nothing can be bought yet. */
+  /** Price in paise. Digital offerings with unlock content can be bought; others collect interest. */
   pricePaise: integer('price_paise'),
+  /** Paid unlock (digital offerings): shown only to the creator and to buyers. */
+  unlockContent: text('unlock_content'),
+  unlockLink: text('unlock_link'),
   /** draft | listed | archived */
   status: text('status').notNull().default('draft'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -75,3 +78,16 @@ export const creatorLedger = pgTable('creator_ledger', {
   simulated: boolean('simulated').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('creator_ledger_source_uq').on(t.kind, t.sourceId), index('creator_ledger_creator_idx').on(t.creatorId)]);
+
+/** A paid unlock of a creator's digital offering. Access is granted only when a verified payment succeeds. */
+export const creatorPurchases = pgTable('creator_purchases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  offeringId: uuid('offering_id').notNull().references(() => creatorOfferings.id, { onDelete: 'restrict' }),
+  creatorId: uuid('creator_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  buyerId: uuid('buyer_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  amountPaise: integer('amount_paise').notNull(),
+  /** pending | paid | failed | refunded */
+  status: text('status').notNull().default('pending'),
+  paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('creator_purchases_buyer_idx').on(t.buyerId), index('creator_purchases_offering_idx').on(t.offeringId)]);

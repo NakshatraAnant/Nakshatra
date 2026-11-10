@@ -139,6 +139,8 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
       tournamentEntries: await ctx.db.select().from(s.tournamentEntries).where(eq(s.tournamentEntries.userId, uid)),
       creatorProfile: (await ctx.db.select().from(s.creatorProfiles).where(eq(s.creatorProfiles.userId, uid)))[0] ?? null,
       creatorOfferings: await ctx.db.select().from(s.creatorOfferings).where(eq(s.creatorOfferings.creatorId, uid)),
+      unlocksBought: await ctx.db.select({ offeringId: s.creatorPurchases.offeringId, amountPaise: s.creatorPurchases.amountPaise, status: s.creatorPurchases.status, createdAt: s.creatorPurchases.createdAt }).from(s.creatorPurchases).where(eq(s.creatorPurchases.buyerId, uid)),
+      circleTierPasses: await ctx.db.select({ circleId: s.circleTierPurchases.circleId, tierId: s.circleTierPurchases.tierId, amountPaise: s.circleTierPurchases.amountPaise, status: s.circleTierPurchases.status, startsAt: s.circleTierPurchases.startsAt, expiresAt: s.circleTierPurchases.expiresAt }).from(s.circleTierPurchases).where(eq(s.circleTierPurchases.userId, uid)),
       tipsSent: await ctx.db.select({ amountPaise: s.creatorTips.amountPaise, message: s.creatorTips.message, status: s.creatorTips.status, createdAt: s.creatorTips.createdAt }).from(s.creatorTips).where(eq(s.creatorTips.fromUserId, uid)),
       creatorEarnings: await ctx.db.select().from(s.creatorLedger).where(eq(s.creatorLedger.creatorId, uid)),
       closeFriends: await ctx.db.select({ friendId: s.closeFriends.friendId, addedAt: s.closeFriends.createdAt }).from(s.closeFriends).where(eq(s.closeFriends.ownerId, uid)),
@@ -367,7 +369,7 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.codOrders).set({ address: { redacted: true } }).where(and(eq(s.codOrders.userId, userId), inArray(s.codOrders.status, ['delivered', 'cancelled', 'returned', 'rto', 'refunded'])));
     await tx.update(s.identityShares).set({ revokedAt: new Date(), displayName: null }).where(eq(s.identityShares.userId, userId));
     await tx.update(s.expertProfiles).set({ verificationStatus: 'suspended', acceptsBookings: false, bio: '', displayName: 'Former expert' }).where(eq(s.expertProfiles.userId, userId));
-    await tx.update(s.profiles).set({ handle: `deleted-${userId.slice(0, 8)}`, displayName: 'Deleted user', fullName: null, bio: '', statusText: '', avatarUrl: null, interests: [], visibility: 'private', featuredBadges: [], featuredInsights: [], pseudonym: null, identityLabels: [] }).where(eq(s.profiles.userId, userId));
+    await tx.update(s.profiles).set({ handle: `deleted-${userId.slice(0, 8)}`, displayName: 'Deleted user', fullName: null, bio: '', statusText: '', avatarUrl: null, avatarConfig: null, interests: [], visibility: 'private', featuredBadges: [], featuredInsights: [], pseudonym: null, identityLabels: [] }).where(eq(s.profiles.userId, userId));
     await tx.update(s.users).set({ email: `deleted+${userId}@invalid.nakshatra`, passwordHash: 'disabled', mfaSecret: null, mfaEnabled: false, status: 'deleted', deletedAt: new Date() }).where(eq(s.users.id, userId));
     await tx.update(s.deletionRequests).set({ status: 'completed', completedAt: new Date(), summary: counts }).where(eq(s.deletionRequests.id, req.id));
     await audit(tx, { actorId: userId, action: 'privacy.account_deleted', targetType: 'user', targetId: sha256(userId).slice(0, 16) });

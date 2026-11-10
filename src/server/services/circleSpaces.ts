@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql, or } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Executor } from '../db/client';
 import { forbidden } from '../lib/http';
@@ -48,6 +48,9 @@ export async function assertNotTimedOut(db: Executor, circleId: string, userId: 
  * that tier or a higher one, and always to owners and moderators. Archived tier channels stay closed (their posts
  * are never moved into General). Used by every path that lists or opens circle posts.
  */
+/** A member's tier counts while it has no end date or its pass hasn't ended. */
+export const activeTier = () => or(isNull(s.circleMemberTiers.expiresAt), gt(s.circleMemberTiers.expiresAt, new Date()));
+
 export async function hiddenChannels(db: Executor, userId: string, circleIds: string[]): Promise<Set<string>> {
   if (!circleIds.length) return new Set();
   const gated = await db.select({ id: s.circleChannels.id, circleId: s.circleChannels.circleId, required: s.circleTiers.position })
@@ -55,7 +58,7 @@ export async function hiddenChannels(db: Executor, userId: string, circleIds: st
   if (!gated.length) return new Set();
   const roles = await db.select({ c: s.groupMembers.groupId, role: s.groupMembers.role }).from(s.groupMembers).where(and(eq(s.groupMembers.userId, userId), eq(s.groupMembers.status, 'active'), inArray(s.groupMembers.groupId, circleIds)));
   const mine = await db.select({ c: s.circleMemberTiers.circleId, pos: s.circleTiers.position }).from(s.circleMemberTiers).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleMemberTiers.tierId))
-    .where(and(eq(s.circleMemberTiers.userId, userId), inArray(s.circleMemberTiers.circleId, circleIds), isNull(s.circleTiers.archivedAt)));
+    .where(and(eq(s.circleMemberTiers.userId, userId), inArray(s.circleMemberTiers.circleId, circleIds), isNull(s.circleTiers.archivedAt), activeTier()));
   const hidden = new Set<string>();
   for (const g of gated) {
     const role = roles.find((r) => r.c === g.circleId)?.role;

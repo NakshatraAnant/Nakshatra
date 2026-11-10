@@ -11,7 +11,9 @@ import { notify } from '../lib/notify';
 import { blockedPhrases, screenText } from '../services/moderation';
 import { displayNames } from '../services/identity';
 import { circleMembership, isAdmin, requireCircle } from '../services/circles';
-import { hiddenChannels, materialiseSeries } from '../services/circleSpaces';
+import { activeTier, hiddenChannels, materialiseSeries } from '../services/circleSpaces';
+import { createPayment, registerPaymentHandlers } from '../lib/payments';
+import { CIRCLE_TIER_FEE, PAID_RULES as PR, paidSplit, passWindow, rupeesLabel } from '../../shared/paidAccess';
 import { FREQUENCIES, RECURRENCE_RULES as RR } from '../../shared/recurrence';
 
 /** Circle channels, circle events (one-off and recurring) and the circle moderator dashboard. */
@@ -90,19 +92,62 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
-  /* ---------------- Membership tiers (free) ---------------- */
+  /* ---------------- Membership tiers (free or paid passes) ---------------- */
+
+  const paymentsOn = () => ctx.config.PAYMENT_PROVIDER !== 'none';
+
+  registerPaymentHandlers('circle_tier', {
+    onSucceeded: async (c, tx, payment) => {
+      const [p] = await tx.select().from(s.circleTierPurchases).where(and(eq(s.circleTierPurchases.id, payment.purposeId), ne(s.circleTierPurchases.status, 'paid')));
+      if (!p) return;
+      const [g] = await tx.select({ ownerId: s.groups.ownerId, name: s.groups.name }).from(s.groups).where(eq(s.groups.id, p.circleId));
+      const [cur] = await tx.select().from(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, p.circleId), eq(s.circleMemberTiers.userId, p.userId)));
+      const sameTierPass = cur && cur.tierId === p.tierId && cur.source === 'purchase' ? cur.expiresAt : null;
+      const w = passWindow(new Date(), sameTierPass);
+      await tx.update(s.circleTierPurchases).set({ status: 'paid', startsAt: w.startsAt, expiresAt: w.expiresAt }).where(eq(s.circleTierPurchases.id, p.id));
+      // Never replace an open-ended tier the member was given; the purchase still records the paid pass.
+      if (!(cur && cur.source === 'assigned' && cur.expiresAt === null && cur.tierId !== p.tierId)) {
+        await tx.insert(s.circleMemberTiers).values({ circleId: p.circleId, userId: p.userId, tierId: p.tierId, assignedBy: p.userId, source: 'purchase', expiresAt: w.expiresAt })
+          .onConflictDoUpdate({ target: [s.circleMemberTiers.circleId, s.circleMemberTiers.userId], set: { tierId: p.tierId, assignedBy: p.userId, source: 'purchase', expiresAt: w.expiresAt, createdAt: new Date() } });
+      }
+      const simulated = payment.provider === 'dev_simulator';
+      await tx.insert(s.creatorLedger).values({ creatorId: g.ownerId, kind: 'circle_tier', sourceId: p.id, ...paidSplit(p.amountPaise, CIRCLE_TIER_FEE), status: 'held', simulated }).onConflictDoNothing();
+      const [t] = await tx.select({ name: s.circleTiers.name }).from(s.circleTiers).where(eq(s.circleTiers.id, p.tierId));
+      await notify(c, tx, { userId: p.userId, category: 'circles', title: `You’re ${t.name} in ${g.name}`, body: `Your pass runs until ${w.expiresAt.toLocaleDateString('en-IN', { dateStyle: 'medium' })}. It doesn’t renew by itself.`, link: `/circles/${p.circleId}`, dedupeKey: `tier-pass:${p.id}` });
+      await notify(c, tx, { userId: g.ownerId, category: 'circles', title: `Someone bought a ${t.name} pass in ${g.name}`, body: rupeesLabel(p.amountPaise), link: `/circles/${p.circleId}`, dedupeKey: `tier-sale:${p.id}` });
+      await track(tx, p.userId, 'circle_tier_purchased', { simulated });
+    },
+    onFailed: async (_c, tx, payment) => {
+      await tx.update(s.circleTierPurchases).set({ status: 'failed' }).where(and(eq(s.circleTierPurchases.id, payment.purposeId), eq(s.circleTierPurchases.status, 'pending')));
+    },
+    onRefunded: async (_c, tx, payment, amountPaise) => {
+      const [p] = await tx.select().from(s.circleTierPurchases).where(eq(s.circleTierPurchases.id, payment.purposeId));
+      if (!p) return;
+      const [orig] = await tx.select().from(s.creatorLedger).where(and(eq(s.creatorLedger.kind, 'circle_tier'), eq(s.creatorLedger.sourceId, p.id)));
+      if (orig) {
+        const fee = Math.round((orig.feePaise * amountPaise) / orig.grossPaise);
+        await tx.insert(s.creatorLedger).values({ creatorId: orig.creatorId, kind: 'circle_tier_refund', sourceId: p.id, grossPaise: -amountPaise, feePaise: -fee, netPaise: -(amountPaise - fee), status: 'held', simulated: orig.simulated }).onConflictDoNothing();
+      }
+      if (payment.refundedPaise >= payment.amountPaise) {
+        await tx.update(s.circleTierPurchases).set({ status: 'refunded' }).where(eq(s.circleTierPurchases.id, p.id));
+        // Remove the access this purchase paid for (only if it is still that pass).
+        await tx.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, p.circleId), eq(s.circleMemberTiers.userId, p.userId), eq(s.circleMemberTiers.tierId, p.tierId), eq(s.circleMemberTiers.source, 'purchase')));
+      }
+    },
+  });
 
   app.get('/api/v1/circles/:id/tiers', async (req) => {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const { member } = await requireCircle(db, id, a.userId);
     const tiers = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt))).orderBy(desc(s.circleTiers.position));
-    const counts = await db.select({ t: s.circleMemberTiers.tierId, n: sql<number>`count(*)::int` }).from(s.circleMemberTiers).where(eq(s.circleMemberTiers.circleId, id)).groupBy(s.circleMemberTiers.tierId);
-    const [mine] = await db.select({ t: s.circleMemberTiers.tierId }).from(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, a.userId)));
+    const counts = await db.select({ t: s.circleMemberTiers.tierId, n: sql<number>`count(*)::int` }).from(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), activeTier())).groupBy(s.circleMemberTiers.tierId);
+    const [mine] = await db.select({ t: s.circleMemberTiers.tierId, source: s.circleMemberTiers.source, expiresAt: s.circleMemberTiers.expiresAt }).from(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, a.userId), activeTier()));
     return {
-      tiers: tiers.map((t) => ({ id: t.id, name: t.name, description: t.description, color: t.color, position: t.position, members: counts.find((c) => c.t === t.id)?.n ?? 0 })),
-      myTierId: mine?.t ?? null, canManage: isAdmin(member), max: TIER_MAX,
-      paidNote: 'Paid tiers aren’t available: they need payments switched on and payouts to circle owners, which aren’t built.',
+      tiers: tiers.map((t) => ({ id: t.id, name: t.name, description: t.description, color: t.color, position: t.position, pricePaise: t.pricePaise, members: counts.find((c) => c.t === t.id)?.n ?? 0 })),
+      myTierId: mine?.t ?? null, myPassEndsAt: mine?.source === 'purchase' ? mine.expiresAt : null, canManage: isAdmin(member), isOwner: member.role === 'owner', max: TIER_MAX,
+      paymentsAvailable: paymentsOn(), passDays: PR.passDays, limits: { minPaise: PR.tierMinPaise, maxPaise: PR.tierMaxPaise },
+      paidNote: paymentsOn() ? `A priced tier is a ${PR.passDays}-day pass that doesn’t renew by itself. The owner’s share (85%) is held — payouts to circle owners aren’t built yet.` : 'Priced tiers can be bought once payments are switched on. Until then tiers are given by the owner and moderators.',
     };
   });
 
@@ -128,7 +173,11 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const { id, tierId } = parse(z.object({ id: z.uuid(), tierId: z.uuid() }), req.params);
     await requireCircleAdmin(id, a.userId);
-    const body = parse(TierBody.partial().extend({ position: z.number().int().min(1).max(100).optional(), archived: z.literal(true).optional() }), req.body);
+    const body = parse(TierBody.partial().extend({ position: z.number().int().min(1).max(100).optional(), archived: z.literal(true).optional(), pricePaise: z.number().int().min(PR.tierMinPaise).max(PR.tierMaxPaise).nullable().optional() }), req.body);
+    if (body.pricePaise !== undefined) {
+      const { member } = await requireCircle(db, id, a.userId);
+      if (member.role !== 'owner') throw forbidden('Only the circle owner can set prices.');
+    }
     await screen([body.name ?? '', body.description ?? '']);
     const [t] = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.id, tierId), eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt)));
     if (!t) throw notFound('Tier');
@@ -143,6 +192,42 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
+  /** Starts buying a tier pass. The tier is given only when a verified payment succeeds. */
+  app.post('/api/v1/circles/:id/tiers/:tierId/purchase', { config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    if (!a.emailVerified) throw forbidden('Verify your email before buying a pass.');
+    const { id, tierId } = parse(z.object({ id: z.uuid(), tierId: z.uuid() }), req.params);
+    const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().min(8).max(80) }), req.body);
+    const { member } = await requireCircle(db, id, a.userId);
+    if (isAdmin(member)) throw badRequest('Owners and moderators already see every channel here.');
+    const [t] = await db.select().from(s.circleTiers).where(and(eq(s.circleTiers.id, tierId), eq(s.circleTiers.circleId, id), isNull(s.circleTiers.archivedAt)));
+    if (!t) throw notFound('Tier');
+    if (!t.pricePaise) throw badRequest('This tier isn’t for sale — the circle owner gives it.');
+    if (!paymentsOn()) throw badRequest('Passes can be bought once payments are switched on.');
+    const [cur] = await db.select({ tierId: s.circleMemberTiers.tierId, source: s.circleMemberTiers.source, pos: s.circleTiers.position }).from(s.circleMemberTiers).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleMemberTiers.tierId))
+      .where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, a.userId), isNull(s.circleTiers.archivedAt), activeTier()));
+    if (cur && cur.source === 'assigned' && cur.pos >= t.position) throw conflict('You already have this tier or a higher one.');
+    return db.transaction(async (tx) => {
+      const [p] = await tx.insert(s.circleTierPurchases).values({ circleId: id, tierId, userId: a.userId, amountPaise: t.pricePaise! }).returning();
+      const checkout = await createPayment(ctx, tx, { userId: a.userId, purpose: 'circle_tier', purposeId: p.id, amountPaise: t.pricePaise!, idempotencyKey: `tier:${a.userId}:${idempotencyKey}` });
+      await tx.update(s.circleTierPurchases).set({ paymentId: checkout.paymentId }).where(eq(s.circleTierPurchases.id, p.id));
+      return { purchase: { id: p.id }, checkout, passDays: PR.passDays };
+    });
+  });
+
+  /** The owner's held share from tier passes. Nothing can be paid out yet. */
+  app.get('/api/v1/circles/:id/earnings', async (req) => {
+    const a = requireAuth(req);
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const { member } = await requireCircle(db, id, a.userId);
+    if (member.role !== 'owner') throw forbidden('Only the circle owner can see earnings.');
+    const purchaseIds = (await db.select({ id: s.circleTierPurchases.id }).from(s.circleTierPurchases).where(eq(s.circleTierPurchases.circleId, id))).map((r) => r.id);
+    const lines = purchaseIds.length ? await db.select().from(s.creatorLedger).where(and(inArray(s.creatorLedger.kind, ['circle_tier', 'circle_tier_refund']), inArray(s.creatorLedger.sourceId, purchaseIds))) : [];
+    const sum = (sim: boolean) => lines.filter((l) => l.simulated === sim).reduce((t, l) => ({ net: t.net + l.netPaise, fee: t.fee + l.feePaise }), { net: 0, fee: 0 });
+    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.circleTierPurchases).where(and(eq(s.circleTierPurchases.circleId, id), eq(s.circleTierPurchases.status, 'paid')));
+    return { passesSold: n, heldNetPaise: sum(false).net, platformFeePaise: sum(false).fee, simulatedNetPaise: sum(true).net, payoutsAvailable: false, note: 'Your share is held. Payouts need identity checks and a payout provider, which aren’t built yet.' };
+  });
+
   /** Give a member a tier, or clear it (tierId: null). They're told about a new tier. */
   app.put('/api/v1/circles/:id/members/:userId/tier', async (req) => {
     const a = requireAuth(req);
@@ -154,7 +239,7 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       await db.delete(s.circleMemberTiers).where(and(eq(s.circleMemberTiers.circleId, id), eq(s.circleMemberTiers.userId, userId)));
     } else {
       await checkTier(id, tierId);
-      await db.insert(s.circleMemberTiers).values({ circleId: id, userId, tierId, assignedBy: a.userId }).onConflictDoUpdate({ target: [s.circleMemberTiers.circleId, s.circleMemberTiers.userId], set: { tierId, assignedBy: a.userId, createdAt: new Date() } });
+      await db.insert(s.circleMemberTiers).values({ circleId: id, userId, tierId, assignedBy: a.userId, source: 'assigned', expiresAt: null }).onConflictDoUpdate({ target: [s.circleMemberTiers.circleId, s.circleMemberTiers.userId], set: { tierId, assignedBy: a.userId, source: 'assigned', expiresAt: null, createdAt: new Date() } });
       const [t] = await db.select({ name: s.circleTiers.name }).from(s.circleTiers).where(eq(s.circleTiers.id, tierId));
       if (userId !== a.userId) await notify(ctx, db, { userId, category: 'circles', title: `You’re now ${t.name} in ${circle.name}`, link: `/circles/${id}`, dedupeKey: `circle-tier:${id}:${userId}:${tierId}` });
     }

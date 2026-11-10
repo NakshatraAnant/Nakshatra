@@ -23,7 +23,7 @@ test('creator page: set up → list an offering → fan taps Notify me and tips 
   await a.getByRole('button', { name: 'Create my creator page' }).click();
   await expect(a.getByLabel('Earnings')).toBeVisible();
   await a.getByLabel('Offering title').fill('Monsoon zine (PDF)');
-  await a.getByLabel('Planned price in ₹ (optional)').fill('99');
+  await a.getByLabel('Price in ₹').fill('99');
   await a.getByRole('button', { name: 'List offering' }).click();
   await expect(a.getByText('0 want', { exact: false })).toBeVisible();
 

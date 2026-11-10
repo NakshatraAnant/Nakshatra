@@ -3,7 +3,7 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024 (taken with the app stopped)
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024, -0025-0026 (taken with the app stopped)
 - Gates (2026-11-07, latest): vitest 363/363; typecheck + lint clean; production build OK; Playwright 38/38 (Journey B timed out once under heavy load, passed on re-run). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
@@ -42,8 +42,18 @@
   theme studio (/theme, free): mode, 6 accent presets (each WCAG ≥4.5:1 on every surface in both schemes, unit-tested),
   text size 100/112.5/125%, soft/crisp corners, reduce motion; server accepts presets only (no custom CSS/colours);
   applied app-wide via root CSS variables, cached per device for no flash, defaults when signed out; mobile header now
-  fits at 125% text (360px no-overflow check) (0024)
-- NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), ad billing/self-serve, market payments/escrow,
-  avatar creator,
-  paid circle tiers, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: avatar creator (layered SVG parts, no uploads needed, shown wherever avatars are)
+  fits at 125% text (360px no-overflow check) (0024);
+  avatar creator (/avatar, free): 9 fixed parts, SVG drawn only from our shapes (no member text), served at
+  /api/v1/avatars/:id only while it is the member's picture, versioned URL, remove keeps the build (0025);
+  paid circle tiers: owner-only price (₹19–₹1,999), 30-day pass via payment boundary (no auto-renew, extends from
+  current end), expiry enforced in every gate, owner 85% held in ledger, refund removes pass + reverses; paid creator
+  unlocks: digital offerings with unlock text/https link shown only to creator + buyers, /unlocks page, refund removes
+  access; both closed when payments are off; fixed offering PATCH resetting price/description/status (0026);
+  revenue registry statuses corrected (duo, student, paid unlocks, circle share, contextual ads, affiliate, partner
+  offers, merch -> infrastructure)
+- NOT built (honest gaps): creator payouts + real settlement (forbidden by directive: needs KYC/payout provider);
+  market payments/escrow (needs a licensed escrow provider); ad billing/self-serve; paid event tickets (needs a decision
+  on refunds when a paid event is cancelled); creator memberships/sessions/workshops/newsletters (recurring billing /
+  scheduling); content-heavy models (programmes, workbooks, audio, packs); sponsored quizzes/quests/seasons/games,
+  promoted discovery, rewarded ads; 3D additions
+- Next exact task if continuing: decide refund policy for paid event tickets, then build them on the paid-access pattern

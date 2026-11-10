@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { rupeesLabel } from '../../shared/paidAccess';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, del, get, patch, post, put } from '../lib/api';
 import { Badge, Button, Card, Field, Input, Select, Textarea, cx } from '../components/ui/primitives';
@@ -181,7 +182,7 @@ export function CircleModeration({ circleId }: { circleId: string }) {
 
 /* ---------------- Membership tiers ---------------- */
 
-interface TiersResp { tiers: { id: string; name: string; description: string; color: string; position: number; members: number }[]; myTierId: string | null; canManage: boolean; max: number; paidNote: string }
+interface TiersResp { tiers: { id: string; name: string; description: string; color: string; position: number; members: number; pricePaise: number | null }[]; myTierId: string | null; myPassEndsAt: string | null; canManage: boolean; isOwner: boolean; max: number; paymentsAvailable: boolean; passDays: number; limits: { minPaise: number; maxPaise: number }; paidNote: string }
 const TIER_COLORS: Record<string, string> = { saffron: 'text-warning', jade: 'text-success', dusk: 'text-accent', ember: 'text-danger', monsoon: 'text-celestial' };
 
 export const useTiers = (circleId: string) => useQuery({ queryKey: ['circle-tiers', circleId], queryFn: () => get<TiersResp>(`circles/${circleId}/tiers`) });
@@ -199,14 +200,31 @@ export function TiersPanel({ circleId }: { circleId: string }) {
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['circle-tiers', circleId] }); void qc.invalidateQueries({ queryKey: ['circle', circleId] }); };
   const add = useMutation({ mutationFn: () => post(`circles/${circleId}/tiers`, { name, color }), onSuccess: () => { setName(''); refresh(); }, onError: failWith(toast) });
   const archive = useMutation({ mutationFn: (id: string) => patch(`circles/${circleId}/tiers/${id}`, { archived: true }), onSuccess: refresh, onError: failWith(toast) });
+  const nav = useNavigate();
+  const buy = useMutation({
+    mutationFn: (tierId: string) => post<{ checkout: { checkoutPath: string | null } }>(`circles/${circleId}/tiers/${tierId}/purchase`, { idempotencyKey: `tier-${tierId}-${Date.now()}` }),
+    onSuccess: (r) => { if (r.checkout.checkoutPath) nav(r.checkout.checkoutPath); else toast('Complete the payment to get your pass.', 'info'); },
+    onError: failWith(toast),
+  });
   if (!q.data || (!q.data.canManage && !q.data.tiers.length)) return null;
   const d = q.data;
+  const mine = d.tiers.find((t) => t.id === d.myTierId);
   return (
     <Card className="space-y-3" aria-label="Membership tiers">
       <h2 className="font-display text-2xl">Membership tiers</h2>
       <p className="text-sm text-fg-2">Give members a badge, and open members-only channels to a tier and everyone above it. Newer tiers sit higher.</p>
+      {mine && <p className="text-sm text-fg">You’re <TierBadge name={mine.name} color={mine.color} />{d.myPassEndsAt ? ` — your pass runs until ${new Date(d.myPassEndsAt).toLocaleDateString(undefined, { dateStyle: 'medium' })} and doesn’t renew by itself.` : '.'}</p>}
       {d.tiers.length > 0 && <ul className="divide-y divide-line">{d.tiers.map((t) => (
-        <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span><TierBadge name={t.name} color={t.color} /> <span className="text-fg-3">· {t.members} member{t.members === 1 ? '' : 's'}</span></span>{d.canManage && <Button size="sm" variant="ghost" onClick={() => archive.mutate(t.id)}>Archive</Button>}</li>
+        <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+          <span><TierBadge name={t.name} color={t.color} /> <span className="text-fg-3">· {t.members} member{t.members === 1 ? '' : 's'}{t.pricePaise ? ` · ${rupeesLabel(t.pricePaise)} for ${d.passDays} days` : ''}</span></span>
+          <span className="flex flex-wrap items-center gap-1">
+            {d.isOwner && <TierPrice circleId={circleId} tierId={t.id} pricePaise={t.pricePaise} limits={d.limits} onSaved={refresh} />}
+            {d.canManage && <Button size="sm" variant="ghost" onClick={() => archive.mutate(t.id)}>Archive</Button>}
+            {!d.canManage && t.pricePaise && (d.paymentsAvailable
+              ? <Button size="sm" loading={buy.isPending && buy.variables === t.id} onClick={() => buy.mutate(t.id)}>{d.myTierId === t.id && d.myPassEndsAt ? 'Extend pass' : 'Get pass'} — {rupeesLabel(t.pricePaise)}</Button>
+              : <span className="text-xs text-fg-3">Opens when payments are on</span>)}
+          </span>
+        </li>
       ))}</ul>}
       {d.canManage && d.tiers.length < d.max && (
         <div className="flex flex-wrap gap-2">
@@ -216,8 +234,29 @@ export function TiersPanel({ circleId }: { circleId: string }) {
         </div>
       )}
       <p className="text-xs text-fg-3">{d.paidNote}</p>
+      {d.isOwner && <TierEarnings circleId={circleId} />}
     </Card>
   );
+}
+
+function TierPrice({ circleId, tierId, pricePaise, limits, onSaved }: { circleId: string; tierId: string; pricePaise: number | null; limits: { minPaise: number; maxPaise: number }; onSaved: () => void }) {
+  const toast = useToast();
+  const [v, setV] = useState(pricePaise ? String(pricePaise / 100) : '');
+  const save = useMutation({ mutationFn: (p: number | null) => patch(`circles/${circleId}/tiers/${tierId}`, { pricePaise: p }), onSuccess: () => { onSaved(); toast('Price saved', 'success'); }, onError: failWith(toast) });
+  const paise = v.trim() ? Math.round(Number(v) * 100) : null;
+  const valid = paise === null || (paise >= limits.minPaise && paise <= limits.maxPaise);
+  return (
+    <span className="flex items-center gap-1">
+      <Input aria-label="Pass price in rupees" inputMode="decimal" placeholder="Free" className="h-8 w-20" value={v} onChange={(e) => setV(e.target.value.replace(/[^0-9.]/g, ''))} />
+      <Button size="sm" variant="ghost" disabled={!valid || paise === pricePaise} loading={save.isPending} onClick={() => save.mutate(paise)}>Set price</Button>
+    </span>
+  );
+}
+
+function TierEarnings({ circleId }: { circleId: string }) {
+  const q = useQuery({ queryKey: ['circle-earnings', circleId], queryFn: () => get<{ passesSold: number; heldNetPaise: number; simulatedNetPaise: number; note: string }>(`circles/${circleId}/earnings`) });
+  if (!q.data || !q.data.passesSold) return null;
+  return <p className="text-xs text-fg-3">{q.data.passesSold} pass{q.data.passesSold === 1 ? '' : 'es'} sold · your held share {rupeesLabel(q.data.heldNetPaise)}{q.data.simulatedNetPaise ? ` (+ ${rupeesLabel(q.data.simulatedNetPaise)} from test payments, not real money)` : ''}. {q.data.note}</p>;
 }
 
 export function AssignTier({ circleId, userId, name, current }: { circleId: string; userId: string; name: string; current: string | null }) {

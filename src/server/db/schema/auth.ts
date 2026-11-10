@@ -62,6 +62,8 @@ export const profiles = pgTable('profiles', {
   bio: text('bio').notNull().default(''),
   statusText: text('status_text').notNull().default(''),
   avatarUrl: text('avatar_url'),
+  /** Avatar creator parts (src/shared/avatar.ts); null until the member builds one. */
+  avatarConfig: jsonb('avatar_config'),
   /** Cosmic ID theme key */
   theme: text('theme').notNull().default('midnight'),
   emblem: text('emblem').notNull().default('orbit'),

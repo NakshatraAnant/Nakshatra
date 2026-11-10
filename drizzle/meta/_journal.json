@@ -176,6 +176,20 @@
       "when": 1794079131575,
       "tag": "0024_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794337924148,
+      "tag": "0025_avatar_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794338030326,
+      "tag": "0026_paid_access",
+      "breakpoints": true
     }
   ]
 }

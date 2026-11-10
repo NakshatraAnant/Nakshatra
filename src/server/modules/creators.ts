@@ -11,6 +11,7 @@ import { createPayment, registerPaymentHandlers } from '../lib/payments';
 import { blockedPhrases, screenText } from '../services/moderation';
 import { displayNames } from '../services/identity';
 import { CREATOR_CATEGORIES, CREATOR_RULES as R, OFFERING_KINDS, rupees, safeLink, tipSplit } from '../../shared/creator';
+import { PAID_RULES as PR, UNLOCK_FEE, paidSplit } from '../../shared/paidAccess';
 
 type Link = { label: string; url: string };
 
@@ -44,6 +45,40 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
       if (payment.refundedPaise >= payment.amountPaise) await tx.update(s.creatorTips).set({ status: 'refunded' }).where(eq(s.creatorTips.id, tip.id));
     },
   });
+
+  registerPaymentHandlers('creator_unlock', {
+    onSucceeded: async (c, tx, payment) => {
+      const [p] = await tx.update(s.creatorPurchases).set({ status: 'paid' }).where(and(eq(s.creatorPurchases.id, payment.purposeId), ne(s.creatorPurchases.status, 'paid'))).returning();
+      if (!p) return;
+      const simulated = payment.provider === 'dev_simulator';
+      await tx.insert(s.creatorLedger).values({ creatorId: p.creatorId, kind: 'unlock', sourceId: p.id, ...paidSplit(p.amountPaise, UNLOCK_FEE), status: 'held', simulated }).onConflictDoNothing();
+      const [o] = await tx.select({ title: s.creatorOfferings.title }).from(s.creatorOfferings).where(eq(s.creatorOfferings.id, p.offeringId));
+      await notify(c, tx, { userId: p.buyerId, category: 'social', title: `Unlocked: ${o.title}`, body: 'Open it any time from Your unlocks.', link: '/unlocks', dedupeKey: `unlock:${p.id}` });
+      await notify(c, tx, { userId: p.creatorId, category: 'social', title: `Someone unlocked “${o.title}”`, body: rupees(p.amountPaise), link: '/creator-studio', dedupeKey: `unlock-sale:${p.id}` });
+      await track(tx, p.buyerId, 'creator_unlock_purchased', { simulated });
+    },
+    onFailed: async (_c, tx, payment) => {
+      await tx.update(s.creatorPurchases).set({ status: 'failed' }).where(and(eq(s.creatorPurchases.id, payment.purposeId), eq(s.creatorPurchases.status, 'pending')));
+    },
+    onRefunded: async (_c, tx, payment, amountPaise) => {
+      const [p] = await tx.select().from(s.creatorPurchases).where(eq(s.creatorPurchases.id, payment.purposeId));
+      if (!p) return;
+      const [orig] = await tx.select().from(s.creatorLedger).where(and(eq(s.creatorLedger.kind, 'unlock'), eq(s.creatorLedger.sourceId, p.id)));
+      if (orig) {
+        const fee = Math.round((orig.feePaise * amountPaise) / orig.grossPaise);
+        await tx.insert(s.creatorLedger).values({ creatorId: p.creatorId, kind: 'unlock_refund', sourceId: p.id, grossPaise: -amountPaise, feePaise: -fee, netPaise: -(amountPaise - fee), status: 'held', simulated: orig.simulated }).onConflictDoNothing();
+      }
+      // A refund takes the unlock away.
+      if (payment.refundedPaise >= payment.amountPaise) await tx.update(s.creatorPurchases).set({ status: 'refunded' }).where(eq(s.creatorPurchases.id, p.id));
+    },
+  });
+
+  /** Offerings this member has paid to unlock (kept even if the creator archives the offering later). */
+  async function unlockedIds(userId: string, offeringIds: string[]) {
+    if (!offeringIds.length) return new Set<string>();
+    return new Set((await db.select({ id: s.creatorPurchases.offeringId }).from(s.creatorPurchases).where(and(eq(s.creatorPurchases.buyerId, userId), eq(s.creatorPurchases.status, 'paid'), inArray(s.creatorPurchases.offeringId, offeringIds)))).map((r) => r.id));
+  }
+  const buyable = (o: typeof s.creatorOfferings.$inferSelect) => o.kind === 'digital' && Boolean(o.pricePaise) && Boolean(o.unlockContent || o.unlockLink);
 
   /* ---------------- Helpers ---------------- */
 
@@ -92,7 +127,7 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
       profile: { headline: p.headline, about: p.about, categories: p.categories, links: p.links as Link[], featuredPostIds: p.featuredPostIds, tipsEnabled: p.tipsEnabled, status: p.status },
       handle: me?.handle ?? null,
       tipsAvailable: tipsAvailable(),
-      offerings: offerings.map((o) => ({ ...o, interested: interest.find((i) => i.id === o.id)?.n ?? 0 })),
+      offerings: await Promise.all(offerings.map(async (o) => ({ ...o, interested: interest.find((i) => i.id === o.id)?.n ?? 0, buyable: buyable(o), unlocks: (await db.select({ n: sql<number>`count(*)::int` }).from(s.creatorPurchases).where(and(eq(s.creatorPurchases.offeringId, o.id), eq(s.creatorPurchases.status, 'paid'))))[0].n }))),
       earnings: await earnings(a.userId),
       tips: tips.map((t) => ({ id: t.id, from: t.anonymous ? 'Someone' : (names.get(t.fromUserId)?.displayName ?? 'Member'), amountPaise: t.amountPaise, message: t.message, simulated: simulatedIds.has(t.id), createdAt: t.createdAt })),
       myPublicPosts: posts.map((x) => ({ id: x.id, kind: x.kind, preview: x.body.slice(0, 90) })),
@@ -126,7 +161,23 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
   const Offering = z.object({
     kind: z.enum(OFFERING_KINDS), title: z.string().trim().min(3).max(80), description: z.string().trim().max(600).default(''),
     pricePaise: z.number().int().min(100).max(10_000_00).nullable().default(null), status: z.enum(['draft', 'listed', 'archived']).default('draft'),
+    unlockContent: z.string().trim().max(PR.unlockContentMax).nullable().optional(), unlockLink: z.string().trim().max(500).nullable().optional(),
   });
+
+  /** Edits change only the fields sent (no defaults, so archiving never resets price or description). */
+  const OfferingPatch = z.object({
+    kind: z.enum(OFFERING_KINDS), title: z.string().trim().min(3).max(80), description: z.string().trim().max(600),
+    pricePaise: z.number().int().min(100).max(10_000_00).nullable(), status: z.enum(['draft', 'listed', 'archived']),
+    unlockContent: z.string().trim().max(PR.unlockContentMax).nullable(), unlockLink: z.string().trim().max(500).nullable(),
+  }).partial();
+
+  /** Paid unlocks are digital offerings with content or a link, priced within the unlock range. */
+  function checkUnlock(o: { kind?: string; pricePaise?: number | null; unlockContent?: string | null; unlockLink?: string | null }) {
+    if (o.unlockLink) { const safe = safeLink(o.unlockLink); if (!safe) throw badRequest('The unlock link must be a plain https link.'); o.unlockLink = safe; }
+    if (!o.unlockContent && !o.unlockLink) return;
+    if (o.kind !== 'digital') throw badRequest('Only digital offerings can be unlocked.');
+    if (!o.pricePaise || o.pricePaise < PR.unlockMinPaise || o.pricePaise > PR.unlockMaxPaise) throw badRequest(`Paid unlocks are priced from ${rupees(PR.unlockMinPaise)} to ${rupees(PR.unlockMaxPaise)}.`);
+  }
 
   async function requireCreator(userId: string) {
     const [p] = await db.select().from(s.creatorProfiles).where(eq(s.creatorProfiles.userId, userId));
@@ -143,7 +194,8 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     await requireCreator(a.userId);
     const body = parse(Offering, req.body);
-    await screen([body.title, body.description]);
+    await screen([body.title, body.description, body.unlockContent ?? '']);
+    checkUnlock(body);
     if (body.status === 'listed') await checkListedCap(a.userId);
     const [o] = await db.insert(s.creatorOfferings).values({ creatorId: a.userId, ...body }).returning();
     return reply.code(201).send({ offering: o });
@@ -153,8 +205,13 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     await requireCreator(a.userId);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
-    const body = parse(Offering.partial(), req.body);
-    await screen([body.title ?? '', body.description ?? '']);
+    const body = parse(OfferingPatch, req.body);
+    await screen([body.title ?? '', body.description ?? '', body.unlockContent ?? '']);
+    const [prev] = await db.select().from(s.creatorOfferings).where(and(eq(s.creatorOfferings.id, id), eq(s.creatorOfferings.creatorId, a.userId)));
+    if (!prev) throw notFound('Offering');
+    const merged = { ...prev, ...body };
+    checkUnlock(merged);
+    if (body.unlockLink !== undefined) body.unlockLink = merged.unlockLink;
     if (body.status === 'listed') await checkListedCap(a.userId, id);
     const [o] = await db.update(s.creatorOfferings).set(body).where(and(eq(s.creatorOfferings.id, id), eq(s.creatorOfferings.creatorId, a.userId))).returning();
     if (!o) throw notFound('Offering');
@@ -187,12 +244,17 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
     const { c, p, own } = await creatorByHandle(a.userId, handle);
     const offerings = await db.select().from(s.creatorOfferings).where(and(eq(s.creatorOfferings.creatorId, c.userId), eq(s.creatorOfferings.status, 'listed'))).orderBy(desc(s.creatorOfferings.createdAt));
     const mine = offerings.length ? (await db.select({ id: s.creatorOfferingInterests.offeringId }).from(s.creatorOfferingInterests).where(and(eq(s.creatorOfferingInterests.userId, a.userId), inArray(s.creatorOfferingInterests.offeringId, offerings.map((o) => o.id))))).map((r) => r.id) : [];
+    const owned = await unlockedIds(a.userId, offerings.map((o) => o.id));
     const wall = await db.select().from(s.creatorTips).where(and(eq(s.creatorTips.creatorId, c.userId), eq(s.creatorTips.status, 'paid'), eq(s.creatorTips.showOnWall, true), eq(s.creatorTips.anonymous, false))).orderBy(desc(s.creatorTips.createdAt)).limit(20);
     const names = await displayNames(db, wall.map((w) => w.fromUserId));
     return {
       creator: { id: c.userId, handle: p.handle, name: p.displayName, avatarUrl: p.avatarUrl, headline: c.headline, about: c.about, categories: c.categories, links: c.links as Link[], status: c.status, isMe: own },
       featured: await featuredPosts(c.userId, c.featuredPostIds),
-      offerings: offerings.map((o) => ({ id: o.id, kind: o.kind, title: o.title, description: o.description, pricePaise: o.pricePaise, interested: mine.includes(o.id) })),
+      offerings: offerings.map((o) => {
+        const open = own || owned.has(o.id);
+        // Unlock content is only ever sent to the creator and to members who paid for it.
+        return { id: o.id, kind: o.kind, title: o.title, description: o.description, pricePaise: o.pricePaise, interested: mine.includes(o.id), buyable: buyable(o) && tipsAvailable(), paidUnlock: buyable(o), owned: owned.has(o.id), unlock: open && buyable(o) ? { content: o.unlockContent, link: o.unlockLink } : null };
+      }),
       tips: { enabled: c.tipsEnabled && c.status === 'active', available: tipsAvailable(), presetsPaise: R.tipPresetsPaise, minPaise: R.tipMinPaise, maxPaise: R.tipMaxPaise, testMode: ctx.config.PAYMENT_PROVIDER === 'dev_simulator' },
       // Supporters who chose to be listed. Amounts are never shown publicly.
       supporters: wall.map((w) => ({ name: names.get(w.fromUserId)?.displayName ?? 'Member', message: w.message, createdAt: w.createdAt })),
@@ -210,6 +272,36 @@ export async function creatorRoutes(app: FastifyInstance, ctx: Ctx) {
     if (on) await db.insert(s.creatorOfferingInterests).values({ offeringId: id, userId: a.userId }).onConflictDoNothing();
     else await db.delete(s.creatorOfferingInterests).where(and(eq(s.creatorOfferingInterests.offeringId, id), eq(s.creatorOfferingInterests.userId, a.userId)));
     return { interested: on };
+  });
+
+  /** Starts a paid unlock. Access is given only when a verified payment event arrives. */
+  app.post('/api/v1/creators/:handle/offerings/:id/purchase', { config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    if (!a.emailVerified) throw forbidden('Verify your email before buying.');
+    const { handle, id } = parse(z.object({ handle: z.string().min(1).max(60), id: z.uuid() }), req.params);
+    const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().min(8).max(80) }), req.body);
+    const { c, own } = await creatorByHandle(a.userId, handle);
+    if (own) throw badRequest('This is your own offering.');
+    const [o] = await db.select().from(s.creatorOfferings).where(and(eq(s.creatorOfferings.id, id), eq(s.creatorOfferings.creatorId, c.userId), eq(s.creatorOfferings.status, 'listed')));
+    if (!o || !buyable(o)) throw notFound('Offering');
+    if (!tipsAvailable()) throw badRequest('Unlocks can be bought once payments are switched on.');
+    if ((await unlockedIds(a.userId, [o.id])).size) throw conflict('You’ve already unlocked this.');
+    return db.transaction(async (tx) => {
+      const [p] = await tx.insert(s.creatorPurchases).values({ offeringId: o.id, creatorId: c.userId, buyerId: a.userId, amountPaise: o.pricePaise! }).returning();
+      const checkout = await createPayment(ctx, tx, { userId: a.userId, purpose: 'creator_unlock', purposeId: p.id, amountPaise: o.pricePaise!, idempotencyKey: `unlock:${a.userId}:${idempotencyKey}` });
+      await tx.update(s.creatorPurchases).set({ paymentId: checkout.paymentId }).where(eq(s.creatorPurchases.id, p.id));
+      return { purchase: { id: p.id }, checkout };
+    });
+  });
+
+  /** Everything you've unlocked, with its content. */
+  app.get('/api/v1/creators/unlocks/mine', async (req) => {
+    const a = requireAuth(req);
+    const rows = await db.select({ p: s.creatorPurchases, o: s.creatorOfferings, handle: s.profiles.handle, name: s.profiles.displayName }).from(s.creatorPurchases)
+      .innerJoin(s.creatorOfferings, eq(s.creatorOfferings.id, s.creatorPurchases.offeringId)).innerJoin(s.profiles, eq(s.profiles.userId, s.creatorPurchases.creatorId))
+      .where(and(eq(s.creatorPurchases.buyerId, a.userId), eq(s.creatorPurchases.status, 'paid'))).orderBy(desc(s.creatorPurchases.createdAt));
+    const simulated = new Set(rows.length ? (await db.select({ id: s.creatorLedger.sourceId }).from(s.creatorLedger).where(and(eq(s.creatorLedger.kind, 'unlock'), eq(s.creatorLedger.simulated, true), inArray(s.creatorLedger.sourceId, rows.map((r) => r.p.id))))).map((r) => r.id) : []);
+    return { unlocks: rows.map((r) => ({ id: r.p.id, title: r.o.title, description: r.o.description, creator: { handle: r.handle, name: r.name }, amountPaise: r.p.amountPaise, simulated: simulated.has(r.p.id), content: r.o.unlockContent, link: r.o.unlockLink, unlockedAt: r.p.createdAt })) };
   });
 
   /** Starts a tip. It is only recorded as paid when a verified payment event arrives. */

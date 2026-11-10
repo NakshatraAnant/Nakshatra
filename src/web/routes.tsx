@@ -59,6 +59,7 @@ const circleMarket = () => import('./pages/circleMarket');
 const journal = () => import('./pages/journal');
 const yearReview = () => import('./pages/yearReview');
 const themeStudio = () => import('./pages/themeStudio');
+const avatarCreator = () => import('./pages/avatarCreator');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -168,6 +169,7 @@ export const router = createBrowserRouter([
           { path: '/creators', element: page(creators, 'CreatorsDirectory') },
           { path: '/creators/:handle', element: page(creators, 'CreatorPage') },
           { path: '/creator-studio', element: page(creators, 'CreatorStudio') },
+          { path: '/unlocks', element: page(creators, 'UnlocksPage') },
           { path: '/saved', element: page(collections, 'SavedPage') },
           { path: '/collections/:id', element: page(collections, 'CollectionPage') },
           { path: '/close-friends', element: page(collections, 'CloseFriendsPage') },
@@ -175,6 +177,7 @@ export const router = createBrowserRouter([
           { path: '/journal', element: page(journal, 'JournalPage') },
           { path: '/year', element: page(yearReview, 'YearReviewPage') },
           { path: '/theme', element: page(themeStudio, 'ThemeStudioPage') },
+          { path: '/avatar', element: page(avatarCreator, 'AvatarCreatorPage') },
           { path: '/orgs', element: page(orgs, 'OrgsPage') },
           { path: '/orgs/:id', element: page(orgs, 'OrgPage') },
           { path: '/org/join/:token', element: page(orgs, 'JoinOrg') },

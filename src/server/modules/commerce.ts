@@ -474,6 +474,14 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
       const [c] = await ctx.db.select({ handle: s.profiles.handle }).from(s.creatorTips).innerJoin(s.profiles, eq(s.profiles.userId, s.creatorTips.creatorId)).where(eq(s.creatorTips.id, p.purposeId));
       returnPath = c ? '/creators/' + c.handle : '/creators';
     }
+    if (p.purpose === 'creator_unlock') {
+      const [c] = await ctx.db.select({ handle: s.profiles.handle }).from(s.creatorPurchases).innerJoin(s.profiles, eq(s.profiles.userId, s.creatorPurchases.creatorId)).where(eq(s.creatorPurchases.id, p.purposeId));
+      returnPath = c ? '/creators/' + c.handle : '/unlocks';
+    }
+    if (p.purpose === 'circle_tier') {
+      const [c] = await ctx.db.select({ circleId: s.circleTierPurchases.circleId }).from(s.circleTierPurchases).where(eq(s.circleTierPurchases.id, p.purposeId));
+      returnPath = c ? '/circles/' + c.circleId : '/circles';
+    }
     if (p.purpose === 'vendor_milestone') {
       const [m] = await ctx.db.select({ projectId: s.vendorBookings.projectId }).from(s.vendorPaymentMilestones).innerJoin(s.vendorBookings, eq(s.vendorBookings.id, s.vendorPaymentMilestones.vendorBookingId)).where(eq(s.vendorPaymentMilestones.id, p.purposeId));
       if (m) returnPath = '/weddings/' + m.projectId;

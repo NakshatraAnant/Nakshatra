@@ -60,7 +60,7 @@ export const circleReportReviews = pgTable('circle_report_reviews', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('circle_report_reviews_circle_idx').on(t.circleId)]);
 
-/** Free membership tiers inside a circle (e.g. "Core crew"). Higher position = higher tier. Paid tiers are not built. */
+/** Membership tiers inside a circle (e.g. "Core crew"). Higher position = higher tier. A price makes it buyable as a pass. */
 export const circleTiers = pgTable('circle_tiers', {
   id: uuid('id').primaryKey().defaultRandom(),
   circleId: uuid('circle_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
@@ -69,15 +69,36 @@ export const circleTiers = pgTable('circle_tiers', {
   /** Badge colour token: saffron | jade | dusk | ember | monsoon */
   color: text('color').notNull().default('saffron'),
   position: integer('position').notNull(),
+  /** Price of a pass in paise (set by the owner); null = assigned by admins only. */
+  pricePaise: integer('price_paise'),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('circle_tiers_circle_idx').on(t.circleId)]);
 
-/** One tier per member per circle, assigned by circle owners/moderators. */
+/** One tier per member per circle: assigned by owners/moderators, or bought as a pass (expiresAt set). */
 export const circleMemberTiers = pgTable('circle_member_tiers', {
   circleId: uuid('circle_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   tierId: uuid('tier_id').notNull().references(() => circleTiers.id, { onDelete: 'cascade' }),
   assignedBy: uuid('assigned_by').notNull(),
+  /** assigned | purchase */
+  source: text('source').notNull().default('assigned'),
+  /** Passes end here; null = assigned without an end. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.circleId, t.userId] })]);
+
+/** A bought tier pass. Access is granted only when a verified payment succeeds. */
+export const circleTierPurchases = pgTable('circle_tier_purchases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  circleId: uuid('circle_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+  tierId: uuid('tier_id').notNull().references(() => circleTiers.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amountPaise: integer('amount_paise').notNull(),
+  /** pending | paid | failed | refunded */
+  status: text('status').notNull().default('pending'),
+  paymentId: uuid('payment_id'),
+  startsAt: timestamp('starts_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('circle_tier_purchases_user_idx').on(t.userId), index('circle_tier_purchases_circle_idx').on(t.circleId)]);

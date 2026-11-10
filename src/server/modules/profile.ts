@@ -18,6 +18,7 @@ import {
 } from '../services/identity';
 import { POLICY_VERSION } from './auth';
 import { ACCENT_KEYS, CORNER_KEYS, TEXT_SIZE_KEYS } from '../../shared/appearance';
+import { AVATAR_PART_KEYS, avatarVersion, normaliseAvatar, partKeys, renderAvatarSvg, type AvatarConfig } from '../../shared/avatar';
 
 export const BirthBody = z.object({
   fullName: z.string().trim().max(120).optional(),
@@ -185,6 +186,43 @@ export async function profileRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const rows = await ctx.db.select().from(s.profileHistory).where(eq(s.profileHistory.userId, a.userId)).orderBy(desc(s.profileHistory.createdAt)).limit(50);
     return { history: rows };
+  });
+
+  /* ---------- Avatar creator ---------- */
+
+  const AvatarBody = z.object(Object.fromEntries(AVATAR_PART_KEYS.map((p) => [p, z.enum(partKeys(p))])) as Record<string, z.ZodEnum<Record<string, string>>>).strict();
+
+  app.get('/api/v1/profile/avatar-builder', async (req) => {
+    const a = requireAuth(req);
+    const [p] = await ctx.db.select({ c: s.profiles.avatarConfig, url: s.profiles.avatarUrl }).from(s.profiles).where(eq(s.profiles.userId, a.userId));
+    return { config: p?.c ? normaliseAvatar(p.c) : null, inUse: Boolean(p?.url?.startsWith('/api/v1/avatars/')) };
+  });
+
+  /** Saves the built avatar and makes it your picture (replacing any uploaded photo). */
+  app.put('/api/v1/profile/avatar-builder', { config: { rateLimit: { max: 30, timeWindow: '10 minutes' } } }, async (req) => {
+    const a = requireAuth(req);
+    const config = parse(AvatarBody, req.body) as unknown as AvatarConfig;
+    const avatarUrl = `/api/v1/avatars/${a.userId}?v=${avatarVersion(config)}`;
+    await ctx.db.update(s.profiles).set({ avatarConfig: config, avatarUrl, updatedAt: new Date() }).where(eq(s.profiles.userId, a.userId));
+    await track(ctx.db, a.userId, 'avatar_built', {});
+    return { config, avatarUrl };
+  });
+
+  /** Removes your picture (built or uploaded); your built avatar is kept so you can switch it back on. */
+  app.delete('/api/v1/profile/avatar', async (req) => {
+    const a = requireAuth(req);
+    await ctx.db.update(s.profiles).set({ avatarUrl: null, updatedAt: new Date() }).where(eq(s.profiles.userId, a.userId));
+    return { ok: true };
+  });
+
+  /** A member's built avatar as an image — only while it is their picture. Drawn from fixed parts only. */
+  app.get('/api/v1/avatars/:id', { config: { rateLimit: { max: 600, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const { id } = parse(z.object({ id: z.uuid() }), req.params);
+    const [p] = await ctx.db.select({ c: s.profiles.avatarConfig, url: s.profiles.avatarUrl }).from(s.profiles).where(eq(s.profiles.userId, id));
+    if (!p?.c || !p.url?.startsWith(`/api/v1/avatars/${id}`)) throw notFound('Avatar');
+    return reply.header('content-type', 'image/svg+xml; charset=utf-8').header('x-content-type-options', 'nosniff')
+      .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'").header('cache-control', 'public, max-age=86400')
+      .send(renderAvatarSvg(normaliseAvatar(p.c)));
   });
 
   app.post('/api/v1/profile/avatar', async (req) => {
