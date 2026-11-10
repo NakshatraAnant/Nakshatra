@@ -76,6 +76,8 @@ export const profiles = pgTable('profiles', {
   fieldVisibility: jsonb('field_visibility').notNull().default({}),
   language: text('language').notNull().default('en'),
   colorScheme: text('color_scheme').notNull().default('system'),
+  /** Theme studio: { accent, textSize, corners } from the safe presets in src/shared/appearance.ts. */
+  appearance: jsonb('appearance').notNull().default({}),
   reducedMotion: boolean('reduced_motion').notNull().default(false),
   preferredSystem: text('preferred_system').notNull().default('vedic'),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),

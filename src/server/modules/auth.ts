@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
+import { normaliseAppearance } from '../../shared/appearance';
 import {
   DUMMY_HASH, decryptField, encryptField, generateTotpSecret, hashPassword, randomToken, sha256, verifyPassword, verifyTotp,
 } from '../lib/crypto';
@@ -80,7 +81,7 @@ export async function meFor(ctx: Ctx, userId: string) {
     onboardingComplete: Boolean(p?.onboardingCompletedAt),
     profile: p ? {
       handle: p.handle, displayName: p.displayName, fullName: p.fullName, avatarUrl: p.avatarUrl, theme: p.theme, emblem: p.emblem,
-      background: p.background, language: p.language, colorScheme: p.colorScheme, reducedMotion: p.reducedMotion,
+      background: p.background, language: p.language, colorScheme: p.colorScheme, appearance: normaliseAppearance(p.appearance), reducedMotion: p.reducedMotion,
       preferredSystem: p.preferredSystem, visibility: p.visibility,
     } : null,
   };

@@ -17,6 +17,7 @@ import {
   type FieldVis,
 } from '../services/identity';
 import { POLICY_VERSION } from './auth';
+import { ACCENT_KEYS, CORNER_KEYS, TEXT_SIZE_KEYS } from '../../shared/appearance';
 
 export const BirthBody = z.object({
   fullName: z.string().trim().max(120).optional(),
@@ -45,6 +46,7 @@ const ProfileBody = z.object({
   fieldVisibility: z.record(z.string(), z.enum(['public', 'connections', 'private'])),
   language: z.enum(['en', 'hi']),
   colorScheme: z.enum(['system', 'dark', 'light']),
+  appearance: z.object({ accent: z.enum(ACCENT_KEYS), textSize: z.enum(TEXT_SIZE_KEYS), corners: z.enum(CORNER_KEYS) }).strict(),
   reducedMotion: z.boolean(),
   preferredSystem: z.enum(['vedic', 'western']),
 }).partial();
@@ -175,7 +177,7 @@ export async function profileRoutes(app: FastifyInstance, ctx: Ctx) {
     if (Object.keys(changes).length) {
       await ctx.db.insert(s.profileHistory).values({ userId: a.userId, changes: Object.fromEntries(Object.keys(changes).map((k) => [k, { from: (before as Record<string, unknown>)[k], to: changes[k] }])) });
     }
-    if (changes.theme || changes.emblem) await evaluateAchievements(ctx, ctx.db, a.userId, ['theme_customised']);
+    if (changes.theme || changes.emblem || changes.appearance) await evaluateAchievements(ctx, ctx.db, a.userId, ['theme_customised']);
     return { profile: p };
   });
 

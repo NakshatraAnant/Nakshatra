@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { get } from './api';
 import { LoadingBlock } from '../components/ui/feedback';
+import { DEFAULT_APPEARANCE, appearanceVars, normaliseAppearance, type Appearance } from '../../shared/appearance';
 
 export interface Me {
   id: string;
@@ -17,7 +18,7 @@ export interface Me {
   onboardingComplete: boolean;
   profile: {
     handle: string; displayName: string; fullName: string | null; avatarUrl: string | null; theme: string; emblem: string; background: string;
-    language: 'en' | 'hi'; colorScheme: 'system' | 'dark' | 'light'; reducedMotion: boolean; preferredSystem: 'vedic' | 'western'; visibility: string;
+    language: 'en' | 'hi'; colorScheme: 'system' | 'dark' | 'light'; appearance: Appearance; reducedMotion: boolean; preferredSystem: 'vedic' | 'western'; visibility: string;
   } | null;
 }
 
@@ -36,15 +37,20 @@ export const isStaff = (me: Me | null | undefined) => Boolean(me?.roles.some((r)
 export function usePreferenceEffects(me: Me | null | undefined) {
   useEffect(() => {
     const scheme = me?.profile?.colorScheme ?? (localStorage.getItem('nk_scheme') as Me['profile'] extends null ? never : string | null) ?? 'system';
+    // While the session loads, reuse this device's last look to avoid a flash; signed out means the default look.
+    const appearance = me === undefined ? cachedAppearance() : normaliseAppearance(me?.profile?.appearance);
+    if (me?.profile) try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)); } catch { /* storage unavailable */ }
     const apply = () => {
       const dark = scheme === 'dark' || (scheme === 'system' && !window.matchMedia('(prefers-color-scheme: light)').matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      const el = document.documentElement;
+      el.dataset.theme = dark ? 'dark' : 'light';
+      for (const [k, v] of Object.entries(appearanceVars(appearance, dark ? 'dark' : 'light'))) el.style.setProperty(k, v);
     };
     apply();
     const mq = window.matchMedia('(prefers-color-scheme: light)');
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
-  }, [me?.profile?.colorScheme]);
+  }, [me === undefined, me?.profile?.colorScheme, me?.profile?.appearance?.accent, me?.profile?.appearance?.textSize, me?.profile?.appearance?.corners]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const reduced = me?.profile?.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     document.documentElement.dataset.motion = reduced ? 'reduced' : 'full';
@@ -52,6 +58,11 @@ export function usePreferenceEffects(me: Me | null | undefined) {
   useEffect(() => {
     document.documentElement.lang = me?.profile?.language ?? 'en';
   }, [me?.profile?.language]);
+}
+
+const APPEARANCE_KEY = 'nk_appearance';
+function cachedAppearance(): Appearance {
+  try { return normaliseAppearance(JSON.parse(localStorage.getItem(APPEARANCE_KEY) ?? 'null')); } catch { return DEFAULT_APPEARANCE; }
 }
 
 export function prefersReducedMotion(): boolean {

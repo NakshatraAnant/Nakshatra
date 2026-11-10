@@ -3,7 +3,7 @@ import { quickUser } from './helpers';
 
 const WIDTHS = [360, 390, 430, 768, 1024, 1280, 1440];
 const PUBLIC = ['/', '/personality', '/signin', '/legal/privacy'];
-const MEMBER = ['/home', '/explore', '/create', '/circles', '/play', '/identity', '/progress', '/settings/security', '/thoughts', '/play/tournaments', '/play/leaderboard', '/creators', '/creator-studio', '/journal', '/year'];
+const MEMBER = ['/home', '/explore', '/create', '/circles', '/play', '/identity', '/progress', '/settings/security', '/thoughts', '/play/tournaments', '/play/leaderboard', '/creators', '/creator-studio', '/journal', '/year', '/theme'];
 
 async function overflow(page: Page, path: string) {
   await page.goto(path);

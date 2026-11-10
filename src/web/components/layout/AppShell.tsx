@@ -41,6 +41,7 @@ const GROUPS: { label: string; items: NavItem[]; labs?: boolean }[] = [
     { to: '/progress', key: 'nav.progress', icon: 'rewards' },
     { to: '/journal', key: 'nav.journal', icon: 'edit' },
     { to: '/year', key: 'nav.year', icon: 'star' },
+    { to: '/theme', key: 'nav.theme', icon: 'sparkle' },
     { to: '/thoughts', key: 'nav.thoughts', icon: 'social', pkg: 'network' },
     { to: '/saved', key: 'nav.saved', icon: 'bookmark' },
     { to: '/close-friends', key: 'nav.closeFriends', icon: 'users' },
@@ -162,7 +163,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 flex h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-md md:px-8" style={{ zIndex: 'var(--z-nav)' as never }}>
-          <Link to="/home" className="flex items-center gap-2 md:hidden" aria-label="Nakshatra home"><Logo size={28} /><span className="font-display text-2xl">Nakshatra</span></Link>
+          <Link to="/home" className="flex min-w-0 items-center gap-2 md:hidden" aria-label="Nakshatra home"><Logo size={28} /><span className="truncate font-display text-2xl">Nakshatra</span></Link>
           <form role="search" className="hidden max-w-md flex-1 md:block" onSubmit={(e) => { e.preventDefault(); if (q.trim()) nav(`/search?q=${encodeURIComponent(q.trim())}`); }}>
             <label className="relative block">
               <span className="sr-only">{t('nav.search')}</span>
@@ -170,7 +171,7 @@ export function AppShell() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people, Thought Drops, circles…" className="h-10 w-full rounded-full border border-line bg-surface-2 pl-9 pr-4 text-sm placeholder:text-fg-3 focus:border-accent/60" />
             </label>
           </form>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <IconButton icon="search" label={t('nav.search')} className="md:hidden" onClick={() => nav('/search')} />
             <IconButton icon="menu" label={t('nav.more')} className="md:hidden" aria-haspopup="dialog" onClick={() => setMore(true)} />
             {mods.enabled('messages') && <Link to="/messages" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden" aria-label={`${t('nav.messages')}${counts.messages ? `, ${counts.messages} unread` : ''}`}>

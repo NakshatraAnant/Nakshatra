@@ -3,7 +3,7 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023 (taken with the app stopped)
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024 (taken with the app stopped)
 - Gates (2026-11-07, latest): vitest 363/363; typecheck + lint clean; production build OK; Playwright 38/38 (Journey B timed out once under heavy load, passed on re-run). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
@@ -38,8 +38,12 @@
   moods, journal days, drops, events, games); data export now covers all features added in this directive (0022);
   year in review (/year, module yearReview on): own-data recap per year since joining, month activity, longest run, busiest
   month, true highlights only (no comparisons); moods/journal private and refused on cards; consented share cards (/y/:slug)
-  snapshot only ticked facts computed by the server, optional name, noindex, views, switch off; export + deletion (0023)
+  snapshot only ticked facts computed by the server, optional name, noindex, views, switch off; export + deletion (0023);
+  theme studio (/theme, free): mode, 6 accent presets (each WCAG ≥4.5:1 on every surface in both schemes, unit-tested),
+  text size 100/112.5/125%, soft/crisp corners, reduce motion; server accepts presets only (no custom CSS/colours);
+  applied app-wide via root CSS variables, cached per device for no flash, defaults when signed out; mobile header now
+  fits at 125% text (360px no-overflow check) (0024)
 - NOT built (honest gaps): creator payouts/paid offerings (memberships, unlocks, bundles, sessions), ad billing/self-serve, market payments/escrow,
-  theme studio/avatar,
+  avatar creator,
   paid circle tiers, 3D additions; most of the 50+50 lists
-- Next exact task if continuing: theme studio (member-chosen app/circle themes from safe token presets), then avatar creator
+- Next exact task if continuing: avatar creator (layered SVG parts, no uploads needed, shown wherever avatars are)

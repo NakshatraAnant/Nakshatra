@@ -58,6 +58,7 @@ const orgs = () => import('./pages/orgs');
 const circleMarket = () => import('./pages/circleMarket');
 const journal = () => import('./pages/journal');
 const yearReview = () => import('./pages/yearReview');
+const themeStudio = () => import('./pages/themeStudio');
 const circles = () => import('./pages/circles');
 const play = () => import('./pages/play');
 const home = () => import('./pages/home');
@@ -173,6 +174,7 @@ export const router = createBrowserRouter([
           { path: '/perks', element: page(perks, 'PerksPage') },
           { path: '/journal', element: page(journal, 'JournalPage') },
           { path: '/year', element: page(yearReview, 'YearReviewPage') },
+          { path: '/theme', element: page(themeStudio, 'ThemeStudioPage') },
           { path: '/orgs', element: page(orgs, 'OrgsPage') },
           { path: '/orgs/:id', element: page(orgs, 'OrgPage') },
           { path: '/org/join/:token', element: page(orgs, 'JoinOrg') },
