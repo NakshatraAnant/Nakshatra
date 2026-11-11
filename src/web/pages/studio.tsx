@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, get, patch, post } from '../lib/api';
@@ -6,13 +6,12 @@ import { useMe } from '../lib/session';
 import { Badge, Button, ButtonLink, Card, Field, Input, PageHeader, Select, cx } from '../components/ui/primitives';
 import { Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
-import { ArchetypeArt, Art, ResponsiveArt } from '../components/visual';
+import { Art, ResponsiveArt } from '../components/visual';
 import { clearPendingAnswers, renderPersonaCard, savePendingAnswers, type Persona } from '../lib/persona';
 import { ARCHETYPE_VISUALS, archetypeAccent, archetypeArt, cardStyleFrame, envArt } from '../lib/visual';
 import { publicEvent, shareOrDownload } from '../lib/cosmic';
 import { ShareLinkPanel } from './share';
-
-const ArchetypeAura3D = lazy(() => import('../three/scenes').then((m) => ({ default: m.ArchetypeAura3D })));
+import { DimensionExplorer, RevealTheatre } from '../components/IdentityWorld';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
@@ -134,25 +133,11 @@ const CONFIDENCE: Record<string, string> = { high: 'Clear match', medium: 'Good 
  * The accent colours only this archetype's own surfaces (sigil plate, trait chips).
  */
 export function PersonaResult({ persona, actions }: { persona: Persona; style?: string; actions?: React.ReactNode }) {
-  const scores = useMemo(() => Object.fromEntries(persona.dimensions.map((d) => [d.key, d.score])), [persona]);
   const accent = archetypeAccent(persona.key);
   useEffect(() => { publicEvent('result_viewed'); }, [persona.key, persona.takenAt]);
   return (
     <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,420px)_1fr]" aria-labelledby="persona-name">
-      <div className="relative mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-[var(--radius-xl)] border border-line">
-        {(() => {
-          const envArtwork = <ResponsiveArt landscape={envArt('identity-reveal', 'landscape')} portrait={envArt('identity-reveal', 'portrait')} landscapePosition="50% 50%" portraitPosition="50% 40%" eager />;
-          // The 3D aura is drawn from this result's own five dimension scores; the 2D art stays as the fallback.
-          return (
-            <div className="reveal-env absolute inset-0">
-              <Suspense fallback={envArtwork}>
-                <ArchetypeAura3D accent={accent} scores={persona.dimensions.map((d) => d.score)} seed={persona.key.length * 97 + persona.dimensions.length} label={`${persona.name}: rings sized by your five dimension scores`} fallback={envArtwork} />
-              </Suspense>
-            </div>
-          );
-        })()}
-        <div className="reveal-sigil absolute inset-[14%]"><ArchetypeArt archetypeKey={persona.key} scores={scores} eager /></div>
-      </div>
+      <RevealTheatre persona={persona} />
       <div className="reveal-rest-wrap">
         <div className="reveal-rest flex flex-wrap items-center gap-2">
           <Badge tone="accent">Calculated from your answers</Badge>
@@ -275,6 +260,7 @@ export function IdentityStudio() {
       ) : (
         <div className="space-y-8">
           <PersonaResult persona={d.persona} style={d.cardStyle} actions={<div className="space-y-4"><PersonaShare persona={d.persona} style={d.cardStyle} labels={d.labels} /><Button variant="ghost" size="sm" onClick={() => setRetake(true)}>Retake assessment</Button></div>} />
+          <DimensionExplorer persona={d.persona} />
           {params.get('welcome') === '1' && (
             <Card className="flex flex-wrap items-center justify-between gap-4 border-accent/40" role="note" aria-labelledby="first-step">
               <div>

@@ -6,6 +6,7 @@ import { useToast } from '../components/ui/overlays';
 import { ProgressBar, useCelebrate } from '../components/motion';
 import { levelBadge, achievementArt } from '../lib/visual';
 import { SponsoredChallenges } from '../components/SponsoredExtras';
+import { QuestConstellation } from '../components/IdentityWorld';
 
 interface Step { metric: string; target: number; label: string; value: number }
 interface Quest { key: string; period: 'daily' | 'weekly' | 'once' | 'season'; category: string; title: string; description: string; xp: number; steps: Step[]; complete: boolean; claimed: boolean; claimable: boolean; resetsAt: string | null }
@@ -151,6 +152,7 @@ export function ProgressPage() {
         const groups: [string, Quest[]][] = [['Today', p.quests.filter((x) => x.period === 'daily')], ['This week', p.quests.filter((x) => x.period === 'weekly')], ['Explore', p.quests.filter((x) => x.period === 'once')]];
         return (
           <>
+            <QuestConstellation quests={p.quests} />
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="flex items-center gap-4">
                 <img src={levelBadge(p.level.level)} alt="" className="h-14 w-14" />

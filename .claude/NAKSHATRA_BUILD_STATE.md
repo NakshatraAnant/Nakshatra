@@ -79,3 +79,18 @@
   it is the intended PRODUCTION database (app schema "nakshatra", 22 legacy prototype tables in public). It is
   hibernated: every SQL/list/advisor call timed out, so schema, migration history, RLS and storage could NOT be audited.
   Nothing was changed. "project-atlas" belongs to ATLAS and was not touched.
+- 3D identity universe, batch 1 (2026-11-11, Fable 5.2): graphics quality profiles (auto/eco/balanced/high/ultra, per
+  device, src/web/three/quality.ts) honoured by the shared Scene3D host; 24 data-driven archetype worlds
+  (archetypeWorlds.ts: unique form+build per archetype, unit-tested); one identity scene engine (identity.tsx: five
+  dimension rings from real scores, archetype shell around the sigil art, satellites/particles, blend companion sized
+  by stored blend weight, deterministic reveal timeline); Reveal Theatre with Skip/Replay (plays once per result),
+  Dimension explorer on /identity, Home identity world, SVG Quest constellation on /progress, CSS motion presets
+  (m-enter/reveal/float/pulse/glow/success/error/hover). Scene stages are always dark-ink. No-WebGL e2e passes.
+  Gates: vitest 405/405; Playwright full run 44/46, the 2 failures (Theme studio overflow at 360px from the new
+  graphics control) fixed and those specs + widths re-run green; full suite not re-run after that one-component fix.
+  Measured: identity scene chunk 7.3 kB (3.2 kB gz), page wrapper 23 kB, three.js stays in its own lazy 704 kB chunk.
+- 3D NOT built yet: 3D avatar/rig system, profile worlds, constellation discovery, compatibility visualiser, circle
+  worlds/tier visuals, game hub/tournament arena, achievement gallery upgrades, seasonal universe, thought-drop/reaction
+  effects, cinematic year-in-review, journal atmosphere, creator stage, product viewer changes, sound, WebGPU path,
+  GLB/KTX2 pipeline (no model assets exist), FPS/Core Web Vitals measurements on real devices.
+- Next exact task if continuing 3D: profile world + achievement gallery on the identity engine, then circle worlds.

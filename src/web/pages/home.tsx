@@ -13,6 +13,7 @@ import { Composer } from './thoughts';
 import type { Persona } from '../lib/persona';
 import { VibeCheckIn, type Progress } from './progress';
 import { ProgressBar } from '../components/motion';
+import { HomeWorld } from '../components/IdentityWorld';
 
 interface Prompt { id: string; text: string; options: { id: string; label: string }[] | null }
 interface PersonalRitual { key: string; title: string; description: string; response: 'choice' | 'text' | 'done'; maxLength?: number; visibility: string; prompt: Prompt; myResponse: Record<string, unknown> | null; results: { a: number; b: number; total: number } | null }
@@ -171,6 +172,8 @@ export function HomePage() {
       </header>
 
       <NextStep hasPersona={!!p} loaded={!!id.data && !!circles.data} circleCount={circles.data?.circles.length ?? 0} onStartCircle={() => setCreating(true)} />
+
+      {p && <HomeWorld persona={p} />}
 
       <TodayRituals />
       {p && <HomeProgress />}

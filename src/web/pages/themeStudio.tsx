@@ -3,6 +3,7 @@ import { ApiError, patch } from '../lib/api';
 import { useMe, type Me } from '../lib/session';
 import { Badge, Button, Card, PageHeader, Switch, cx } from '../components/ui/primitives';
 import { Segmented, useToast } from '../components/ui/overlays';
+import { GraphicsQualitySetting } from '../components/IdentityWorld';
 import { ACCENTS, CORNERS, DEFAULT_APPEARANCE, TEXT_SIZES, normaliseAppearance, type Appearance } from '../../shared/appearance';
 
 type Prefs = { colorScheme?: 'system' | 'dark' | 'light'; appearance?: Appearance; reducedMotion?: boolean };
@@ -57,6 +58,7 @@ export function ThemeStudioPage() {
             <h2 className="text-sm font-semibold text-fg">Corners</h2>
             <Segmented label="Corners" value={a.corners} onChange={(v) => set({ corners: v })} options={CORNERS.map((c) => ({ value: c.key, label: c.label }))} />
           </section>
+          <GraphicsQualitySetting />
           <Switch label="Reduce motion" description="Turns off 3D animation and transitions everywhere." checked={me.profile.reducedMotion} onChange={(v) => save.mutate({ reducedMotion: v })} />
           <Button variant="ghost" size="sm" disabled={JSON.stringify(a) === JSON.stringify(DEFAULT_APPEARANCE)} onClick={() => save.mutate({ appearance: DEFAULT_APPEARANCE })}>Reset to the default look</Button>
         </Card>

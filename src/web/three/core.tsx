@@ -4,6 +4,7 @@ import { AdaptiveDpr, Html, PerformanceMonitor } from '@react-three/drei';
 import type { ComponentProps } from 'react';
 import { prefersReducedMotion } from '../lib/session';
 import { reportClientError } from '../lib/api';
+import { getGraphicsLevel, onGraphicsChange, profileFor } from './quality';
 
 /** Performance budget for all scenes (documented in docs/3D_EXPERIENCE_SPECIFICATION.md). */
 /**
@@ -72,7 +73,7 @@ function useOnScreen<T extends Element>(): [React.RefObject<T | null>, boolean] 
 }
 
 export interface SceneProps extends Omit<CanvasProps, 'children'> {
-  children: (q: { quality: Quality; reducedMotion: boolean }) => ReactNode;
+  children: (q: { quality: Quality; reducedMotion: boolean; density: number }) => ReactNode;
   fallback: ReactNode;
   label: string;
   className?: string;
@@ -88,19 +89,24 @@ export interface SceneProps extends Omit<CanvasProps, 'children'> {
  */
 export function Scene3D({ children, fallback, label, className, disabled, camera, ...rest }: SceneProps) {
   const [ref, visible] = useOnScreen<HTMLDivElement>();
-  const [quality, setQuality] = useState<Quality>(() => initialQuality());
+  const [level, setLevel] = useState(() => getGraphicsLevel());
+  useEffect(() => onGraphicsChange(() => setLevel(getGraphicsLevel())), []);
+  const profile = profileFor(level);
+  const [quality, setQuality] = useState<Quality>(() => profile.tier ?? initialQuality());
+  useEffect(() => { setQuality(profile.tier ?? initialQuality()); }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
   const [contextLost, setContextLost] = useState(false);
   const overlay = useRef<HTMLDivElement>(null);
-  const reduced = prefersReducedMotion();
+  // Eco draws on demand, exactly like reduced motion: a still scene with no idle GPU work.
+  const reduced = prefersReducedMotion() || profile.onDemand;
   // GPU resets, driver crashes or too many contexts: switch to the 2D view instead of a frozen canvas.
   if (disabled || !webglAvailable() || contextLost) return <>{fallback}</>;
   return (
-    <div ref={ref} className={className} role="group" aria-roledescription="3D scene" aria-label={label}>
+    <div ref={ref} className={className} role="group" aria-roledescription="3D scene" aria-label={label} data-scene-quality={quality} data-scene-level={level}>
       <OverlayCtx.Provider value={overlay}>
       <div className="relative h-full w-full">
       <SceneErrorBoundary fallback={fallback}>
         <Canvas
-          dpr={[1, BUDGET.maxDpr]}
+          dpr={[1, profile.maxDpr]}
           frameloop={!visible ? 'never' : reduced ? 'demand' : 'always'}
           gl={{ antialias: quality !== 'low', powerPreference: 'high-performance', alpha: true }}
           camera={camera ?? { position: [0, 0, 8], fov: 50 }}
@@ -113,9 +119,9 @@ export function Scene3D({ children, fallback, label, className, disabled, camera
           }}
           {...rest}
         >
-          <PerformanceMonitor onDecline={() => setQuality((q) => (q === 'high' ? 'medium' : 'low'))} flipflops={3} />
+          {profile.adaptive && <PerformanceMonitor onDecline={() => setQuality((q) => (q === 'high' ? 'medium' : 'low'))} flipflops={3} />}
           <AdaptiveDpr pixelated={false} />
-          <Suspense fallback={null}>{children({ quality, reducedMotion: reduced })}</Suspense>
+          <Suspense fallback={null}>{children({ quality, reducedMotion: reduced, density: profile.density })}</Suspense>
         </Canvas>
       </SceneErrorBoundary>
       <div ref={overlay} className="pointer-events-none absolute inset-0 overflow-hidden" />

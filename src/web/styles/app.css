@@ -329,3 +329,26 @@ dialog::backdrop { background: rgb(7 8 26 / 0.65); backdrop-filter: blur(4px); }
   html:not([data-motion='reduced']) .motion-press { transition: transform 120ms var(--ease-standard); }
   html:not([data-motion='reduced']) .motion-press:active { transform: scale(0.97); }
 }
+
+/* ---------- Motion presets (motion-v2) ----------
+ * One vocabulary for interface motion: add a class, get the house timing. 3D scenes animate in their own render
+ * loop; these are for ordinary DOM. Everything here is disabled when motion is reduced. */
+@keyframes m-float { 50% { transform: translateY(-4px); } }
+@keyframes m-pulse { 50% { opacity: 0.55; } }
+@keyframes m-glow { 50% { box-shadow: 0 0 0 6px rgb(from var(--accent) r g b / 0.14); } }
+@keyframes m-ring { from { opacity: 0.9; transform: scale(0.7); } to { opacity: 0; transform: scale(1.6); } }
+@keyframes m-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.quest-ring { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .m-enter { animation: art-rise var(--dur-base) var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-reveal { animation: art-pop 600ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-fade { animation: art-fade var(--dur-base) var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .m-float { animation: m-float 5s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-pulse { animation: m-pulse 2.4s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-glow { animation: m-glow 2.4s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-success { animation: art-pop 420ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-error { animation: m-shake 280ms var(--ease-standard) 1; }
+  html:not([data-motion='reduced']) .m-hover { transition: transform var(--dur-fast) var(--ease-standard); }
+  html:not([data-motion='reduced']) .m-hover:hover { transform: translateY(-2px); }
+  html:not([data-motion='reduced']) .quest-ring { animation: m-ring 1.8s var(--ease-standard) infinite; }
+}
