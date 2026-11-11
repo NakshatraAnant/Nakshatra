@@ -94,3 +94,10 @@
   effects, cinematic year-in-review, journal atmosphere, creator stage, product viewer changes, sound, WebGPU path,
   GLB/KTX2 pipeline (no model assets exist), FPS/Core Web Vitals measurements on real devices.
 - Next exact task if continuing 3D: profile world + achievement gallery on the identity engine, then circle worlds.
+
+## 3D batch 2 (profile world + achievement gallery)
+- src/web/three/gallery.tsx: AchievementGallery3D (28 medallions on one carousel, shared geometry/materials, selection turns it to the front).
+- src/web/components/Worlds.tsx: ProfileWorld (on /u/:handle, data only from identity/u/:handle so visibility, blocks and the persona field setting apply) and AchievementGallery (on /progress, replaces the earned-only list; list drives the scene, works without WebGL).
+- e2e/z6-identity-universe.spec.ts: third test covers both plus the privacy case (world disappears for a visitor when persona is set to private).
+- Gates: vitest 405/405, Playwright 47/47 (full run), typecheck/lint/build clean. Gallery camera framing was adjusted after that run (constants only).
+- Next exact task if continuing 3D: circle worlds (portal + tier visuals), then constellation discovery and compatibility visualiser.

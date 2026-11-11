@@ -83,3 +83,51 @@ test('identity universe without WebGL: every experience still works from the pag
   await w.assertClean();
   await ctx.close();
 });
+
+test('profile world and achievement gallery: shown from real data, usable from the page, hidden when the archetype is hidden', async ({ page, browser }) => {
+  const w = watchErrors(page);
+  const { handle } = await quickUser(page, 'Worldly');
+  await takeAssessment(page);
+
+  await page.goto('/u/' + handle);
+  const world = page.getByTestId('profile-world');
+  await expect(world).toBeVisible();
+  await expect(world.getByText('Your identity world')).toBeVisible();
+  await expect(world.getByRole('link', { name: /Explore your five dimensions/ })).toBeVisible();
+
+  // Achievement gallery: every achievement is in the list; picking one explains it.
+  await page.goto('/progress');
+  const gallery = page.getByLabel('Achievement gallery');
+  await expect(gallery).toBeVisible();
+  await expect(gallery.getByRole('button')).toHaveCount(28);
+  const scholar = gallery.getByRole('button', { name: /Scholar/ });
+  await scholar.click();
+  await expect(scholar).toHaveAttribute('aria-pressed', 'true');
+  await expect(gallery.getByRole('status')).toContainText('Completed five lessons.');
+  await expect(gallery.getByRole('status')).toContainText('Not earned yet.');
+
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const path of ['/u/' + handle, '/progress']) {
+    await page.goto(path);
+    await page.waitForLoadState('networkidle');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), path + ' overflows at 360px').toBeLessThanOrEqual(1);
+  }
+
+  // Privacy: another person sees the world only while the archetype is visible to them.
+  await api(page, 'PATCH', 'profile', { visibility: 'public', fieldVisibility: { persona: 'public' } });
+  const ctx = await browser.newContext();
+  const other = await ctx.newPage();
+  const w2 = watchErrors(other);
+  await quickUser(other, 'Visitor');
+  await other.goto('/u/' + handle);
+  await expect(other.getByTestId('profile-world')).toBeVisible();
+  await expect(other.getByTestId('profile-world').getByText('Worldly’s identity world')).toBeVisible();
+  await api(page, 'PATCH', 'profile', { fieldVisibility: { persona: 'private' } });
+  await other.reload();
+  await expect(other.getByRole('heading', { name: 'Worldly' })).toBeVisible();
+  await other.waitForLoadState('networkidle');
+  await expect(other.getByTestId('profile-world')).toHaveCount(0);
+  await w2.assertClean();
+  await ctx.close();
+  await w.assertClean();
+});

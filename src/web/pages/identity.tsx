@@ -15,6 +15,7 @@ import { CosmicSigil } from '../components/CosmicSigil';
 import { ShareCardActions } from './discover';
 import type { CosmicIdentity } from '../lib/cosmic';
 import { ProfileCollections } from './collections';
+import { ProfileWorld } from '../components/Worlds';
 
 const CosmicIdScene = lazy(() => import('../three/scenes').then((m) => ({ default: m.CosmicIdScene })));
 
@@ -357,6 +358,7 @@ export function PublicProfile() {
             </>)}
           </div>
         </Card>
+        {!p.limited && <ProfileWorld handle={p.handle} self={p.viewer === 'self'} />}
         {!p.limited && <ProfileCollections userId={p.userId} />}
         <ReportDialog open={reportOpen} onClose={() => setReportOpen(false)} targetType="user" targetId={p.userId} />
       </div>

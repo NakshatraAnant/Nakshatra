@@ -4,7 +4,8 @@ import { Badge, Button, Card, PageHeader, cx } from '../components/ui/primitives
 import { QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { ProgressBar, useCelebrate } from '../components/motion';
-import { levelBadge, achievementArt } from '../lib/visual';
+import { levelBadge } from '../lib/visual';
+import { AchievementGallery } from '../components/Worlds';
 import { SponsoredChallenges } from '../components/SponsoredExtras';
 import { QuestConstellation } from '../components/IdentityWorld';
 
@@ -112,7 +113,8 @@ function InventoryPanel() {
   const q = useQuery({ queryKey: ['inventory'], queryFn: () => get<Inventory>('progress/inventory') });
   return (
     <QueryState q={q}>{(d) => (
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
+        <AchievementGallery achievements={d.achievements} />
         <Card>
           <h2 className="font-display text-2xl">Collection</h2>
           <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -122,18 +124,6 @@ function InventoryPanel() {
                 <p className="text-xs capitalize text-fg-3">{i.kind}{i.unlocked ? ` · ${i.source}` : ' · locked'}</p>
               </li>
             ))}
-          </ul>
-        </Card>
-        <Card>
-          <h2 className="font-display text-2xl">Achievements</h2>
-          <ul className="mt-3 space-y-2">
-            {d.achievements.filter((a) => a.earnedAt).map((a) => (
-              <li key={a.key} className="flex items-center gap-3 text-sm">
-                {achievementArt(a.key) ? <img src={achievementArt(a.key)!} alt="" className="h-8 w-8" loading="lazy" /> : <span aria-hidden="true">✦</span>}
-                <span><span className="text-fg">{a.title}</span> <span className="text-fg-3">— {a.description}</span></span>
-              </li>
-            ))}
-            {!d.achievements.some((a) => a.earnedAt) && <li className="text-sm text-fg-3">Your first achievement is one quest away.</li>}
           </ul>
         </Card>
       </div>
