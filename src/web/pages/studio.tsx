@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, get, patch, post } from '../lib/api';
@@ -11,6 +11,8 @@ import { clearPendingAnswers, renderPersonaCard, savePendingAnswers, type Person
 import { ARCHETYPE_VISUALS, archetypeAccent, archetypeArt, cardStyleFrame, envArt } from '../lib/visual';
 import { publicEvent, shareOrDownload } from '../lib/cosmic';
 import { ShareLinkPanel } from './share';
+
+const ArchetypeAura3D = lazy(() => import('../three/scenes').then((m) => ({ default: m.ArchetypeAura3D })));
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
@@ -138,7 +140,17 @@ export function PersonaResult({ persona, actions }: { persona: Persona; style?: 
   return (
     <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,420px)_1fr]" aria-labelledby="persona-name">
       <div className="relative mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-[var(--radius-xl)] border border-line">
-        <div className="reveal-env absolute inset-0"><ResponsiveArt landscape={envArt('identity-reveal', 'landscape')} portrait={envArt('identity-reveal', 'portrait')} landscapePosition="50% 50%" portraitPosition="50% 40%" eager /></div>
+        {(() => {
+          const envArtwork = <ResponsiveArt landscape={envArt('identity-reveal', 'landscape')} portrait={envArt('identity-reveal', 'portrait')} landscapePosition="50% 50%" portraitPosition="50% 40%" eager />;
+          // The 3D aura is drawn from this result's own five dimension scores; the 2D art stays as the fallback.
+          return (
+            <div className="reveal-env absolute inset-0">
+              <Suspense fallback={envArtwork}>
+                <ArchetypeAura3D accent={accent} scores={persona.dimensions.map((d) => d.score)} seed={persona.key.length * 97 + persona.dimensions.length} label={`${persona.name}: rings sized by your five dimension scores`} fallback={envArtwork} />
+              </Suspense>
+            </div>
+          );
+        })()}
         <div className="reveal-sigil absolute inset-[14%]"><ArchetypeArt archetypeKey={persona.key} scores={scores} eager /></div>
       </div>
       <div className="reveal-rest-wrap">

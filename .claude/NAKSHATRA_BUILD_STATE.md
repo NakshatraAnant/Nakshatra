@@ -3,8 +3,8 @@
 - Branch: product-evolution (local commits only, not pushed); last commit: see git log
 - Phase: hosting done; remaining scope listed below
 - Local app: RUNNING at http://localhost:4500 (`app` launch config, local .data/pglite, payments off, dev mailbox)
-- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024, -0025-0026, -0027, -0028 (taken with the app stopped)
-- Gates (2026-11-07, latest): vitest 363/363; typecheck + lint clean; production build OK; Playwright 38/38 (Journey B timed out once under heavy load, passed on re-run). Do not run vitest and Playwright at the same time (timeouts).
+- Backups: .data/pglite-backup-before-0007-0010, -0011-0012, -0013, -0014, -0015, -0016, -0017, -0018, -0019, -0020, -0021, -0022, -0023, -0024, -0025-0026, -0027, -0028, -local-flags (taken with the app stopped)
+- Gates (2026-11-11, final master phase): vitest 401/401; Playwright 44/44 (sequential, after npm run build); typecheck + lint clean; production build OK; secret scan clean (533 files). Do not run vitest and Playwright at the same time (timeouts).
 - Note: e2e serves dist/web — run `npm run build` (not build:web:e2e) before Playwright
 - Built this directive: MFA recovery codes; personality-v2 (balanced 2.9–5.2%/archetype, blends, versioned, v1 kept);
   assessment resume; funnel events + admin Funnel; nav (Home/Discover/Create/Circles/Play/Profile); voice + photo drops;
@@ -62,5 +62,20 @@
 - NOT built (honest gaps): creator payouts + real settlement (forbidden by directive: needs KYC/payout provider);
   market payments/escrow (needs a licensed escrow provider); ad billing/self-serve; creator memberships/sessions/workshops/newsletters (recurring billing /
   scheduling); content-heavy models (programmes, workbooks, audio, packs); sponsored seasons/games, promoted
-  discovery, rewarded ads; 3D additions
-- Next exact task if continuing: choose among the remaining gaps (each needs a provider, content or a product decision)
+  discovery, rewarded ads; further 3D (achievement unlock, level-up and game scenes; reveal aura is built)
+- Next exact task if continuing: push to GitHub once the repository URL and authentication are provided; wake the Supabase project and run the read-only audit; then the remaining gaps (each needs a provider, content or a product decision)
+- Final master phase (2026-11-11): archetype reveal 3D aura (ArchetypeAura3D: rings from the member's own five dimension
+  scores, lazy, pauses off-screen, static under reduced motion, 2D art fallback); assessment re-validated (scripts/
+  assessment-distribution.ts: random sheets 91% low confidence, every archetype 2.9–5.2% on held-out populations, 13%
+  blends, straight-lining inconclusive, v1 kept); backup restore verified (copy of before-0028 opened, migrated forward,
+  counts intact); .gitignore tightened (.env.*, dumps, keys, scratch scripts) and .env.example completed (payments off by
+  default); local .env PORT moved 4000 -> 4500 (4000 is ATLAS); registry #49 campus -> infrastructure (orgs module)
+- Local review flags: ads, partners, orgs, merch switched ON in the local database only (audit_logs:
+  flags.local_review_enabled; backup .data/pglite-backup-before-local-flags). Payments stay off (PAYMENT_PROVIDER=none,
+  PAYMENTS_ENABLED=false), so paid tiers/unlocks/tickets show "opens when payments are on".
+- GitHub: BLOCKED — no git remote is configured, gh CLI is not installed and no git credentials are stored, so the
+  repository could not be identified or verified; nothing was pushed. Needs the repository URL and a way to authenticate.
+- Supabase: project "Nakshatra" (ref xxppudtbhkxornjthbrw, ap-southeast-1) identified; per docs/DEPLOY_RENDER_SUPABASE.md
+  it is the intended PRODUCTION database (app schema "nakshatra", 22 legacy prototype tables in public). It is
+  hibernated: every SQL/list/advisor call timed out, so schema, migration history, RLS and storage could NOT be audited.
+  Nothing was changed. "project-atlas" belongs to ATLAS and was not touched.

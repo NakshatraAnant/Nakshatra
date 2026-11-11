@@ -6,7 +6,16 @@ coverage/
 playwright-report/
 test-results/
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 backups/
+# Local data, dumps and scratch files never belong in git.
+*.dump
+*.sql.gz
+*.sqlite
+*.pem
+*.key
+scripts/_tmp*
+scripts/_dbg*
+.claude/settings.local.json
