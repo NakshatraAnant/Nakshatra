@@ -108,3 +108,10 @@
 - e2e/z7-star-worlds.spec.ts covers both, opt-in, and that a blocked person disappears.
 - Gates: vitest 408/408, Playwright 48/48 (full run), typecheck/lint/build clean.
 - Next exact task if continuing 3D: compatibility visualiser on bonds, then game hub / tournament arena, then cinematic Year in Review.
+
+## 3D batch 4 (compatibility visualiser + game hub)
+- src/web/lib/bridges.ts (+test), src/web/three/bridges.tsx, components/Bridges.tsx CompatibilityBridges: on a bond's Compatibility tab; one bridge per dimension, thickness/brightness from that dimension's own 0–100 score, never combined; list + status give the same info; 2D SVG fallback.
+- src/web/lib/hub.ts, src/web/three/hub.tsx, components/Bridges.tsx GameHub: on /play above the library; games as planets grouped by category, moons = your active/lobby sessions; prev/next + "Rules & play" opens the same dialog as the cards.
+- Fix in three/core.tsx: R3F force-loses the context on teardown; that was being reported as webgl_context_lost on every scene unmount. Now ignored when the canvas is no longer in the page.
+- Tests: b-relationship extended (bridges), e2e/z8-game-hub.spec.ts. Gates: vitest 412/412, Playwright 49/49, typecheck/lint/build clean.
+- Next exact task if continuing 3D: tournament arena + seasonal universe, then cinematic Year in Review, then Thought Drop reactions.

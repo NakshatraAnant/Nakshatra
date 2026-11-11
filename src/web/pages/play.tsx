@@ -9,6 +9,7 @@ import { ReportDialog } from './thoughts';
 import { Art } from '../components/visual';
 import { gameArt } from '../lib/visual';
 import { hashSeed } from '../../shared/play/engine';
+import { GameHub } from '../components/Bridges';
 
 interface GameMeta { key: string; name: string; tagline: string; category: string; minPlayers: number; maxPlayers: number; howToPlay: string[]; safety: string; consents: string[]; solo: boolean }
 
@@ -56,6 +57,8 @@ export function GameLauncher({ circleId }: { circleId?: string }) {
   const [consents, setConsents] = useState({ allowReuse: false, shareIdentity: false });
   const circles = useQuery({ queryKey: ['circles'], queryFn: () => get<{ circles: { id: string; name: string }[] }>('circles'), enabled: !circleId });
   const [target, setTarget] = useState<string>(circleId ?? '');
+  const mine = useQuery({ queryKey: ['sessions', 'mine'], queryFn: () => get<{ sessions: SessionRow[] }>('play/sessions'), enabled: !circleId });
+  const open = (game: GameMeta) => { setInfo(game); setConsents({ allowReuse: false, shareIdentity: false }); setTarget(circleId ?? (game.solo ? '' : circles.data?.circles[0]?.id ?? '')); };
   const start = useMutation({
     mutationFn: (game: GameMeta) => post<{ session: { id: string } }>('play/sessions', { gameKey: game.key, circleId: (circleId ?? target) || undefined, ...consents }),
     onSuccess: (r) => nav(`/play/${r.session.id}`),
@@ -66,10 +69,16 @@ export function GameLauncher({ circleId }: { circleId?: string }) {
       <h2 id="game-library" className="font-display text-2xl">{circleId ? 'Start a game' : 'Game library'}</h2>
       <QueryState q={g}>{(d) => (
         <>
+          {!circleId && (
+            <div className="mt-4">
+              <GameHub categories={CATEGORY} onOpen={(k) => { const game = d.games.find((x) => x.key === k); if (game) open(game); }}
+                games={[...d.games].sort((a, b) => Object.keys(CATEGORY).indexOf(a.category) - Object.keys(CATEGORY).indexOf(b.category)).map((x) => ({ key: x.key, name: x.name, category: x.category, color: CATEGORY[x.category]?.color ?? '#d9b26f', live: (mine.data?.sessions ?? []).filter((s) => s.gameKey === x.key && s.joined && (s.status === 'active' || s.status === 'lobby')).length }))} />
+            </div>
+          )}
           <ul className={cx('mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3', circleId ? 'xl:grid-cols-4' : 'lg:grid-cols-4')}>
             {d.games.map((game) => (
               <li key={game.key}>
-                <button type="button" onClick={() => { setInfo(game); setConsents({ allowReuse: false, shareIdentity: false }); setTarget(circleId ?? (game.solo ? '' : circles.data?.circles[0]?.id ?? '')); }}
+                <button type="button" onClick={() => open(game)}
                   className="group relative block w-full overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface text-left transition-colors hover:border-line-strong">
                   <span className="block aspect-[3/4]"><Art src={gameArt(game.key, 'card') ?? ''} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" position="50% 30%" /></span>
                   <span className="scrim-bottom absolute inset-0" aria-hidden="true" />

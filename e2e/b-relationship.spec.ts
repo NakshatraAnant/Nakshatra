@@ -38,6 +38,17 @@ test('Journey B: invite → accept as second user → Bond compatibility → sha
   await expect(a.getByRole('heading', { name: /You & Meera/ })).toBeVisible();
   await expect(a.getByText(/Guna Milan/).first()).toBeVisible();
 
+  // Compatibility bridges: one per dimension, each explained on its own, never combined.
+  const bridges = a.getByLabel('Compatibility bridges');
+  await expect(bridges).toBeVisible();
+  const dims = bridges.getByRole('group', { name: 'Dimensions' }).getByRole('button');
+  expect(await dims.count()).toBeGreaterThan(1);
+  await dims.first().click();
+  await expect(dims.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(bridges.getByRole('status')).toContainText(/of 100\)/);
+  await a.waitForTimeout(1200);
+  await bridges.screenshot({ path: 'test-results/shot-bridges.png' });
+
   // Share a permitted summary as a link and open it signed-out
   await a.getByRole('button', { name: 'Share a summary' }).click();
   const share = a.getByRole('dialog', { name: 'Share a compatibility summary' });

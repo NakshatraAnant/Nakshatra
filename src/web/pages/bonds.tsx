@@ -12,6 +12,7 @@ import { PlaceSearch, type Place } from '../components/PlaceSearch';
 import { BondsGraph2D } from '../charts/charts';
 import { BOND_COLORS, layoutGraph, type GraphEdge, type GraphNode } from '../lib/graph';
 
+import { CompatibilityBridges } from '../components/Bridges';
 const BondsConstellation = lazy(() => import('../three/scenes').then((m) => ({ default: m.BondsConstellation })));
 
 const KINDS = ['friend', 'romantic', 'dating', 'partner', 'spouse', 'sibling', 'parent_child', 'family', 'colleague', 'business', 'custom'] as const;
@@ -237,6 +238,7 @@ function Compatibility({ c, bond }: { c: CompatResp; bond: BondResp }) {
   return (
     <div className="space-y-6">
       <Notice tone="info">{r.limitations[0]} {r.limitations[2]}</Notice>
+      <CompatibilityBridges partner={bond.bond.partnerLabel} dims={r.western.map((d) => ({ key: d.key, label: d.label, score: d.score, factors: d.factors }))} />
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="space-y-3">
           <h2 className="font-display text-2xl">Dimensions</h2>

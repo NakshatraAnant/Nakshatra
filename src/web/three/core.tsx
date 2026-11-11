@@ -112,6 +112,8 @@ export function Scene3D({ children, fallback, label, className, disabled, camera
           camera={camera ?? { position: [0, 0, 8], fov: 50 }}
           onCreated={({ gl }) => {
             gl.domElement.addEventListener('webglcontextlost', (e) => {
+              // react-three-fiber drops the context on purpose when a scene is torn down; only a loss on screen is a failure.
+              if (!gl.domElement.isConnected) return;
               e.preventDefault();
               reportClientError('webgl_context_lost', label);
               setContextLost(true);
