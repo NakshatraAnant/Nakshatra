@@ -41,6 +41,11 @@ test('tournament: host invites a friend → friend joins, plays a timed run → 
   await expect(runCard.getByText('3 / 3')).toBeVisible();
   await expect(runCard.getByText('Currently #1')).toBeVisible();
   await expect(b.getByLabel('Standings').getByText('You')).toBeVisible();
+  const arena = b.getByRole('region', { name: 'Tournament arena' });
+  await expect(arena).toBeVisible();
+  await expect(arena.getByText('1 finished run. First place scored 3 of 3. You are 1st.', { exact: false })).toBeVisible();
+  await b.waitForTimeout(1500);
+  await arena.screenshot({ path: 'test-results/shot-arena.png' });
 
   await b.goto('/play/tournaments');
   await expect(b.getByText('Monsoon cup').first()).toBeVisible();

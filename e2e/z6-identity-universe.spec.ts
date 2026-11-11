@@ -49,6 +49,13 @@ test('identity universe: reveal theatre with skip and replay, dimension explorer
   await map.getByRole('button').first().click();
   await expect(map.getByRole('status')).not.toHaveText(/Tap a star/);
 
+  // Season path: the current season as milestone worlds, with how far to the next one in words.
+  const season = page.getByRole('region', { name: 'Season path' });
+  await expect(season).toBeVisible();
+  await expect(season.getByText(/points to .+.|Every milestone reached./)).toBeVisible();
+  await page.waitForTimeout(1500);
+  await season.screenshot({ path: 'test-results/shot-season.png' });
+
   // No sideways scroll on a phone.
   await page.setViewportSize({ width: 360, height: 780 });
   for (const path of ['/identity', '/home', '/progress']) {

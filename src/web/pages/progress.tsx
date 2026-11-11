@@ -6,6 +6,7 @@ import { useToast } from '../components/ui/overlays';
 import { ProgressBar, useCelebrate } from '../components/motion';
 import { levelBadge } from '../lib/visual';
 import { AchievementGallery } from '../components/Worlds';
+import { SeasonPath } from '../components/Arena';
 import { SponsoredChallenges } from '../components/SponsoredExtras';
 import { QuestConstellation } from '../components/IdentityWorld';
 
@@ -92,6 +93,7 @@ function SeasonTrack({ s }: { s: Season }) {
         <div><p className="eyebrow">{s.status === 'current' ? 'Current season' : s.status === 'ended' ? 'Past season' : 'Coming up'}</p><h2 className="font-display text-3xl">{s.name}</h2><p className="text-sm text-fg-2">{s.theme} · {s.startsOn} – {s.endsOn}</p></div>
         <p className="font-display text-3xl numeric">{s.points}<span className="ml-1 text-sm text-fg-3">season points</span></p>
       </div>
+      <SeasonPath seasonKey={s.key} name={s.name} points={s.points} milestones={s.milestones.map((m) => ({ at: m.at, title: m.reward.title, reached: m.reached, claimed: m.claimed, claimable: m.claimable }))} />
       <ProgressBar value={Math.min(s.points, top)} max={top} label={`${s.name} progress`} />
       <ol className="grid gap-2 sm:grid-cols-5">
         {s.milestones.map((m) => (

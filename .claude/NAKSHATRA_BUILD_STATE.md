@@ -115,3 +115,11 @@
 - Fix in three/core.tsx: R3F force-loses the context on teardown; that was being reported as webgl_context_lost on every scene unmount. Now ignored when the canvas is no longer in the page.
 - Tests: b-relationship extended (bridges), e2e/z8-game-hub.spec.ts. Gates: vitest 412/412, Playwright 49/49, typecheck/lint/build clean.
 - Next exact task if continuing 3D: tournament arena + seasonal universe, then cinematic Year in Review, then Thought Drop reactions.
+
+## 3D batch 5 (tournament arena + season path)
+- src/web/lib/arena.ts (+test): arenaLayout (podium 2-1-3, shared places side by side, cap 24), seasonProgress/seasonPoint/seasonLayout.
+- src/web/three/arena.tsx: TournamentArena3D (pillars rise once; yours bright) and SeasonPath3D (milestone worlds, comet at your points, ring = reward waiting).
+- src/web/components/Arena.tsx: TournamentArena (region "Tournament arena", above Standings; draws only the standings already returned, so held runs never appear) and SeasonPath (region "Season path", in SeasonTrack on /progress; colour from season key). 2D SVG fallbacks.
+- Found: three.js cannot parse space-separated hsl(); season colours use commas.
+- Tests: p-tournament and z6 extended. Gates: vitest 417/417, Playwright 49/49, typecheck/lint/build clean. Season camera moved closer after the full run (constant only).
+- Next exact task if continuing 3D: cinematic Year in Review, Thought Drop reaction effects, then 3D avatar preview.

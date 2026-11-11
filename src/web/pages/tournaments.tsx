@@ -9,6 +9,7 @@ import { QuestionCards, blankQuestion } from './quizzes';
 import { ReportDialog } from './thoughts';
 import { QuizError, validateQuiz, type QuizQuestion } from '../../shared/quiz';
 import { TOURNAMENT_RULES as R, type TournamentStatus } from '../../shared/tournament';
+import { TournamentArena } from '../components/Arena';
 
 const STATUS: Record<TournamentStatus, { label: string; tone: 'success' | 'neutral' | 'warning' | 'danger' }> = {
   open: { label: 'Open now', tone: 'success' },
@@ -16,6 +17,7 @@ const STATUS: Record<TournamentStatus, { label: string; tone: 'success' | 'neutr
   closed: { label: 'Closed', tone: 'neutral' },
   cancelled: { label: 'Called off', tone: 'danger' },
 };
+
 const secs = (ms: number | null | undefined) => (ms == null ? '—' : `${(ms / 1000).toFixed(1)}s`);
 const when = (d: string) => new Date(d).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
@@ -176,6 +178,8 @@ export function TournamentPage() {
               <ul className="space-y-2 text-sm">{d.review.map((r) => <li key={r.question}><p className="text-fg">{r.question}</p><p className={r.right ? 'text-success' : 'text-fg-2'}>{r.right ? `✓ ${r.chosen}` : `You said ${r.chosen} · answer: ${r.correct}`}</p></li>)}</ul>
             </Card>
           )}
+
+          <TournamentArena standings={d.standings} questions={t.questions} closed={t.status === 'closed'} />
 
           <Card aria-label="Standings">
             <h2 className="font-display text-2xl">Standings</h2>
