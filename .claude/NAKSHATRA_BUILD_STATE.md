@@ -101,3 +101,10 @@
 - e2e/z6-identity-universe.spec.ts: third test covers both plus the privacy case (world disappears for a visitor when persona is set to private).
 - Gates: vitest 405/405, Playwright 47/47 (full run), typecheck/lint/build clean. Gallery camera framing was adjusted after that run (constants only).
 - Next exact task if continuing 3D: circle worlds (portal + tier visuals), then constellation discovery and compatibility visualiser.
+
+## 3D batch 3 (circle world + discovery constellation)
+- src/web/lib/starmap.ts (+test): deterministic layout shared by 3D and 2D. src/web/three/starmap.tsx: StarMap3D.
+- src/web/components/StarWorlds.tsx: CircleWorld (circle Members tab; role = ring, joined-in = bright, tier = band, activation arc) and PeopleConstellation (/explore; distance only from shared intents and shared labels, never inferred traits; archetype colour only when public). 2D SVG fallback of the same map.
+- e2e/z7-star-worlds.spec.ts covers both, opt-in, and that a blocked person disappears.
+- Gates: vitest 408/408, Playwright 48/48 (full run), typecheck/lint/build clean.
+- Next exact task if continuing 3D: compatibility visualiser on bonds, then game hub / tournament arena, then cinematic Year in Review.

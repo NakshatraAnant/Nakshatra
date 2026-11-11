@@ -9,6 +9,7 @@ import { useModules } from '../lib/modules';
 import { useMe } from '../lib/session';
 import { CONNECTION_INTENTS, MAX_INTENTS } from '../../shared/people';
 import { Composer, ThoughtCard, type ThoughtPost } from './thoughts';
+import { PeopleConstellation } from '../components/StarWorlds';
 
 const INTENT_LABEL = Object.fromEntries(CONNECTION_INTENTS.map((i) => [i.key, i.label])) as Record<string, string>;
 
@@ -116,6 +117,7 @@ function People() {
           </div>
           <QueryState q={list} empty={(d) => (!d.pages[0]?.people.length ? <EmptyState icon="social" title="No one here yet" body={intent ? 'Nobody listed has picked this yet. Try another filter.' : 'You’re early. Invite friends — when they list themselves, they’ll show up here.'} action={<ButtonLink to="/invite" size="sm">Invite friends</ButtonLink>} /> : null)}>{(d) => (
             <>
+              <PeopleConstellation people={d.pages.flatMap((pg) => pg.people)} intentLabel={(k) => INTENT_LABEL[k] ?? k} />
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{d.pages.flatMap((pg) => pg.people).map((p) => <PersonCard key={p.userId} p={p} />)}</ul>
               {list.hasNextPage && <Button variant="secondary" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Show more</Button>}
             </>

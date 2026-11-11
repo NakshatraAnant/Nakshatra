@@ -13,6 +13,7 @@ import { Art } from '../components/visual';
 import { AssignTier, CircleEvents, CircleModeration, TierBadge, TiersPanel, useTiers } from './circleSpaces';
 import { CircleMarket } from './circleMarket';
 import { circleCover, circleSymbol } from '../lib/visual';
+import { CircleWorld } from '../components/StarWorlds';
 
 export const CIRCLE_THEME_COLORS: Record<string, [string, string]> = {
   dusk: ['#2a1d4a', '#c98a96'], saffron: ['#3a1e05', '#e9a23b'], monsoon: ['#0b2230', '#6fa8dc'],
@@ -286,6 +287,8 @@ export function CircleDetail() {
             {tab === 'play' && <div className="space-y-6"><GameLauncher circleId={d.circle.id} /><SessionList circleId={d.circle.id} /></div>}
             {tab === 'members' && (
               <div className="space-y-6">
+                <CircleWorld name={d.circle.name} glow={(CIRCLE_THEME_COLORS[d.circle.theme] ?? CIRCLE_THEME_COLORS.dusk)[1]} activation={d.activation}
+                  members={d.members.map((m) => ({ userId: m.userId, name: m.displayName ?? 'Member', role: m.role, contributed: m.contributed, you: m.userId === me?.id, archetype: m.archetype, tier: m.tier ? { name: m.tier.name, hex: (CIRCLE_THEME_COLORS[m.tier.color] ?? CIRCLE_THEME_COLORS.saffron)[1] } : null }))} />
                 <Card><h2 className="mb-3 font-display text-2xl">Invite</h2><InvitePanel circleId={d.circle.id} canInvite={d.me.canInvite} isAdmin={d.me.isAdmin} /></Card>
                 <TiersPanel circleId={d.circle.id} />
                 <Card>
