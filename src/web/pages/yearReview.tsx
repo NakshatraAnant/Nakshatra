@@ -7,6 +7,7 @@ import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { Segmented, useToast } from '../components/ui/overlays';
 import { shareLink } from './share';
 import { YEAR_RULES } from '../../shared/yearReview';
+import { YearFilm } from '../components/YearFilm';
 
 interface Fact { key: string; label: string; shareable: boolean; value: number | string | null }
 interface Review { year: number; years: number[]; soFar: boolean; months: number[]; highlights: string[]; factList: Fact[]; canShare: boolean; note: string }
@@ -25,6 +26,7 @@ export function YearReviewPage() {
         <>
           <PageHeader kicker="You" title={`Your ${r.year}${r.soFar ? ' so far' : ''}`} subtitle="Your year on Nakshatra, from your own activity."
             actions={r.years.length > 1 ? <Segmented label="Year" value={String(r.year)} onChange={(v) => setYear(Number(v))} options={r.years.map((y) => ({ value: String(y), label: String(y) }))} /> : undefined} />
+          <YearFilm review={r} />
           <Overview r={r} />
           <SharePanel r={r} />
           <MyCards />

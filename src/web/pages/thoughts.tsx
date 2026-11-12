@@ -23,6 +23,8 @@ export const THOUGHT_TYPES = [
 type ThoughtType = (typeof THOUGHT_TYPES)[number]['value'];
 const TYPE_LABEL: Record<string, string> = { thought: 'Thought', question: 'Question', dilemma: 'Dilemma', poll: 'Poll', confession: 'Confession', prompt: 'Prompt', text: 'Post', cosmic_card: 'Cosmic card', image: 'Photo', voice: 'Voice note' };
 const REACTIONS = [{ k: 'star', label: 'Relate' }, { k: 'sun', label: 'Agree' }, { k: 'moon', label: 'Hmm' }, { k: 'heart', label: 'Love' }] as const;
+/* Six sparks, evenly spread, for the reaction burst (styles/app.css .react-burst). */
+const SPARKS = Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2 + 0.3; return { '--dx': `${Math.round(Math.cos(a) * 22)}px`, '--dy': `${Math.round(Math.sin(a) * 18)}px` } as React.CSSProperties; });
 const SOCIAL_TOPICS = ['life', 'friendship', 'work', 'study', 'music', 'film', 'food', 'travel', 'tech', 'sport', 'fun', 'relationships'];
 
 export interface ThoughtPost {
@@ -140,6 +142,7 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.body);
+  const [burst, setBurst] = useState<{ k: string; n: number } | null>(null);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['thoughts'] }); void qc.invalidateQueries({ queryKey: ['circle-feed'] }); void qc.invalidateQueries({ queryKey: ['thought', p.id] }); void qc.invalidateQueries({ queryKey: ['saved-posts'] }); void qc.invalidateQueries({ queryKey: ['collection'] }); };
   const act = (fn: () => Promise<unknown>, ok?: string) => fn().then(() => { refresh(); if (ok) toast(ok, 'success'); }).catch((e) => toast(e instanceof ApiError ? e.message : 'Something went wrong', 'error'));
   const name = p.author.pseudonym ?? p.author.displayName ?? 'Member';
@@ -195,9 +198,10 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
       {p.reasons.length > 0 && <p className="mt-2 text-[11px] text-fg-3">Why you see this: {p.reasons.slice(0, 2).join(' · ')}</p>}
       <footer className="mt-4 flex flex-wrap items-center gap-1.5">
         {REACTIONS.map((r) => (
-          <button key={r.k} type="button" aria-pressed={p.myReaction === r.k} onClick={() => act(() => post(`posts/${p.id}/react`, { kind: p.myReaction === r.k ? null : r.k }))}
-            className={cx('min-h-9 rounded-full border px-3 text-xs transition-colors', p.myReaction === r.k ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-2 hover:border-line-strong')}>
+          <button key={r.k} type="button" aria-pressed={p.myReaction === r.k} onClick={() => { const adding = p.myReaction !== r.k; setBurst(adding ? { k: r.k, n: Date.now() } : null); act(() => post(`posts/${p.id}/react`, { kind: adding ? r.k : null })); }}
+            className={cx('relative min-h-9 rounded-full border px-3 text-xs transition-colors', p.myReaction === r.k ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-2 hover:border-line-strong', burst?.k === r.k && 'react-pop')}>
             {r.label}{p.reactions[r.k] ? <span className="ml-1 numeric text-fg-3">{p.reactions[r.k]}</span> : null}
+            {burst?.k === r.k && <span key={burst.n} className="react-burst" data-kind={r.k} aria-hidden="true">{SPARKS.map((s, i) => <i key={i} style={s} />)}</span>}
           </button>
         ))}
         {linkToDetail && <Link to={`/thoughts/${p.id}`} className="ml-1 min-h-9 rounded-full px-3 py-2 text-xs text-fg-2 hover:text-fg">{p.commentCount ? `${p.commentCount} repl${p.commentCount === 1 ? 'y' : 'ies'}` : 'Reply'}</Link>}
