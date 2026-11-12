@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { playCue } from '../lib/sound';
 
 /**
  * Celebrations (XP gained, quest done, badge unlocked). Non-blocking: a small card slides in near the
@@ -14,6 +15,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   const celebrate = useCallback((c: Omit<Celebration, 'id'>) => {
     const id = ++seq.current;
     setItems((xs) => [...xs.slice(-2), { ...c, id }]);
+    playCue('celebrate');
     setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 3200);
   }, []);
   return (

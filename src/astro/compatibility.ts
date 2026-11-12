@@ -113,18 +113,20 @@ export function compatibility(params: {
 }): CompatibilityResult {
   const { westernA, westernB, relationship } = params;
   const nA = params.nameA ?? 'Person A';
+  /** Possessive that reads naturally for 'You' as well as a name: 'Your Moon', 'Meera’s Moon'. */
+  const poss = (n: string) => (n === 'You' ? 'Your' : `${n}'s`);
   const nB = params.nameB ?? 'Person B';
   const aspects = synastry(westernA, westernB);
   const western: DimensionResult[] = KIND_DIMENSIONS[relationship].map((key) => {
     const dim = DIMENSIONS[key];
     const missing: string[] = [];
     const relevant = aspects.filter((asp) => dim.pairs.some(([x, y]) => asp.a === x && asp.b === y));
-    if (!westernA.ascendant && dim.pairs.some(([x]) => x === 'asc')) missing.push(`${nA}'s Ascendant (birth time unknown)`);
-    if (!westernB.ascendant && dim.pairs.some(([, y]) => y === 'asc')) missing.push(`${nB}'s Ascendant (birth time unknown)`);
-    if (westernA.reliability.moonSign !== 'reliable' && dim.pairs.some(([x]) => x === 'moon')) missing.push(`${nA}'s Moon sign is uncertain`);
-    if (westernB.reliability.moonSign !== 'reliable' && dim.pairs.some(([, y]) => y === 'moon')) missing.push(`${nB}'s Moon sign is uncertain`);
+    if (!westernA.ascendant && dim.pairs.some(([x]) => x === 'asc')) missing.push(`${poss(nA)} Ascendant (birth time unknown)`);
+    if (!westernB.ascendant && dim.pairs.some(([, y]) => y === 'asc')) missing.push(`${poss(nB)} Ascendant (birth time unknown)`);
+    if (westernA.reliability.moonSign !== 'reliable' && dim.pairs.some(([x]) => x === 'moon')) missing.push(`${poss(nA)} Moon sign is uncertain`);
+    if (westernB.reliability.moonSign !== 'reliable' && dim.pairs.some(([, y]) => y === 'moon')) missing.push(`${poss(nB)} Moon sign is uncertain`);
     const factors = relevant.map((asp) => ({
-      text: `${nA}'s ${bodyName(asp.a)} ${asp.type} ${nB}'s ${bodyName(asp.b)} (orb ${asp.orb.toFixed(1)}°)`,
+      text: `${poss(nA)} ${bodyName(asp.a)} ${asp.type} ${poss(nB)} ${bodyName(asp.b)} (orb ${asp.orb.toFixed(1)}°)`,
       weight: Number(aspectWeight(asp).toFixed(2)),
     }));
     const sum = factors.reduce((s, f) => s + f.weight, 0);

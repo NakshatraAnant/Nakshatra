@@ -4,7 +4,8 @@ import { ApiError, del, get, put } from '../lib/api';
 import { Button, Card, PageHeader, cx } from '../components/ui/primitives';
 import { QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
-import { AVATAR_PARTS, AVATAR_PART_KEYS, DEFAULT_AVATAR, avatarDataUrl, randomAvatar, swatch, type AvatarConfig, type AvatarPart } from '../../shared/avatar';
+import { AVATAR_PARTS, AVATAR_PART_KEYS, DEFAULT_AVATAR, randomAvatar, swatch, type AvatarConfig, type AvatarPart } from '../../shared/avatar';
+import { AvatarPreview } from '../components/Showcase';
 
 const PART_LABEL: Record<AvatarPart, string> = { skin: 'Skin tone', face: 'Face shape', hair: 'Hair', hairColor: 'Hair colour', eyes: 'Eyes', brows: 'Eyebrows', mouth: 'Mouth', accessory: 'Extras', background: 'Background' };
 
@@ -31,7 +32,7 @@ function Builder({ initial, inUse }: { initial: AvatarConfig; inUse: boolean }) 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,260px)_1fr]">
       <div className="space-y-3 md:sticky md:top-20 md:self-start">
-        <img src={avatarDataUrl(c)} alt="Your avatar preview" width={240} height={240} className="mx-auto aspect-square w-full max-w-[240px] rounded-full border border-line" />
+        <AvatarPreview config={c} />
         <div className="flex flex-wrap justify-center gap-2">
           <Button loading={save.isPending} onClick={() => save.mutate()}>Save as my picture</Button>
           <Button variant="secondary" onClick={() => setC(randomAvatar())}>Surprise me</Button>

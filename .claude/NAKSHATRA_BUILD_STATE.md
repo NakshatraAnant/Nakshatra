@@ -123,3 +123,12 @@
 - Found: three.js cannot parse space-separated hsl(); season colours use commas.
 - Tests: p-tournament and z6 extended. Gates: vitest 417/417, Playwright 49/49, typecheck/lint/build clean. Season camera moved closer after the full run (constant only).
 - Next exact task if continuing 3D: cinematic Year in Review, Thought Drop reaction effects, then 3D avatar preview.
+
+## 3D batch 7 (avatar stage, creator showcase, sounds, measurement, report)
+- three/showcase.tsx + components/Showcase.tsx: AvatarPreview (opt-in 3D stage on /avatar; SVG rasterised to canvas) and CreatorShowcase (/creators/:handle, ≥2 offerings, shape per kind, scrolls to the offering).
+- lib/sound.ts (+test): interface sounds, off by default, synthesised, only during user activation; SoundSetting in Theme studio; cues on reaction add and celebrations.
+- e2e/perf.spec.ts + playwright "perf" project (E2E_PERF=1 only). Results in docs/3d-report/perf.json.
+- Fixed compatibility wording "You's" → "Your" (src/astro/compatibility.ts poss()).
+- Final report: docs/3D_UNIVERSE_REPORT.md with screenshots in docs/3d-report/.
+- Gates: vitest 423/423, Playwright 51/51 full run; bonds/privacy + screenshot specs re-run after the last two small changes.
+- Remaining (not built): rigged avatars, WebGPU, GLB/KTX2 pipeline, journal/calendar atmospheres, voice/photo effects, phone measurements. GitHub push and Supabase audit still blocked on the owner.

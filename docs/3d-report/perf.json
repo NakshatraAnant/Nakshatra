@@ -1,0 +1,67 @@
+{
+  "measuredAt": "2026-11-12T08:04:23.834Z",
+  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x000046B3) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "viewport": "1366x900",
+  "rows": [
+    {
+      "path": "/identity",
+      "what": "Reveal theatre + dimension explorer",
+      "canvases": 2,
+      "fps": 120.3,
+      "medianMs": 8.3,
+      "p95Ms": 8.5,
+      "worstMs": 8.7,
+      "kb": 1077
+    },
+    {
+      "path": "/home",
+      "what": "Home identity world",
+      "canvases": 1,
+      "fps": 120.5,
+      "medianMs": 8.3,
+      "p95Ms": 8.6,
+      "worstMs": 8.9,
+      "kb": 286
+    },
+    {
+      "path": "/progress",
+      "what": "Season path + achievement gallery",
+      "canvases": 2,
+      "fps": 120.3,
+      "medianMs": 8.3,
+      "p95Ms": 8.6,
+      "worstMs": 8.9,
+      "kb": 37
+    },
+    {
+      "path": "/play",
+      "what": "Game hub",
+      "canvases": 1,
+      "fps": 120.5,
+      "medianMs": 8.3,
+      "p95Ms": 8.5,
+      "worstMs": 8.8,
+      "kb": 143
+    },
+    {
+      "path": "/year",
+      "what": "Year film (closed)",
+      "canvases": 0,
+      "fps": 120.5,
+      "medianMs": 8.3,
+      "p95Ms": 8.6,
+      "worstMs": 8.9,
+      "kb": 21
+    },
+    {
+      "path": "/u/:handle",
+      "what": "Profile world",
+      "canvases": 1,
+      "fps": 120.5,
+      "medianMs": 8.3,
+      "p95Ms": 8.6,
+      "worstMs": 8.9,
+      "kb": 60
+    }
+  ]
+}

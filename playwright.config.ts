@@ -4,6 +4,8 @@ const PORT = Number(process.env.E2E_PORT ?? 4410);
 /** The suite runs against the launch configuration (legacy modules off). E2E_MODULE_SCOPE=all runs the legacy journeys in e2e/legacy instead. */
 const LEGACY = process.env.E2E_MODULE_SCOPE === 'all';
 const LEGACY_DIR = /[\\/]legacy[\\/]/;
+/** E2E_PERF=1 runs only the 3D frame-time measurement (e2e/perf.spec.ts), with full motion and the GPU requested. */
+const PERF = process.env.E2E_PERF === '1';
 
 export default defineConfig({
   testDir: './e2e',
@@ -27,10 +29,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testIgnore: [/mobile\.spec/, /widths\.spec/, LEGACY_DIR, ...(LEGACY ? [/legacy-modules\.spec/, /h-progress\.spec/] : [])] },
+    ...(PERF ? [
+      { name: 'perf', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 }, reducedMotion: 'no-preference' as const, launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-unsafe-swiftshader'] } }, testMatch: /perf\.spec/ },
+    ] : [
+    { name: 'desktop', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testIgnore: [/mobile\.spec/, /widths\.spec/, /perf\.spec/, LEGACY_DIR, ...(LEGACY ? [/legacy-modules\.spec/, /h-progress\.spec/] : [])] },
     // Layout checks at the supported phone/tablet/desktop widths.
     { name: 'widths', use: { ...devices['Desktop Edge'] }, testMatch: /widths\.spec/ },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /mobile\.spec/ },
+    ]),
     ...(LEGACY ? [
       { name: 'legacy', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testMatch: LEGACY_DIR, testIgnore: /g-wedding\.spec/ },
       // The four-user wedding journey runs in its own worker + browser (software WebGL stalls after long runs).

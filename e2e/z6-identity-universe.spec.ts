@@ -20,6 +20,8 @@ test('identity universe: reveal theatre with skip and replay, dimension explorer
   await page.getByRole('button', { name: 'Skip' }).click();
   await expect(theatre).toHaveAttribute('data-reveal-stage', '3');
   await expect(theatre.getByText('This is you')).toBeVisible();
+  await page.waitForTimeout(1200);
+  await theatre.screenshot({ path: 'test-results/shot-reveal.png' });
   await page.getByRole('button', { name: 'Replay' }).click();
   await expect(theatre).toHaveAttribute('data-reveal-stage', '0');
   await page.getByRole('button', { name: 'Skip' }).click();
@@ -31,6 +33,8 @@ test('identity universe: reveal theatre with skip and replay, dimension explorer
   await first.click();
   await expect(first).toHaveAttribute('aria-pressed', 'true');
   await expect(explorer.getByRole('status')).not.toHaveText('Pick a dimension to see where you sit on it.');
+  await page.waitForTimeout(1200);
+  await explorer.screenshot({ path: 'test-results/shot-dimensions.png' });
 
   // Eco graphics: scenes stay, drawn on demand.
   await page.goto('/theme');
@@ -101,6 +105,8 @@ test('profile world and achievement gallery: shown from real data, usable from t
   await expect(world).toBeVisible();
   await expect(world.getByText('Your identity world')).toBeVisible();
   await expect(world.getByRole('link', { name: /Explore your five dimensions/ })).toBeVisible();
+  await page.waitForTimeout(1200);
+  await world.screenshot({ path: 'test-results/shot-profile-world.png' });
 
   // Achievement gallery: every achievement is in the list; picking one explains it.
   await page.goto('/progress');
@@ -112,6 +118,8 @@ test('profile world and achievement gallery: shown from real data, usable from t
   await expect(scholar).toHaveAttribute('aria-pressed', 'true');
   await expect(gallery.getByRole('status')).toContainText('Completed five lessons.');
   await expect(gallery.getByRole('status')).toContainText('Not earned yet.');
+  await page.waitForTimeout(1500);
+  await gallery.screenshot({ path: 'test-results/shot-gallery.png' });
 
   await page.setViewportSize({ width: 360, height: 780 });
   for (const path of ['/u/' + handle, '/progress']) {

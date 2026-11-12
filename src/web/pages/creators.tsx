@@ -7,6 +7,7 @@ import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { ReportDialog } from './thoughts';
 import { CREATOR_CATEGORIES, CREATOR_RULES as R, OFFERING_KINDS, OFFERING_LABEL, rupees, tipSplit, type OfferingKind } from '../../shared/creator';
+import { CreatorShowcase } from '../components/Showcase';
 
 type Link = { label: string; url: string };
 const fail = (toast: ReturnType<typeof useToast>) => (e: unknown) => toast(e instanceof ApiError ? e.message : 'Something went wrong', 'error');
@@ -104,9 +105,10 @@ export function CreatorPage() {
         {d.offerings.length > 0 && (
           <section aria-labelledby="offers-h" className="space-y-3">
             <h2 id="offers-h" className="font-display text-2xl">Offerings</h2>
+            {d.offerings.length > 1 && <CreatorShowcase name={d.creator.name} offerings={d.offerings} />}
             <p className="text-sm text-fg-3">Digital unlocks can be bought when payments are on; for everything else, tap “Notify me” to hear when it opens.</p>
             <ul className="space-y-3">{d.offerings.map((o) => (
-              <li key={o.id} className="card flex flex-wrap items-start justify-between gap-3 p-4">
+              <li key={o.id} id={`offering-${o.id}`} className="card flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.14em] text-fg-3">{OFFERING_LABEL[o.kind]}</p>
                   <p className="font-semibold text-fg">{o.title}</p>

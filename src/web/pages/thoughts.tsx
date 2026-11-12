@@ -10,6 +10,7 @@ import { postTypeIcon } from '../lib/visual';
 import { PhotoCarousel, PhotoPicker, VoiceRecorder } from '../components/MediaComposer';
 import { SponsoredCard } from '../components/SponsoredCard';
 import { AD_RULES } from '../../shared/ads';
+import { playCue } from '../lib/sound';
 
 export const THOUGHT_TYPES = [
   { value: 'thought', label: 'Thought', hint: 'Something on your mind.' },
@@ -198,7 +199,7 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
       {p.reasons.length > 0 && <p className="mt-2 text-[11px] text-fg-3">Why you see this: {p.reasons.slice(0, 2).join(' · ')}</p>}
       <footer className="mt-4 flex flex-wrap items-center gap-1.5">
         {REACTIONS.map((r) => (
-          <button key={r.k} type="button" aria-pressed={p.myReaction === r.k} onClick={() => { const adding = p.myReaction !== r.k; setBurst(adding ? { k: r.k, n: Date.now() } : null); act(() => post(`posts/${p.id}/react`, { kind: adding ? r.k : null })); }}
+          <button key={r.k} type="button" aria-pressed={p.myReaction === r.k} onClick={() => { const adding = p.myReaction !== r.k; setBurst(adding ? { k: r.k, n: Date.now() } : null); if (adding) playCue('react'); act(() => post(`posts/${p.id}/react`, { kind: adding ? r.k : null })); }}
             className={cx('relative min-h-9 rounded-full border px-3 text-xs transition-colors', p.myReaction === r.k ? 'border-fg bg-fg font-semibold text-canvas' : 'border-line text-fg-2 hover:border-line-strong', burst?.k === r.k && 'react-pop')}>
             {r.label}{p.reactions[r.k] ? <span className="ml-1 numeric text-fg-3">{p.reactions[r.k]}</span> : null}
             {burst?.k === r.k && <span key={burst.n} className="react-burst" data-kind={r.k} aria-hidden="true">{SPARKS.map((s, i) => <i key={i} style={s} />)}</span>}

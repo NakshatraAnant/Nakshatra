@@ -1,11 +1,12 @@
 import { Suspense, lazy, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router';
-import { Button, Card, Select, cx } from './ui/primitives';
+import { Button, Card, Select, Switch, cx } from './ui/primitives';
 import { ArchetypeArt, ResponsiveArt } from './visual';
 import { archetypeAccent, envArt } from '../lib/visual';
 import type { Persona } from '../lib/persona';
 import { REVEAL_STAGES, worldFor } from '../three/archetypeWorlds';
 import { GRAPHICS_LEVELS, getGraphicsLevel, onGraphicsChange, setGraphicsLevel, type GraphicsLevel } from '../three/quality';
+import { getSoundOn, onSoundChange, playCue, setSoundOn } from '../lib/sound';
 import type { IdentitySceneData } from '../three/identity';
 
 /* All three.js code is behind this import: pages only pay for it when a scene is actually shown. */
@@ -169,6 +170,15 @@ export function GraphicsQualitySetting() {
       <Select id="gfx-level" className="max-w-xs" value={level} onChange={(e) => setGraphicsLevel(e.target.value as GraphicsLevel)}>{GRAPHICS_LEVELS.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}</Select>
       <p className="text-xs text-fg-3">{notes[level]} Saved on this device only.</p>
     </section>
+  );
+}
+
+/** Interface sounds for this device (Theme studio). Off unless the person switches them on. */
+export function SoundSetting() {
+  const on = useSyncExternalStore(onSoundChange, getSoundOn, () => false);
+  return (
+    <Switch label="Interface sounds" description="Soft ticks when you react or finish something. Off by default, never music, saved on this device only." checked={on}
+      onChange={(v) => { setSoundOn(v); if (v) playCue('select'); }} />
   );
 }
 
