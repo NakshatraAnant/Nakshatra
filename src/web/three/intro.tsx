@@ -60,7 +60,7 @@ function Cloud({ startedAt, still }: { startedAt: number; still: boolean }) {
     pos.needsUpdate = true;
     built.mat.opacity = 0.9 * wake;
     // The single light: there from the start, swallowed by the portal, back as its heart.
-    built.core.opacity = Math.min(1, phase(t, 0.2, 1.6)) * (1 - form * 0.7) + gather * 0.6;
+    built.core.opacity = (Math.min(1, phase(t, 0.2, 1.6)) * (1 - form * 0.7) + gather * 0.6) * (1 - phase(t, 10.6, 11.4));
     built.gate.opacity = gather * 0.9;
     built.frame.opacity = widen * 0.35 * (1 - gather * 0.6);
     if (group.current) group.current.rotation.z = gather * 0.4 + settle * 0.15 + (still ? 0 : t * 0.01);
