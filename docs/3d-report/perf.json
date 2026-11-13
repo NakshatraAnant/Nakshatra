@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-11-12T08:04:23.834Z",
+  "measuredAt": "2026-11-13T05:37:58.662Z",
   "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x000046B3) Direct3D11 vs_5_0 ps_5_0, D3D11)",
   "viewport": "1366x900",
   "rows": [
@@ -9,38 +9,38 @@
       "canvases": 2,
       "fps": 120.3,
       "medianMs": 8.3,
-      "p95Ms": 8.5,
-      "worstMs": 8.7,
+      "p95Ms": 8.6,
+      "worstMs": 16.6,
       "kb": 1077
     },
     {
       "path": "/home",
       "what": "Home identity world",
       "canvases": 1,
-      "fps": 120.5,
+      "fps": 120,
       "medianMs": 8.3,
-      "p95Ms": 8.6,
-      "worstMs": 8.9,
-      "kb": 286
+      "p95Ms": 8.5,
+      "worstMs": 25,
+      "kb": 288
     },
     {
       "path": "/progress",
       "what": "Season path + achievement gallery",
       "canvases": 2,
-      "fps": 120.3,
+      "fps": 120,
       "medianMs": 8.3,
-      "p95Ms": 8.6,
-      "worstMs": 8.9,
+      "p95Ms": 8.5,
+      "worstMs": 16.7,
       "kb": 37
     },
     {
       "path": "/play",
       "what": "Game hub",
       "canvases": 1,
-      "fps": 120.5,
+      "fps": 120.3,
       "medianMs": 8.3,
-      "p95Ms": 8.5,
-      "worstMs": 8.8,
+      "p95Ms": 8.6,
+      "worstMs": 16.8,
       "kb": 143
     },
     {
@@ -50,16 +50,16 @@
       "fps": 120.5,
       "medianMs": 8.3,
       "p95Ms": 8.6,
-      "worstMs": 8.9,
+      "worstMs": 9.1,
       "kb": 21
     },
     {
       "path": "/u/:handle",
       "what": "Profile world",
       "canvases": 1,
-      "fps": 120.5,
+      "fps": 120.3,
       "medianMs": 8.3,
-      "p95Ms": 8.6,
+      "p95Ms": 8.5,
       "worstMs": 8.9,
       "kb": 60
     }

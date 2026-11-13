@@ -10,6 +10,7 @@ import { Tabs } from '../components/ui/overlays';
 import { PlaceSearch, type Place } from '../components/PlaceSearch';
 import { MoonGlyph } from './today';
 import type { PanchangResult } from '../../astro/vedic/panchang';
+import { MoonSky } from '../components/Atmosphere';
 
 interface Day { date: string; tithi: { name: string; paksha: string; number: number }; nakshatra: { name: string }; moon: { phaseAngle: number; phaseName: string }; vara: string }
 interface Festival { key: string; name: string; date: string; kind: string; rule: string; description: string }
@@ -51,7 +52,10 @@ function MonthView({ loc }: { loc: string }) {
         </div>
         <QueryState q={q}>{(d) => {
           const first = new Date(`${month}-01T00:00:00Z`).getUTCDay();
+          const sel = d.days.find((x) => x.date === selected) ?? d.days[0];
           return (
+            <>
+            {sel && <MoonSky date={sel.date} label={civilDate(sel.date, dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })} phaseAngle={sel.moon.phaseAngle} tithi={sel.tithi.name} paksha={sel.tithi.paksha} nakshatra={sel.nakshatra.name} />}
             <div role="group" aria-label="Month calendar">
               <div aria-hidden="true" className="grid grid-cols-7 gap-1 text-center eyebrow">{weekdays.map((w) => <div key={w}>{w}</div>)}</div>
               <div className="mt-2 grid grid-cols-7 gap-1">
@@ -74,6 +78,7 @@ function MonthView({ loc }: { loc: string }) {
               </div>
               <p className="mt-3 text-xs text-fg-3">Tithi shown is the one prevailing at local sunrise in {d.location.placeName}.</p>
             </div>
+            </>
           );
         }}</QueryState>
       </Card>

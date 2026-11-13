@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { upload } from '../lib/api';
 import { Button, cx } from './ui/primitives';
 import { Icon } from './ui/icons';
+import { WAVE_BARS, decodePeaks } from '../lib/waveform';
 
 /** Photo picker for Thought Drops: one photo, or a 2–4 photo carousel. Uploads as each file is chosen. */
 export function PhotoPicker({ urls, onChange }: { urls: string[]; onChange: (urls: string[]) => void }) {
@@ -145,7 +146,48 @@ export function VoiceRecorder({ value, onChange }: { value: { url: string; secon
 export function PhotoCarousel({ urls, label }: { urls: string[]; label: string }) {
   return (
     <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-[var(--radius)] scrollbar-thin" tabIndex={0} role="region" aria-label={`${label}: ${urls.length} photos`}>
-      {urls.map((u, i) => <img key={u} src={u} alt={`Photo ${i + 1} of ${urls.length}`} loading="lazy" className="aspect-square w-[85%] shrink-0 snap-center rounded-[var(--radius)] object-cover sm:w-[60%]" />)}
+      {urls.map((u, i) => <DevelopingImg key={u} src={u} alt={`Photo ${i + 1} of ${urls.length}`} className="aspect-square w-[85%] shrink-0 snap-center rounded-[var(--radius)] object-cover sm:w-[60%]" />)}
+    </div>
+  );
+}
+
+/** A photo that "develops" (soft blur to sharp) once it has loaded. Plain appearance under reduced motion. */
+export function DevelopingImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} data-loaded={loaded} className={cx('photo-develop', className)} />;
+}
+
+/**
+ * Voice note player with its real waveform. Bars stay plain until the person presses play; then the recording is
+ * decoded once and the bars take its real shape, filling in as it plays. The native player stays for controls.
+ */
+export function VoiceNote({ src, seconds }: { src: string; seconds: number | null }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [wave, setWave] = useState<number[] | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    const onPlay = () => { setPlaying(true); void decodePeaks(src).then((p) => { if (p) setWave(p); }); };
+    const onPause = () => setPlaying(false);
+    const onTime = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
+    a.addEventListener('play', onPlay); a.addEventListener('pause', onPause); a.addEventListener('ended', onPause); a.addEventListener('timeupdate', onTime);
+    return () => { a.removeEventListener('play', onPlay); a.removeEventListener('pause', onPause); a.removeEventListener('ended', onPause); a.removeEventListener('timeupdate', onTime); };
+  }, [src]);
+  const bars = wave ?? Array(WAVE_BARS).fill(0.3);
+  return (
+    <div className="mt-3 space-y-1.5">
+      <div className="flex h-8 items-center gap-[2px]" aria-hidden="true" data-wave={wave ? 'real' : 'plain'} data-playing={playing}>
+        {bars.map((h, i) => (
+          <span key={i} className={cx('voice-bar w-full max-w-[5px] rounded-full', (i + 0.5) / bars.length <= progress ? 'bg-accent' : 'bg-line-strong')}
+            style={{ height: `${Math.max(12, h * 100)}%` }} />
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <audio ref={audio} controls preload="none" src={src} className="h-10 max-w-full" aria-label={`Voice note, ${seconds ?? ''} seconds`} />
+        {seconds ? <span className="text-xs text-fg-3 numeric">{seconds}s</span> : null}
+      </div>
     </div>
   );
 }

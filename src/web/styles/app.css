@@ -373,3 +373,18 @@ dialog::backdrop { background: rgb(7 8 26 / 0.65); backdrop-filter: blur(4px); }
   html:not([data-motion='reduced']) .react-burst i { animation: burst-fly 620ms var(--ease-standard) both; }
   html:not([data-motion='reduced']) .react-pop { animation: react-pop 320ms var(--ease-emph) both; }
 }
+
+/* ---------------- Atmospheres (journal and calendar skies) ----------------
+   A slow twinkle on the background stars only when motion is allowed. */
+@keyframes atmo-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.85; } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .atmo-star { animation: atmo-twinkle 4.8s ease-in-out infinite; }
+}
+
+/* ---------------- Media effects (Thought Drops) ----------------
+   Photos develop from a soft blur once loaded; the playing voice waveform breathes. Both only with motion allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .photo-develop { transition: filter 600ms var(--ease-standard), opacity 600ms var(--ease-standard); }
+  html:not([data-motion='reduced']) .photo-develop[data-loaded='false'] { filter: blur(10px) saturate(0.6); opacity: 0.6; }
+  html:not([data-motion='reduced']) [data-playing='true'] .voice-bar { transition: background-color 200ms linear; }
+}

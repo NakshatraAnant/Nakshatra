@@ -7,7 +7,7 @@ import { EmptyState, LoadingBlock, Notice, QueryState } from '../components/ui/f
 import { Dialog, Segmented, useToast } from '../components/ui/overlays';
 import { MaskIcon, PseudonymAvatar } from '../components/visual';
 import { postTypeIcon } from '../lib/visual';
-import { PhotoCarousel, PhotoPicker, VoiceRecorder } from '../components/MediaComposer';
+import { PhotoCarousel, PhotoPicker, VoiceRecorder, DevelopingImg, VoiceNote } from '../components/MediaComposer';
 import { SponsoredCard } from '../components/SponsoredCard';
 import { AD_RULES } from '../../shared/ads';
 import { playCue } from '../lib/sound';
@@ -173,13 +173,8 @@ export function ThoughtCard({ p, linkToDetail = true }: { p: ThoughtPost; linkTo
         ? <p className="mt-3 whitespace-pre-wrap font-display text-2xl italic leading-snug text-fg text-pretty">“{p.body}”</p>
         : p.body ? <p className="mt-3 whitespace-pre-wrap text-[17px] leading-[1.45] text-fg text-pretty">{p.body}</p> : null}
       {p.imageUrls && p.imageUrls.length > 1 ? <PhotoCarousel urls={p.imageUrls} label={`${TYPE_LABEL[p.kind] ?? 'Post'} photos`} />
-        : p.imageUrl ? <img src={p.imageUrl} alt="Photo shared with this post" loading="lazy" className="mt-3 max-h-[480px] w-full rounded-[var(--radius)] object-cover" /> : null}
-      {p.audioUrl && (
-        <div className="mt-3 flex items-center gap-3">
-          <audio controls preload="none" src={p.audioUrl} className="h-10 max-w-full" aria-label={`Voice note, ${p.audioSeconds ?? ''} seconds`} />
-          {p.audioSeconds ? <span className="text-xs text-fg-3 numeric">{p.audioSeconds}s</span> : null}
-        </div>
-      )}
+        : p.imageUrl ? <DevelopingImg src={p.imageUrl} alt="Photo shared with this post" className="mt-3 max-h-[480px] w-full rounded-[var(--radius)] object-cover" /> : null}
+      {p.audioUrl && <VoiceNote src={p.audioUrl} seconds={p.audioSeconds ?? null} />}
       {p.poll && (
         <ul className="mt-3 space-y-1.5">
           {p.poll.map((o) => {

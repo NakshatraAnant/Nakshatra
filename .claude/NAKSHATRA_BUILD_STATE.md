@@ -132,3 +132,15 @@
 - Final report: docs/3D_UNIVERSE_REPORT.md with screenshots in docs/3d-report/.
 - Gates: vitest 423/423, Playwright 51/51 full run; bonds/privacy + screenshot specs re-run after the last two small changes.
 - Remaining (not built): rigged avatars, WebGPU, GLB/KTX2 pipeline, journal/calendar atmospheres, voice/photo effects, phone measurements. GitHub push and Supabase audit still blocked on the owner.
+
+## Finish pass (2026-11-12)
+- Bug sweep: e2e/sweep.spec.ts (E2E_PERF=1 only) visits 8 public, 43 member, 8 admin pages with full motion; records console errors, uncaught errors, 5xx and unexpected 4xx. Result: no findings.
+- Production dependency advisories (glob/minimatch via @fastify/static) fixed with a patch bump (10.1.10). Remaining advisories are dev-only tooling (drizzle-kit, typescript-eslint) where npm's only fix is a major downgrade — left.
+- Journal sky (time-of-day sky + journal-day constellation) and calendar Moon sky (real phase, tithi, nakshatra): lib/atmosphere.ts (+test), components/Atmosphere.tsx.
+- Voice notes: real waveform decoded on first play (lib/waveform.ts +test), fills with progress. Photos develop from blur on load. CSS effects only with motion allowed.
+- Avatar stage blinks (closed-eye frame from the same options) every ~4 s when motion allowed.
+- Phone-class emulation measurement added to e2e/perf.spec.ts (4x CPU, 412x915 @2.6x).
+- Supabase: project reports ACTIVE_HEALTHY but its database stays hibernated; every read times out. Not resumed (production; needs owner's go-ahead). Nothing written.
+- Other projects on this machine (Playzo tests + vite, ATLAS on 3000) slow builds/tests; never touched.
+- Phone-class perf: isolated tabs, 20 s stall guard; the earlier /year "hang" was a test bug (a lookup waiting for a scene /year doesn't have). /identity shows a one-off ~2.1 s first-load frame under 4x CPU.
+- Final gates: vitest 429/429 (65 files), Playwright 52/52, typecheck/lint/build/secret scan clean. Report: docs/3D_UNIVERSE_REPORT.md.

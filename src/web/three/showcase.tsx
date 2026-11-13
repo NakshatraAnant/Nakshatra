@@ -9,15 +9,17 @@ import { Nebula, Starfield } from './elements';
 /**
  * The avatar as a medallion on a plinth. Its face is the same picture as the 2D preview — an SVG built only
  * from the fixed option lists in shared/avatar.ts, never from user-supplied markup. Each change flips the
- * medallion once; at rest it sways gently (or stays still with reduced motion).
+ * medallion once; at rest it sways gently and blinks now and then (or stays still with reduced motion). The blink is
+ * the same avatar with its eyes closed, also built from the fixed options.
  */
-function Medallion({ src, rim, animate }: { src: string; rim: string; animate: boolean }) {
+/** Draw the SVG onto a canvas first: browsers upload rasterised canvases to WebGL reliably, SVG images less so. */
+function useSvgTexture(src: string | null): THREE.Texture | null {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
+    if (!src) { setTex(null); return; }
     let alive = true;
     let made: THREE.Texture | null = null;
-    // Draw the SVG onto a canvas first: browsers upload rasterised canvases to WebGL reliably, SVG images less so.
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => {
@@ -35,6 +37,18 @@ function Medallion({ src, rim, animate }: { src: string; rim: string; animate: b
     img.src = src;
     return () => { alive = false; made?.dispose(); };
   }, [src, invalidate]);
+  return tex;
+}
+
+/** Seconds between blinks, and how long the eyes stay closed. */
+export const BLINK_EVERY = 4.2;
+export const BLINK_FOR = 0.14;
+
+function Medallion({ src, blinkSrc, rim, animate }: { src: string; blinkSrc: string | null; rim: string; animate: boolean }) {
+  const tex = useSvgTexture(src);
+  const closed = useSvgTexture(animate ? blinkSrc : null);
+  const face = useRef<THREE.MeshStandardMaterial>(null);
+  const invalidate = useThree((s) => s.invalidate);
   const g = useRef<THREE.Group>(null);
   const flip = useRef(animate ? 0 : 1);
   useEffect(() => { flip.current = animate ? 0 : 1; invalidate(); }, [src, animate, invalidate]);
@@ -44,6 +58,11 @@ function Medallion({ src, rim, animate }: { src: string; rim: string; animate: b
     const e = 1 - Math.pow(1 - flip.current, 3);
     g.current.rotation.y = (1 - e) * Math.PI * 2 + (animate ? Math.sin(s.clock.elapsedTime * 0.6) * 0.35 : 0);
     g.current.position.y = 0.35 + (animate ? Math.sin(s.clock.elapsedTime * 1.1) * 0.06 : 0);
+    if (face.current && tex) {
+      const blinking = animate && closed !== null && flip.current >= 1 && s.clock.elapsedTime % BLINK_EVERY < BLINK_FOR;
+      const want = blinking ? closed : tex;
+      if (face.current.map !== want) { face.current.map = want; face.current.needsUpdate = true; }
+    }
   });
   return (
     <group ref={g}>
@@ -53,7 +72,7 @@ function Medallion({ src, rim, animate }: { src: string; rim: string; animate: b
       </mesh>
       <mesh position={[0, 0, 0.071]}>
         <circleGeometry args={[1.3, 64]} />
-        <meshStandardMaterial map={tex} color={tex ? '#ffffff' : '#3c4078'} roughness={0.7} />
+        <meshStandardMaterial ref={face} map={tex} color={tex ? '#ffffff' : '#3c4078'} roughness={0.7} />
       </mesh>
       <mesh position={[0, 0, -0.071]} rotation={[0, Math.PI, 0]}>
         <circleGeometry args={[1.3, 64]} />
@@ -63,7 +82,7 @@ function Medallion({ src, rim, animate }: { src: string; rim: string; animate: b
   );
 }
 
-export function AvatarStage3D({ src, rim, label, fallback }: { src: string; rim: string; label: string; fallback: React.ReactNode }) {
+export function AvatarStage3D({ src, blinkSrc = null, rim, label, fallback }: { src: string; blinkSrc?: string | null; rim: string; label: string; fallback: React.ReactNode }) {
   return (
     <Scene3D label={label} fallback={fallback} className="h-full w-full" camera={{ position: [0, 0.3, 5.4], fov: 44 }}>
       {({ quality, reducedMotion }) => (
@@ -72,7 +91,7 @@ export function AvatarStage3D({ src, rim, label, fallback }: { src: string; rim:
           <pointLight position={[2, 3, 4]} intensity={30} color="#fff4dd" />
           <pointLight position={[-3, -1, 2]} intensity={12} color={rim} />
           <Starfield quality={quality === 'high' ? 'medium' : 'low'} radius={40} seed={113} animate={!reducedMotion} />
-          <Medallion src={src} rim={rim} animate={!reducedMotion} />
+          <Medallion src={src} blinkSrc={blinkSrc} rim={rim} animate={!reducedMotion} />
           <mesh position={[0, -1.25, 0]}>
             <cylinderGeometry args={[0.9, 1.05, 0.22, 6]} />
             <meshStandardMaterial color="#2a2d5c" metalness={0.5} roughness={0.5} />

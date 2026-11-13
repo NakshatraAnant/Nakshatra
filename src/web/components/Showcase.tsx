@@ -16,13 +16,15 @@ const CreatorShowcase3D = lazy(() => import('../three/showcase').then((m) => ({ 
 export function AvatarPreview({ config }: { config: AvatarConfig }) {
   const [stage, setStage] = useState(false);
   const src = useMemo(() => avatarDataUrl(config), [config]);
+  // The blink frame: same avatar, eyes closed. Sleepy eyes already look closed, so they never blink.
+  const blinkSrc = useMemo(() => (config.eyes === 'sleepy' ? null : avatarDataUrl({ ...config, eyes: 'sleepy' })), [config]);
   const flat = <img src={src} alt="Your avatar preview" width={240} height={240} className="mx-auto aspect-square w-full max-w-[240px] rounded-full border border-line" />;
   return (
     <div className="space-y-2">
       {stage ? (
         <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-[var(--radius-xl)] bg-canvas-deep" data-theme="dark" data-testid="avatar-stage">
           <Suspense fallback={<div className="absolute inset-[12%]">{flat}</div>}>
-            <AvatarStage3D src={src} rim={swatch('background', config.background) ?? '#d9b26f'} label="Your avatar as a medallion on a small stage. It flips when you change something." fallback={<div className="absolute inset-[12%]">{flat}</div>} />
+            <AvatarStage3D src={src} blinkSrc={blinkSrc} rim={swatch('background', config.background) ?? '#d9b26f'} label="Your avatar as a medallion on a small stage. It flips when you change something and blinks now and then." fallback={<div className="absolute inset-[12%]">{flat}</div>} />
           </Suspense>
         </div>
       ) : flat}

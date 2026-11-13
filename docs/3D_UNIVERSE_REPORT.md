@@ -1,6 +1,6 @@
 # Nakshatra 3D identity universe: final report
 
-Branch `product-evolution`, commits `4bc32a1` to the commit that adds this report. Local only: nothing pushed, nothing deployed, Supabase untouched. Screenshots and measurements are in [`docs/3d-report/`](3d-report/).
+Branch `product-evolution` on GitHub (NakshatraAnant/Nakshatra), from commit `4bc32a1` onwards. Nothing deployed; no Supabase data or schema changed. Screenshots and measurements are in [`docs/3d-report/`](3d-report/).
 
 ## 1. Summary
 
@@ -22,8 +22,12 @@ Every major area of the app now has an optional 3D layer built on one shared sce
 | Tournament arena | tournament page | Finished runs as pillars on a podium |
 | Year film | /year | A short silent film of your year, played on request |
 | Reaction burst | Thought Drops | Sparks when you add a reaction (CSS only) |
-| Avatar stage | /avatar | Your drawn avatar on a medallion (opt-in) |
+| Avatar stage | /avatar | Your drawn avatar on a medallion that blinks (opt-in) |
 | Creator showcase | /creators/:handle | Offerings as shapes, one shape per kind |
+| Journal sky | /journal | A sky for your time of day; your journal days joined as a constellation |
+| Moon sky | /calendar | The chosen day's real Moon phase, tithi and nakshatra |
+| Voice waveform | Thought Drops | The recording's real waveform, decoded on first play |
+| Photo reveal | Thought Drops | Photos "develop" from a soft blur as they load |
 
 ## 2. Scene engine
 
@@ -79,16 +83,19 @@ The game hub's "Rules & play" button opens the same dialog as the game cards. Th
 ## 7. Expression and creators
 
 - **Year film:** its beats come only from the person's own review (`src/web/lib/yearFilm.ts`, tested). A quiet year gets a short, honest film with nothing invented.
-- **Avatar stage:** the medallion's face is the avatar SVG, which is built only from fixed option lists, so no user-supplied markup or geometry is ever rendered.
+- **Avatar stage:** the medallion's face is the avatar SVG, which is built only from fixed option lists, so no user-supplied markup or geometry is ever rendered. It blinks every few seconds by briefly showing the same avatar with closed eyes, only when motion is allowed.
+- **Journal and calendar atmospheres** (`src/web/lib/atmosphere.ts`, tested): SVG and CSS, not 3D, so these everyday pages stay light. The journal sky follows your local time of day and draws only days you actually wrote. The calendar sky shows the selected day's real Moon phase, tithi and nakshatra, with the illumination in words.
+- **Voice and photo drops:** the waveform is computed from the recording's real samples (`src/web/lib/waveform.ts`, tested) the first time you press play; until then the bars are plain, never an invented shape. Photos develop from a soft blur once loaded.
 - **Creator showcase:** shows no prices and has no buy buttons; "See details" scrolls to the offering in the page.
 
 ![Year film](3d-report/shot-year-film.png)
 ![Creator showcase](3d-report/shot-creator-showcase.png)
 ![Avatar stage, live browser](3d-report/live-avatar-stage.jpg)
+![Moon sky](3d-report/shot-moon-sky.png)
 
 ## 8. Motion and sound
 
-Motion presets (`.m-enter`, `.m-reveal`, `.m-fade`, `.m-float`, `.m-pulse`, `.m-glow`, `.m-success`, `.m-error`, `.m-hover`) and the reaction burst run only under no-preference motion and without the in-app reduced-motion setting.
+Motion presets (`.m-enter`, `.m-reveal`, `.m-fade`, `.m-float`, `.m-pulse`, `.m-glow`, `.m-success`, `.m-error`, `.m-hover`), the reaction burst, the twinkling atmosphere stars, the photo reveal and the avatar blink run only under no-preference motion and without the in-app reduced-motion setting.
 
 **Interface sounds** (`src/web/lib/sound.ts`, tested):
 
@@ -128,9 +135,21 @@ Motion presets (`.m-enter`, `.m-reveal`, `.m-fade`, `.m-float`, `.m-pulse`, `.m-
 | /home | 1 | 120.5 | 8.3 ms | 8.6 ms | 8.9 ms |
 | /progress | 2 | 120.3 | 8.3 ms | 8.6 ms | 8.9 ms |
 | /play | 1 | 120.5 | 8.3 ms | 8.5 ms | 8.8 ms |
-| /u/:handle | 1 | 120.5 | 8.3 ms | 8.6 ms | 8.9 ms |
+| /u/:handle | 1 | 120.3 | 8.3 ms | 8.5 ms | 8.9 ms |
 
-Every page held the browser's frame cap with no dropped frames on this integrated GPU. On a phone the numbers would be lower, and they have not been measured here.
+Every page held the browser's frame cap on this integrated GPU. Occasional single frames reached 16–25 ms.
+
+**Phone-class emulation:** same tool, each page in a fresh tab, 412×915 at 2.6× pixel density, touch, with the CPU slowed 4× through DevTools. This approximates a mid-range phone on this computer's GPU; it is not a measurement on a real phone. Raw data: [`3d-report/perf-phone.json`](3d-report/perf-phone.json).
+
+| Page | Quality picked | Frames per second | Median frame | p95 | Slowest |
+| --- | --- | --- | --- | --- | --- |
+| /identity | (loading) | 29.3 | 16.6 ms | 33.4 ms | 2,108 ms |
+| /home | medium | 52.0 | 16.7 ms | 49.9 ms | 75 ms |
+| /progress | medium | 41.8 | 24.9 ms | 41.9 ms | 83 ms |
+| /play | medium | 38.0 | 16.8 ms | 66.7 ms | 183 ms |
+| /year | none until played | 119.5 | 8.3 ms | 8.5 ms | 16.8 ms |
+
+Automatic quality stepped down to medium on its own. The 2.1-second frame on /identity is the one-off cost of loading and compiling the 3D engine in a brand-new tab on the slowed CPU, so a real phone would see one pause the first time a scene appears. Splitting or preloading the three.js chunk would be the next step if that matters.
 
 ## 12. Assets and licensing
 
@@ -145,13 +164,14 @@ A GLB/KTX2 pipeline was not needed and was not built.
 
 All passing at the last full run:
 
-- **Unit tests:** 423 of 423 in 63 files. New layout tests cover the star map, bridges, hub, arena and season, year film and sound.
-- **Browser tests:** 51 of 51. New specs `z6`, `z7`, `z8`, `z9` and `z10`; `b-relationship` and `p-tournament` were extended.
+- **Unit tests:** 429 of 429 in 65 files. New layout tests cover the star map, bridges, hub, arena and season, year film, sound, atmospheres and waveform.
+- **Browser tests:** 52 of 52. New specs `z6` to `z11`; `b-relationship` and `p-tournament` were extended.
+- **Diagnostic sweep** (`e2e/sweep.spec.ts`, run with `E2E_PERF=1`): 8 public, 43 member and 8 admin pages with full motion, recording console errors, crashes, server errors and unexpected failed requests. Result: nothing found.
 - **Typecheck, lint and production build:** clean.
 
 The one `webgl_context_lost` line in the browser log comes from the resilience test that forces a GPU loss on purpose.
 
-Two small changes came after the last full run: the "Your" compatibility wording and the avatar stage camera. After them, the bond and privacy browser tests, the screenshot specs, all 233 astrology and server unit tests, and typecheck and lint were re-run and passed.
+Production dependencies report no known advisories after a patch update to `@fastify/static` (10.1.10). The remaining advisories are in development-only tools (`drizzle-kit`, `typescript-eslint`), where npm's only fix is a major-version downgrade, so they were left.
 
 ## 14. Bugs found and fixed
 
@@ -164,17 +184,21 @@ Two small changes came after the last full run: the "Your" compatibility wording
 - **Avatar texture:** loading the SVG straight into WebGL could leave the face blank, so it's drawn onto a canvas first.
 - **"You's" wording:** compatibility factors read "You's Venus". They now read "Your Venus". Compatibility results already stored keep the old wording until they are recalculated.
 - **Year film wording:** "1 things" and "in one month".
+- **Lowercase paksha:** the calendar sky showed "shukla"; it now reads "Shukla".
+- **Dependency advisories:** three moderate advisories in the production web server's file matching, fixed with a patch update.
 
 ## 15. Not done, and known limits
 
-- **Phones and slower devices:** no frame-rate or Core Web Vitals measurements on real phones or low-end hardware.
+- **Real phones:** frame rates are measured on this computer and under phone-class emulation only; Core Web Vitals on real devices are not measured.
 - **Avatar stage in the test browser:** the face does not render in the headless test browser, which uses a software GPU. It does render in the real browser (screenshot above). The test checks behaviour, not pixels.
 - **No visual regression baselines:** screenshots are for review, not compared automatically.
-- **Not built:** rigged or animated 3D avatars, a WebGPU path, a GLB/KTX2 pipeline, journal/calendar atmospheres, and voice/photo drop effects.
+- **Not built, with reasons:**
+  - **Rigged 3D avatars:** they need licensed or commissioned rigged models, which the repository does not have. The avatar instead blinks on its medallion.
+  - **WebGPU path:** three.js's WebGPU renderer needs node-based materials, and the custom starfield shader would have to be rewritten. WebGL already holds the frame cap here.
+  - **GLB/KTX2 pipeline:** there are no 3D model assets to process. The existing merch product viewer already loads plain GLB files.
 
 ## 16. Release state
 
-- **Git:** every batch is committed locally on `product-evolution`, without force or history rewrites.
-- **GitHub:** not pushed. This machine has no remote and no credentials, so a push needs a repository URL and sign-in from the owner.
-- **Supabase:** not contacted for writes. The linked project is treated as production; the read-only audit is still pending because the project was hibernated.
+- **Git and GitHub:** every batch is committed on `product-evolution` and pushed to https://github.com/NakshatraAnant/Nakshatra without force. GitHub's README history was merged in, so a pull request into `main` merges cleanly; the owner is opening it.
+- **Supabase:** no data or schema changed. With the owner's approval a resume was requested: the project reports ACTIVE_HEALTHY, but its database still timed out on every read more than 30 minutes later, so the read-only audit could not run. Supabase's guidance at that point is a support ticket from the account owner.
 - **Local:** the app runs at http://localhost:4500. Ports 3000 and 4000 (ATLAS) were never touched. The local database is preserved, with backups taken before each migration. Payments are off (`PAYMENTS_ENABLED=false`, `PAYMENT_PROVIDER=none`).

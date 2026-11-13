@@ -1,0 +1,51 @@
+{
+  "measuredAt": "2026-11-13T05:38:52.393Z",
+  "emulation": "4x CPU slowdown, 412x915 @2.6x, touch",
+  "rows": [
+    {
+      "path": "/identity",
+      "what": "Reveal theatre + dimension explorer",
+      "sceneQuality": null,
+      "fps": 29.3,
+      "medianMs": 16.6,
+      "p95Ms": 33.4,
+      "worstMs": 2107.7
+    },
+    {
+      "path": "/home",
+      "what": "Home identity world",
+      "sceneQuality": "medium",
+      "fps": 52,
+      "medianMs": 16.7,
+      "p95Ms": 49.9,
+      "worstMs": 75
+    },
+    {
+      "path": "/progress",
+      "what": "Season path + achievement gallery",
+      "sceneQuality": "medium",
+      "fps": 41.8,
+      "medianMs": 24.9,
+      "p95Ms": 41.9,
+      "worstMs": 83.2
+    },
+    {
+      "path": "/play",
+      "what": "Game hub",
+      "sceneQuality": "medium",
+      "fps": 38,
+      "medianMs": 16.8,
+      "p95Ms": 66.7,
+      "worstMs": 183.3
+    },
+    {
+      "path": "/year",
+      "what": "Year film (closed)",
+      "sceneQuality": null,
+      "fps": 119.5,
+      "medianMs": 8.3,
+      "p95Ms": 8.5,
+      "worstMs": 16.8
+    }
+  ]
+}

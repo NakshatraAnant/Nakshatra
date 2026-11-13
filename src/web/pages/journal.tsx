@@ -5,6 +5,7 @@ import { Button, ButtonLink, Card, PageHeader, Textarea, cx } from '../component
 import { EmptyState, Notice, QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { JOURNAL_RULES } from '../../shared/journal';
+import { JournalSky } from '../components/Atmosphere';
 
 interface Entry { id: string; date: string; prompt: string | null; body: string; createdAt: string; updatedAt: string }
 interface Day { date: string; mood: string | null; journal: number; posts: number; events: number; games: number }
@@ -48,7 +49,8 @@ export function JournalPage() {
       </Card>
 
       <QueryState q={cal}>{(c) => (
-        <Card aria-label="Your month">
+        <Card aria-label="Your month" className="space-y-3">
+          <JournalSky month={c.month} days={c.days} />
           <div className="flex items-center justify-between gap-2">
             <Button size="sm" variant="ghost" aria-label="Previous month" onClick={() => { setMonth(shiftMonth(c.month, -1)); setSelected(null); }}>←</Button>
             <h2 className="font-display text-2xl">{c.label}</h2>
