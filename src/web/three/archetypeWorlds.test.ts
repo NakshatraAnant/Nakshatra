@@ -23,6 +23,7 @@ describe('archetype worlds', () => {
   it('falls back to a neutral world for unknown keys, and reveal stages are ordered', () => {
     expect(worldFor('nope').form).toBe('icosahedron');
     const times = REVEAL_STAGES.map((s) => s.at);
+    expect(REVEAL_STAGES.map((s) => s.key)).toEqual(['silence', 'dimensions', 'connection', 'archetype', 'blend', 'awakening', 'arrival']);
     expect([...times].sort((a, b) => a - b)).toEqual(times);
     expect(REVEAL_LENGTH).toBeGreaterThan(times[times.length - 1]);
   });

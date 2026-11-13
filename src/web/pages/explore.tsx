@@ -4,7 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { ApiError, get, post, put } from '../lib/api';
 import { Avatar, Badge, Button, ButtonLink, Card, PageHeader, Switch, cx } from '../components/ui/primitives';
 import { EmptyState, QueryState } from '../components/ui/feedback';
-import { useToast } from '../components/ui/overlays';
+import { Segmented, useToast } from '../components/ui/overlays';
 import { useModules } from '../lib/modules';
 import { useMe } from '../lib/session';
 import { CONNECTION_INTENTS, MAX_INTENTS } from '../../shared/people';
@@ -86,6 +86,8 @@ function People() {
   const qc = useQueryClient();
   const [intent, setIntent] = useState('');
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<'both' | 'constellation' | 'list'>(() => { try { const v = localStorage.getItem('nk_discover_view'); return v === 'constellation' || v === 'list' ? v : 'both'; } catch { return 'both'; } });
+  const pickView = (v: 'both' | 'constellation' | 'list') => { setView(v); try { localStorage.setItem('nk_discover_view', v); } catch { /* storage unavailable */ } };
   const settings = useQuery({ queryKey: ['people-settings'], queryFn: () => get<{ discoverable: boolean; intents: string[] }>('people/settings') });
   const list = useInfiniteQuery({
     queryKey: ['people', intent],
@@ -117,8 +119,9 @@ function People() {
           </div>
           <QueryState q={list} empty={(d) => (!d.pages[0]?.people.length ? <EmptyState icon="social" title="No one here yet" body={intent ? 'Nobody listed has picked this yet. Try another filter.' : 'You’re early. Invite friends — when they list themselves, they’ll show up here.'} action={<ButtonLink to="/invite" size="sm">Invite friends</ButtonLink>} /> : null)}>{(d) => (
             <>
-              <PeopleConstellation people={d.pages.flatMap((pg) => pg.people)} intentLabel={(k) => INTENT_LABEL[k] ?? k} />
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{d.pages.flatMap((pg) => pg.people).map((p) => <PersonCard key={p.userId} p={p} />)}</ul>
+              <Segmented label="View" value={view} onChange={pickView} options={[{ value: 'both', label: 'Both' }, { value: 'constellation', label: 'Constellation' }, { value: 'list', label: 'List' }]} />
+              {view !== 'list' && <PeopleConstellation people={d.pages.flatMap((pg) => pg.people)} intentLabel={(k) => INTENT_LABEL[k] ?? k} />}
+              {view !== 'constellation' && <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{d.pages.flatMap((pg) => pg.people).map((p) => <PersonCard key={p.userId} p={p} />)}</ul>}
               {list.hasNextPage && <Button variant="secondary" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Show more</Button>}
             </>
           )}</QueryState>

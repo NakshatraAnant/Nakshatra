@@ -4,6 +4,7 @@ import { Button, Card, Select, Switch, cx } from './ui/primitives';
 import { ArchetypeArt, ResponsiveArt } from './visual';
 import { archetypeAccent, envArt } from '../lib/visual';
 import type { Persona } from '../lib/persona';
+import { publicEvent } from '../lib/cosmic';
 import { REVEAL_STAGES, worldFor } from '../three/archetypeWorlds';
 import { GRAPHICS_LEVELS, getGraphicsLevel, onGraphicsChange, setGraphicsLevel, type GraphicsLevel } from '../three/quality';
 import { getSoundOn, onSoundChange, playCue, setSoundOn } from '../lib/sound';
@@ -45,7 +46,11 @@ export function RevealTheatre({ persona }: { persona: Persona }) {
   const [stage, setStage] = useState(intro ? 0 : REVEAL_STAGES.length - 1);
   const data = useMemo(() => sceneData(persona), [persona]);
   const done = stage >= REVEAL_STAGES.length - 1;
-  useEffect(() => { if (done) try { localStorage.setItem(seenKey, '1'); } catch { /* storage unavailable */ } }, [done, seenKey]);
+  useEffect(() => { if (done) try { if (localStorage.getItem(seenKey) !== '1') publicEvent('reveal_completed'); localStorage.setItem(seenKey, '1'); } catch { /* storage unavailable */ } }, [done, seenKey]);
+  // Chapter five says what is true for this result: a stored blend, a nearby second archetype, or neither.
+  const chapter = REVEAL_STAGES[stage].key === 'blend'
+    ? (persona.blend ? `Blending with ${persona.blend.secondaryName ?? 'a second archetype'}` : persona.secondary ? `An echo of ${persona.secondary.name}` : 'One clear archetype')
+    : REVEAL_STAGES[stage].label;
   const onStage = (t: number) => {
     let i = 0;
     REVEAL_STAGES.forEach((s, k) => { if (t >= s.at) i = k; });
@@ -62,10 +67,10 @@ export function RevealTheatre({ persona }: { persona: Persona }) {
           </Suspense>
         </div>
         {/* The sigil artwork stays an image in the page; it arrives with the shell. */}
-        <div className={cx('pointer-events-none absolute inset-[27%] transition-opacity duration-700', stage >= 1 || skip ? 'opacity-100' : 'opacity-0')}>
+        <div className={cx('pointer-events-none absolute inset-[27%] transition-opacity duration-700', stage >= 3 || skip ? 'opacity-100' : 'opacity-0')}>
           <ArchetypeArt archetypeKey={persona.key} scores={scoresOf(persona)} eager />
         </div>
-        <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs uppercase tracking-[0.16em] text-fg-2" aria-live="polite">{REVEAL_STAGES[stage].label}</p>
+        <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs uppercase tracking-[0.16em] text-fg-2" aria-live="polite"><span className="sr-only">Chapter {stage + 1} of {REVEAL_STAGES.length}: </span>{chapter}</p>
       </div>
       <div className="mx-auto flex max-w-[420px] flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 text-xs text-fg-3">{worldFor(persona.key).caption}</p>

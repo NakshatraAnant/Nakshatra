@@ -6,6 +6,7 @@ import { QueryState } from '../components/ui/feedback';
 import { useToast } from '../components/ui/overlays';
 import { AVATAR_PARTS, AVATAR_PART_KEYS, DEFAULT_AVATAR, randomAvatar, swatch, type AvatarConfig, type AvatarPart } from '../../shared/avatar';
 import { AvatarPreview } from '../components/Showcase';
+import { StudioNav } from '../components/IdentityIntro';
 
 const PART_LABEL: Record<AvatarPart, string> = { skin: 'Skin tone', face: 'Face shape', hair: 'Hair', hairColor: 'Hair colour', eyes: 'Eyes', brows: 'Eyebrows', mouth: 'Mouth', accessory: 'Extras', background: 'Background' };
 
@@ -14,7 +15,8 @@ export function AvatarCreatorPage() {
   const q = useQuery({ queryKey: ['avatar-builder'], queryFn: () => get<{ config: AvatarConfig | null; inUse: boolean }>('profile/avatar-builder') });
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader kicker="You" title="Avatar creator" subtitle="Make a picture of yourself from parts — no photo needed. It shows wherever your picture does." />
+      <StudioNav />
+      <PageHeader kicker="Identity Studio" title="Avatar creator" subtitle="Make a picture of yourself from parts — no photo needed. It shows wherever your picture does." />
       <QueryState q={q}>{(d) => <Builder initial={d.config ?? DEFAULT_AVATAR} inUse={d.inUse} />}</QueryState>
     </div>
   );

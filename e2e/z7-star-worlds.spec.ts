@@ -37,6 +37,18 @@ test('star worlds: a circle as a world of its members, and discovery as a conste
   await a.waitForTimeout(1500);
   await sky.screenshot({ path: 'test-results/shot-constellation.png' });
 
+  // Two ways to look: the constellation, the familiar list, or both.
+  const view = a.getByRole('radiogroup', { name: 'View' });
+  await view.getByRole('radio', { name: 'List' }).click();
+  await expect(a.getByLabel('People constellation')).toHaveCount(0);
+  await expect(a.getByRole('listitem').filter({ hasText: 'Borealis' })).toBeVisible();
+  await view.getByRole('radio', { name: 'Constellation' }).click();
+  await expect(a.getByLabel('People constellation')).toBeVisible();
+  await expect(a.getByRole('listitem').filter({ hasText: 'Borealis' })).toHaveCount(0);
+  await a.reload();
+  await expect(a.getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Constellation' })).toHaveAttribute('aria-checked', 'true');
+  await a.getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Both' }).click();
+
   // A blocked person disappears from the constellation.
   const bId = (await api(b, 'GET', 'auth/me')).user.id;
   await api(a, 'POST', 'blocks/' + bId);

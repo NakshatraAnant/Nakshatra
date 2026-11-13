@@ -29,7 +29,7 @@ export interface CosmicIdentity {
 }
 
 /** Funnel events (aggregate; the server attaches the member only when signed in). Failures never affect the page. */
-export type FunnelEvent = 'landing_viewed' | 'cosmic_id_card_downloaded' | 'cosmic_id_preview_signup_clicked' | 'assessment_started' | 'result_viewed' | 'share_card_created' | 'preview_signup_clicked' | 'offer_viewed';
+export type FunnelEvent = 'landing_viewed' | 'cosmic_id_card_downloaded' | 'cosmic_id_preview_signup_clicked' | 'assessment_started' | 'result_viewed' | 'share_card_created' | 'preview_signup_clicked' | 'offer_viewed' | 'intro_viewed' | 'intro_skipped' | 'intro_completed' | 'reveal_completed' | 'identity_studio_opened';
 export function publicEvent(name: FunnelEvent) {
   void post('discover/events', { name }).catch(() => undefined);
 }

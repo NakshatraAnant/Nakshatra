@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { api, PASSWORD, quickUser, uniqueEmail, verifyEmail, watchErrors } from './helpers';
+import { api, PASSWORD, quickUser, uniqueEmail, verifyEmail, watchErrors, skipIntro } from './helpers';
 
 async function answerAll(page: Page, finishLabel: string) {
   for (let step = 0; step < 4; step++) {
@@ -18,6 +18,7 @@ test('Journey K: archetype preview → save → circle → invite → Thought Dr
 
   // Account-free archetype.
   await page.goto('/');
+  await skipIntro(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Discover your kind of person');
   await page.getByRole('link', { name: 'Find your archetype — no account' }).first().click();
   await page.waitForURL(/\/personality/);

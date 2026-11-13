@@ -20,8 +20,10 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     // Uses the installed Microsoft Edge so no browser download is needed. Set E2E_CHANNEL=chromium to use Playwright's bundle.
     channel: process.env.E2E_CHANNEL === 'chromium' ? undefined : (process.env.E2E_CHANNEL ?? 'msedge'),
-    // Journeys run with reduced motion: 3D scenes render on demand instead of continuously, which keeps headless
-    // software-WebGL from starving the server of CPU. Full-motion 3D is covered in a-new-user and resilience specs.
+    // NOTE: this top-level option is not applied by this Playwright version (found 2026-11-13: pages report
+    // prefers-reduced-motion: no-preference), so journeys actually run with full motion. Tests that need reduced
+    // motion create their own context with { reducedMotion: 'reduce' }. Moving it into contextOptions would change
+    // what every existing spec exercises, so it is left as is and documented.
     reducedMotion: 'reduce',
     // Tracing makes multi-user journeys 4-5x slower with software WebGL (Journey I: 19 s untraced vs ~90 s traced),
     // so traces are recorded only on the retry of a failed test.

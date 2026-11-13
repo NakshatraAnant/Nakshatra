@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { api, uniqueEmail, PASSWORD, watchErrors } from './helpers';
+import { api, uniqueEmail, PASSWORD, watchErrors, skipIntro } from './helpers';
 
 test('Journey J: landing sample → account-free Cosmic ID → reveal → share card → save → prefilled onboarding → same archetype', async ({ page }) => {
   const w = watchErrors(page);
 
   // Landing leads with the social promise; astrology is the optional path, with a real calculated sample.
   await page.goto('/');
+  await skipIntro(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Discover your kind of person');
   await expect(page.getByText(/Sample Cosmic ID ·/)).toBeVisible();
   await expect(page.getByRole('img', { name: /sigil: Janma Nakshatra/ }).first()).toBeVisible();

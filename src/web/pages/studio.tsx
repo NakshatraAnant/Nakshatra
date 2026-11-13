@@ -12,6 +12,7 @@ import { ARCHETYPE_VISUALS, archetypeAccent, archetypeArt, cardStyleFrame, envAr
 import { publicEvent, shareOrDownload } from '../lib/cosmic';
 import { ShareLinkPanel } from './share';
 import { DimensionExplorer, RevealTheatre } from '../components/IdentityWorld';
+import { IdentityIntro, StudioNav } from '../components/IdentityIntro';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
@@ -244,8 +245,10 @@ export function IdentityStudio() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['identity-me'] }); toast('Saved', 'success'); },
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error'),
   });
+  useEffect(() => { publicEvent('identity_studio_opened'); }, []);
   return (
     <div>
+      <StudioNav />
       <PageHeader kicker={params.get('welcome') ? 'Welcome to Nakshatra' : 'Identity Studio'} title="Your kind of person" subtitle="What you calculated, what you chose, what friends guess — and what the sky says, if you want it. You control who sees each part." />
       <QueryState q={q}>{(d) => (!d.persona || retake) ? (
         <Card className="relative max-w-3xl overflow-hidden">
@@ -259,7 +262,7 @@ export function IdentityStudio() {
         </Card>
       ) : (
         <div className="space-y-8">
-          <PersonaResult persona={d.persona} style={d.cardStyle} actions={<div className="space-y-4"><PersonaShare persona={d.persona} style={d.cardStyle} labels={d.labels} /><Button variant="ghost" size="sm" onClick={() => setRetake(true)}>Retake assessment</Button></div>} />
+          <PersonaResult persona={d.persona} style={d.cardStyle} actions={<div className="space-y-4"><PersonaShare persona={d.persona} style={d.cardStyle} labels={d.labels} /><div className="flex flex-wrap items-center gap-2"><ButtonLink to="/avatar" size="sm" variant="secondary">Customise my avatar</ButtonLink><ButtonLink to="/home" size="sm" variant="secondary">Continue to Nakshatra</ButtonLink><Button variant="ghost" size="sm" onClick={() => setRetake(true)}>Retake assessment</Button></div></div>} />
           <DimensionExplorer persona={d.persona} />
           {params.get('welcome') === '1' && (
             <Card className="flex flex-wrap items-center justify-between gap-4 border-accent/40" role="note" aria-labelledby="first-step">
@@ -393,18 +396,11 @@ export function PersonalityPreview() {
   }
   return (
     <div className="mx-auto grid max-w-5xl gap-10 py-10 lg:grid-cols-[1fr_1.3fr]">
-      <section>
-        <p className="eyebrow">Archetype · no account needed</p>
-        <h1 className="mt-3 font-display text-5xl leading-[1.04]">What kind of person are you?</h1>
-        <p className="mt-4 leading-relaxed text-fg-2">Twenty quick statements place you on five dimensions — social energy, decision style, expression, pace and novelty — and match you to one of 24 archetypes. No birth details, no sign-up.</p>
-        <ul className="mt-6 space-y-2 text-sm text-fg-2">
-          <li>✦ Nothing is stored unless you choose to save it.</li>
-          <li>✦ Every result explains exactly why.</li>
-          <li>✦ Tendencies, not labels for life. Retake whenever you like.</li>
-        </ul>
+      <div>
+        <IdentityIntro onStart={() => { const el = document.getElementById('assessment'); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); el?.querySelector<HTMLInputElement>('input[type=radio]')?.focus({ preventScroll: true }); }} />
         <p className="mt-6 text-xs text-fg-3">Prefer astrology? <Link to="/discover" className="text-accent underline underline-offset-2">Read your sky instead</Link>.</p>
-      </section>
-      <Card className="relative overflow-hidden p-6 md:p-8">
+      </div>
+      <Card id="assessment" className="relative scroll-mt-20 overflow-hidden p-6 md:p-8">
         <div className="pointer-events-none absolute inset-0 opacity-40"><ResponsiveArt landscape={envArt('sigil-field', 'landscape')} portrait={envArt('sigil-field', 'portrait')} landscapePosition="70% 50%" portraitPosition="50% 30%" /></div>
         <div className="relative"><Assessment onDone={async (answers) => { const r = await post<{ result: Persona }>('personality/preview', { answers }); setResult({ persona: r.result, answers }); window.scrollTo({ top: 0 }); }} /></div>
       </Card>

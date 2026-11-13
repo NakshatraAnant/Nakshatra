@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../lib/api';
 import { PublicShell } from '../components/layout/AppShell';
@@ -12,6 +12,9 @@ import { BRAND, archetypeArt, gameArt } from '../lib/visual';
 import { PERSONA_ARCHETYPES, PERSONA_BY_KEY } from '../../shared/personality';
 import { GAMES } from '../../shared/play/engine';
 import { IdentityCard } from './studio';
+import { CinematicIntro } from '../components/CinematicIntro';
+import { introSeen, shouldPlayIntro } from '../lib/intro';
+import { prefersReducedMotion, useMe } from '../lib/session';
 
 /**
  * Landing (Ink & Ember): brand hero environment with the promise and one ember CTA,
@@ -48,8 +51,22 @@ function PillarCard({ eyebrow, title, body, art, position }: { eyebrow: string; 
 
 export function Landing() {
   useEffect(() => { publicEvent('landing_viewed'); }, []);
+  const me = useMe();
+  const [params, setParams] = useSearchParams();
+  const replay = params.get('intro') === '1';
+  const reduced = prefersReducedMotion() || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Decided once the session is known, so a signed-in member never gets the first-visit film by accident.
+  const [intro, setIntro] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (intro !== null && !replay) return;
+    if (replay) { setIntro(true); return; }
+    if (me.isLoading) return;
+    setIntro(shouldPlayIntro({ replay: false, signedIn: !!me.data?.user, seen: introSeen(), reducedMotion: reduced }));
+  }, [me.isLoading, me.data, replay]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeIntro = () => { setIntro(false); if (replay) setParams({}, { replace: true }); };
   return (
     <PublicShell>
+      {intro && <CinematicIntro still={reduced} onClose={closeIntro} />}
       <section className="relative -mx-4 overflow-hidden md:-mx-8" aria-labelledby="hero-title">
         <div className="absolute inset-0"><ResponsiveArt landscape={BRAND.heroLandscape} portrait={BRAND.heroPortrait} landscapePosition="70% 50%" portraitPosition="50% 30%" eager /></div>
         <div className="scrim-left absolute inset-0 hidden md:block" aria-hidden="true" />
@@ -148,6 +165,7 @@ export function Landing() {
           <p className="max-w-lg text-fg-2">24 archetypes, five dimensions, about two minutes. Then bring your friends.</p>
           <ButtonLink to="/personality" size="lg">Find your archetype — no account</ButtonLink>
           <Link to="/signin" className="flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4 hover:text-fg">I already have an account</Link>
+          <Link to="/?intro=1" className="flex min-h-11 items-center text-sm text-fg-3 underline underline-offset-4 hover:text-fg">Watch the introduction</Link>
         </div>
       </section>
     </PublicShell>

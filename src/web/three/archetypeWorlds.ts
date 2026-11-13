@@ -57,10 +57,15 @@ export const DEFAULT_WORLD: ArchetypeWorld = w('icosahedron', 'wire', 'drift', 2
 export const worldFor = (key: string): ArchetypeWorld => ARCHETYPE_WORLDS[key] ?? DEFAULT_WORLD;
 
 /** Timings of the reveal, in seconds, shared by the scene and the on-page captions. */
+/** The reveal's seven chapters. Times are seconds on the first viewing; a replay runs the same timeline at double speed. */
 export const REVEAL_STAGES = [
-  { at: 0, label: 'Your five dimensions' },
-  { at: 2.2, label: 'Your shape forms' },
-  { at: 3.6, label: 'What orbits you' },
-  { at: 4.8, label: 'This is you' },
+  { key: 'silence', at: 0, label: 'One light' },
+  { key: 'dimensions', at: 1.2, label: 'Your five dimensions' },
+  { key: 'connection', at: 2.6, label: 'They connect' },
+  { key: 'archetype', at: 3.8, label: 'Your archetype emerges' },
+  { key: 'blend', at: 5.2, label: 'Your blend' },
+  { key: 'awakening', at: 6.4, label: 'Awakening' },
+  { key: 'arrival', at: 7.6, label: 'This is you' },
 ] as const;
-export const REVEAL_LENGTH = 5.6;
+export const REVEAL_LENGTH = 8.4;
+export const REPLAY_SPEED = 2;

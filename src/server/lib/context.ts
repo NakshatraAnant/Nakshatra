@@ -61,6 +61,11 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   wedding_project_created: { meaningful: true, description: 'Wedding project created.' },
   wedding_inquiry_created: { meaningful: true, description: 'Vendor inquiry created.' },
   landing_viewed: { meaningful: false, description: 'Public landing page viewed (anonymous, no identifiers).' },
+  intro_viewed: { meaningful: false, description: 'First-visit introduction started (anonymous unless signed in).' },
+  intro_skipped: { meaningful: false, description: 'Introduction skipped before its end.' },
+  intro_completed: { meaningful: false, description: 'Introduction watched to its end.' },
+  reveal_completed: { meaningful: false, description: 'Identity reveal watched or skipped to its final chapter.' },
+  identity_studio_opened: { meaningful: false, description: 'Identity Studio opened.' },
   cosmic_id_previewed: { meaningful: false, description: 'Account-free Cosmic ID calculated (anonymous; only whether a birth time was given).' },
   cosmic_id_card_downloaded: { meaningful: false, description: 'Share card downloaded from the account-free preview (anonymous).' },
   cosmic_id_preview_signup_clicked: { meaningful: false, description: 'Save-my-Cosmic-ID clicked on the preview (anonymous).' },
@@ -124,7 +129,7 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
 };
 
 /** Events a browser may report itself (POST /api/v1/discover/events). Everything else is recorded by the server. */
-export const CLIENT_EVENTS = ['landing_viewed', 'cosmic_id_card_downloaded', 'cosmic_id_preview_signup_clicked', 'assessment_started', 'result_viewed', 'share_card_created', 'preview_signup_clicked', 'offer_viewed'] as const;
+export const CLIENT_EVENTS = ['landing_viewed', 'cosmic_id_card_downloaded', 'cosmic_id_preview_signup_clicked', 'assessment_started', 'result_viewed', 'share_card_created', 'preview_signup_clicked', 'offer_viewed', 'intro_viewed', 'intro_skipped', 'intro_completed', 'reveal_completed', 'identity_studio_opened'] as const;
 
 export async function track(db: Executor, userId: string | null, name: keyof typeof EVENT_TAXONOMY, props: Record<string, unknown> = {}) {
   const def = EVENT_TAXONOMY[name];

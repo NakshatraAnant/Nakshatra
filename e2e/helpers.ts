@@ -88,3 +88,10 @@ export function watchErrors(page: Page) {
     },
   };
 }
+
+/** A first-time visitor sees the introduction over the landing page; journeys that start there skip it, as a person would. */
+export async function skipIntro(page: Page) {
+  const skip = page.getByTestId('cinematic-intro').getByRole('button', { name: 'Skip intro' });
+  await skip.click({ timeout: 8000 }).catch(() => undefined);
+  await expect(page.getByTestId('cinematic-intro')).toHaveCount(0);
+}

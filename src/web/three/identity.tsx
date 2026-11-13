@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Scene3D, mulberry32 } from './core';
 import { Nebula, Starfield } from './elements';
-import { REVEAL_LENGTH, worldFor, type ArchetypeWorld, type WorldForm } from './archetypeWorlds';
+import { REPLAY_SPEED, REVEAL_LENGTH, worldFor, type ArchetypeWorld, type WorldForm } from './archetypeWorlds';
 
 /**
  * The identity scene engine. One component draws every archetype's world from its data (archetypeWorlds.ts):
@@ -14,8 +14,9 @@ import { REVEAL_LENGTH, worldFor, type ArchetypeWorld, type WorldForm } from './
  *  - what orbits it (satellites, particles), and — only when the stored result is a blend — the secondary
  *    archetype's shell as a companion whose size follows the stored blend weight.
  *
- * Nothing is random per visit: every layout value is seeded from the archetype key. The reveal is a timeline
- * over the same scene (rings → shell → companions → rest); skip and reduced motion show the finished state.
+ * Nothing is random per visit: every layout value is seeded from the archetype key. The reveal is a seven-chapter
+ * timeline over the same scene (one light → rings → rings connect → shell → blend → what orbits it → rest);
+ * skip and reduced motion show the finished state, and a replay runs at double speed.
  */
 export interface IdentitySceneData {
   archetypeKey: string;
@@ -102,8 +103,10 @@ function DimensionRings({ data, clock, selected, onSelect }: { data: IdentitySce
     data.dimensions.forEach((_, i) => {
       const g = refs.current[i];
       if (!g) return;
-      const a = span(clock.current.t, i * 0.4, i * 0.4 + 0.9);
-      g.scale.setScalar(0.5 + 0.5 * a);
+      const t = clock.current.t;
+      const a = span(t, 1.2 + i * 0.25, 2.0 + i * 0.25);
+      // Chapter three: the rings draw in from slightly wide until they sit together.
+      g.scale.setScalar((0.5 + 0.5 * a) * (1.14 - 0.14 * span(t, 2.6, 3.8)));
       g.visible = a > 0.001;
     });
   });
@@ -158,7 +161,7 @@ function Companions({ world, accent, seed, clock, animate, density }: { world: A
   useEffect(() => () => { geom.dispose(); mat.dispose(); }, [geom, mat]);
   useFrame(() => {
     const { t, idle } = clock.current;
-    const a = span(t, 3.6, 4.8);
+    const a = span(t, 6.4, 7.6);
     mat.opacity = 0.75 * a;
     if (pts.current && animate) pts.current.rotation.y = idle * cfg.speed;
     if (sats.current) {
@@ -194,7 +197,7 @@ function BlendCompanion({ blend, clock, animate }: { blend: NonNullable<Identity
   useFrame(() => {
     if (!g.current) return;
     const { t, idle } = clock.current;
-    const a = span(t, 3.6, 4.8);
+    const a = span(t, 5.2, 6.4);
     const ang = 0.6 + (animate ? idle * 0.12 : 0);
     const r = 3.3 + (1 - a) * 5;
     g.current.position.set(Math.cos(ang) * r, 0.9 * Math.sin(ang * 0.7), Math.sin(ang) * r * 0.45);
@@ -202,22 +205,29 @@ function BlendCompanion({ blend, clock, animate }: { blend: NonNullable<Identity
   });
   return (
     <group ref={g} scale={size}>
-      <Shell world={world} accent={blend.accent} radius={1.5} clock={clock} animate={animate} appearAt={[3.6, 4.8]} />
+      <Shell world={world} accent={blend.accent} radius={1.5} clock={clock} animate={animate} appearAt={[5.2, 6.4]} />
     </group>
   );
 }
 
-function Timeline({ clock, intro, skip, animate, onStage }: { clock: React.RefObject<Clock>; intro: boolean; skip: boolean; animate: boolean; onStage?: (t: number) => void }) {
+/** Chapter one: a single light at the centre, which the archetype's shell then grows around. */
+function Core({ clock }: { clock: React.RefObject<Clock> }) {
+  const mat = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => { if (mat.current) mat.current.opacity = span(clock.current.t, 0.1, 1.0) * (1 - span(clock.current.t, 3.8, 5.2)); });
+  return <mesh><sphereGeometry args={[0.16, 16, 12]} /><meshBasicMaterial ref={mat} color="#fff4dd" transparent opacity={0} /></mesh>;
+}
+
+function Timeline({ clock, intro, skip, animate, fast, onStage }: { clock: React.RefObject<Clock>; intro: boolean; skip: boolean; animate: boolean; fast: boolean; onStage?: (t: number) => void }) {
   const camera = useThree((s) => s.camera);
   const last = useRef(-1);
   useFrame((_, dt) => {
     const c = clock.current;
     const step = Math.min(dt, 0.05);
     if (!intro || skip || !animate) c.t = REVEAL_LENGTH;
-    else if (c.t < REVEAL_LENGTH) c.t = Math.min(REVEAL_LENGTH, c.t + step);
+    else if (c.t < REVEAL_LENGTH) c.t = Math.min(REVEAL_LENGTH, c.t + step * (fast ? REPLAY_SPEED : 1));
     if (animate) c.idle += step;
     // One slow push-in while the scene assembles.
-    camera.position.z = 12.5 - 3 * span(c.t, 0, 4.8);
+    camera.position.z = 12.5 - 3 * span(c.t, 0, 7.6);
     const whole = Math.floor(c.t * 4);
     if (onStage && whole !== last.current) { last.current = whole; onStage(c.t); }
   });
@@ -240,11 +250,12 @@ export function IdentityScene3D({ data, intro = false, runId = 0, skip = false, 
           <ambientLight intensity={0.5} />
           <pointLight position={[4, 5, 6]} intensity={40} color="#f3e4c0" />
           <pointLight position={[-5, -3, 4]} intensity={18} color={data.accent} />
-          <Timeline clock={clock} intro={intro} skip={skip} animate={!reducedMotion} onStage={onStage} />
+          <Timeline clock={clock} intro={intro} skip={skip} animate={!reducedMotion} fast={runId > 0} onStage={onStage} />
+          <Core clock={clock} />
           <Starfield quality={quality === 'high' ? 'medium' : 'low'} radius={46} seed={seed % 997} animate={!reducedMotion} />
           <Nebula intensity={0.5} />
           <DimensionRings data={data} clock={clock} selected={selected} onSelect={onSelect} />
-          <Shell world={world} accent={data.accent} radius={2.5} clock={clock} animate={!reducedMotion} appearAt={[2.2, 3.6]} />
+          <Shell world={world} accent={data.accent} radius={2.5} clock={clock} animate={!reducedMotion} appearAt={[3.8, 5.2]} />
           <Companions world={world} accent={data.accent} seed={seed} clock={clock} animate={!reducedMotion} density={density} />
           {data.blend && <BlendCompanion blend={data.blend} clock={clock} animate={!reducedMotion} />}
         </>

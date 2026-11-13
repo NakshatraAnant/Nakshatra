@@ -5,6 +5,8 @@ import { Badge, Button, Card, PageHeader, Switch, cx } from '../components/ui/pr
 import { Segmented, useToast } from '../components/ui/overlays';
 import { GraphicsQualitySetting, SoundSetting } from '../components/IdentityWorld';
 import { ACCENTS, CORNERS, DEFAULT_APPEARANCE, TEXT_SIZES, normaliseAppearance, type Appearance } from '../../shared/appearance';
+import { Link } from 'react-router';
+import { StudioNav } from '../components/IdentityIntro';
 
 type Prefs = { colorScheme?: 'system' | 'dark' | 'light'; appearance?: Appearance; reducedMotion?: boolean };
 
@@ -28,7 +30,8 @@ export function ThemeStudioPage() {
   const dark = scheme === 'dark' || (scheme === 'system' && !window.matchMedia('(prefers-color-scheme: light)').matches);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader kicker="You" title="Theme studio" subtitle="Make Nakshatra feel like yours. Changes apply straight away, on every device you use." />
+      <StudioNav />
+      <PageHeader kicker="Identity Studio" title="Theme studio" subtitle="Make Nakshatra feel like yours. Changes apply straight away, on every device you use." />
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <section className="space-y-2">
@@ -61,6 +64,7 @@ export function ThemeStudioPage() {
           <GraphicsQualitySetting />
           <SoundSetting />
           <Switch label="Reduce motion" description="Turns off 3D animation and transitions everywhere." checked={me.profile.reducedMotion} onChange={(v) => save.mutate({ reducedMotion: v })} />
+          <p className="text-sm"><Link to="/?intro=1" className="text-accent hover:underline">Watch the introduction again →</Link></p>
           <Button variant="ghost" size="sm" disabled={JSON.stringify(a) === JSON.stringify(DEFAULT_APPEARANCE)} onClick={() => save.mutate({ appearance: DEFAULT_APPEARANCE })}>Reset to the default look</Button>
         </Card>
 

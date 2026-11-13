@@ -18,7 +18,7 @@ test('identity universe: reveal theatre with skip and replay, dimension explorer
   await expect(theatre).toBeVisible();
   // First visit plays the reveal; Skip jumps to the finished scene, Replay starts it again.
   await page.getByRole('button', { name: 'Skip' }).click();
-  await expect(theatre).toHaveAttribute('data-reveal-stage', '3');
+  await expect(theatre).toHaveAttribute('data-reveal-stage', '6');
   await expect(theatre.getByText('This is you')).toBeVisible();
   await page.waitForTimeout(1200);
   await theatre.screenshot({ path: 'test-results/shot-reveal.png' });
