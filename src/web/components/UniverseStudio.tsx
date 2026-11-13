@@ -81,7 +81,7 @@ export function UniverseStudio() {
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>Save universe</Button>
             <Button variant="ghost" size="sm" disabled={isDefault} onClick={() => setDraft(DEFAULT_UNIVERSE)}>Reset to defaults</Button>
-            <span className="text-xs text-fg-3" role="status">{dirty ? 'Previewing — not saved yet.' : 'Saved.'}</span>
+            <span className="text-xs text-fg-3" role="status" data-testid="universe-status">{dirty ? 'Previewing — not saved yet.' : 'Saved.'}</span>
           </div>
         </div>
       </div>

@@ -12,16 +12,16 @@ test('universe studio: preview first, save persists, reset returns to defaults; 
   await takeAssessment(page);
   await page.goto('/theme');
   const studio = page.getByLabel('Universe Studio');
-  await expect(studio.getByRole('status')).toHaveText('Saved.');
+  await expect(page.getByTestId('universe-status')).toHaveText('Saved.');
   await studio.getByRole('radiogroup', { name: 'Environment' }).getByRole('radio', { name: 'Aurora' }).click();
   await studio.getByRole('radiogroup', { name: 'In the sky' }).getByRole('radio', { name: 'Ringed planet' }).click();
   // Preview only: nothing is stored yet.
-  await expect(studio.getByRole('status')).toHaveText('Previewing — not saved yet.');
+  await expect(page.getByTestId('universe-status')).toHaveText('Previewing — not saved yet.');
   expect((await api(page, 'GET', 'auth/me')).user.profile.appearance.world ?? null).not.toMatchObject({ backdrop: 'aurora' });
   await page.waitForTimeout(1200);
   await studio.screenshot({ path: 'test-results/shot-universe-studio.png' });
   await studio.getByRole('button', { name: 'Save universe' }).click();
-  await expect(studio.getByRole('status')).toHaveText('Saved.');
+  await expect(page.getByTestId('universe-status')).toHaveText('Saved.');
   expect((await api(page, 'GET', 'auth/me')).user.profile.appearance.world).toMatchObject({ backdrop: 'aurora', celestial: 'ringed' });
   await page.reload();
   await expect(page.getByLabel('Universe Studio').getByRole('radio', { name: 'Aurora' })).toHaveAttribute('aria-checked', 'true');
@@ -38,7 +38,7 @@ test('universe studio: preview first, save persists, reset returns to defaults; 
 
   await page.getByLabel('Universe Studio').getByRole('button', { name: 'Reset to defaults' }).click();
   await page.getByLabel('Universe Studio').getByRole('button', { name: 'Save universe' }).click();
-  await expect(page.getByLabel('Universe Studio').getByRole('status')).toHaveText('Saved.');
+  await expect(page.getByTestId('universe-status')).toHaveText('Saved.');
   expect((await api(page, 'GET', 'auth/me')).user.profile.appearance.world).toMatchObject({ backdrop: 'nebula', celestial: 'none' });
   await w.assertClean();
 });
@@ -85,7 +85,7 @@ test('collaborative drop: start, invite, accept, write a line, publish once; cir
 
   await b.goto(url);
   await b.getByRole('button', { name: 'Accept' }).click();
-  await b.getByLabel(/Your line/).fill('Chai on the terrace.');
+  await b.getByRole('textbox', { name: /Your line/ }).fill('Chai on the terrace.');
   await b.getByRole('button', { name: 'Save my line' }).click();
   await expect(b.getByLabel('The drop so far')).toContainText('Chai on the terrace.');
   await expect(b.getByRole('button', { name: 'Publish' })).toHaveCount(0);

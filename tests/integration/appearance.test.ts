@@ -8,7 +8,7 @@ afterAll(async () => { await t.close(); });
 describe('Theme studio', () => {
   it('saves only safe presets, returns them on the session, and keeps them in the data export', async () => {
     const me = await signup(t, 'Theme Picker', { birth: false });
-    expect((await me.c.get('/api/v1/auth/me')).user.profile.appearance).toEqual({ accent: 'ember', textSize: 'standard', corners: 'soft' });
+    expect((await me.c.get('/api/v1/auth/me')).user.profile.appearance).toEqual({ accent: 'ember', textSize: 'standard', corners: 'soft', world: { backdrop: 'nebula', lighting: 'warm', celestial: 'none', decoration: 'none', particles: 'archetype' } });
 
     await me.c.patch('/api/v1/profile', { appearance: { accent: 'jade', textSize: 'large', corners: 'crisp' }, colorScheme: 'light' });
     const p = (await me.c.get('/api/v1/auth/me')).user.profile;

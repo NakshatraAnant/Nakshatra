@@ -219,8 +219,14 @@ function BlendCompanion({ blend, clock, animate }: { blend: NonNullable<Identity
 /** Chapter one: a single light at the centre, which the archetype's shell then grows around. */
 function Core({ clock }: { clock: React.RefObject<Clock> }) {
   const mat = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => { if (mat.current) mat.current.opacity = span(clock.current.t, 0.1, 1.0) * (1 - span(clock.current.t, 3.8, 5.2)); });
-  return <mesh><sphereGeometry args={[0.16, 16, 12]} /><meshBasicMaterial ref={mat} color="#fff4dd" transparent opacity={0} /></mesh>;
+  const mesh = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const o = span(clock.current.t, 0.1, 1.0) * (1 - span(clock.current.t, 3.8, 5.2));
+    if (mat.current) mat.current.opacity = o;
+    // Hidden outright once faded, so it never masks what is behind it.
+    if (mesh.current) mesh.current.visible = o > 0.01;
+  });
+  return <mesh ref={mesh} visible={false}><sphereGeometry args={[0.16, 16, 12]} /><meshBasicMaterial ref={mat} color="#fff4dd" transparent opacity={0} depthWrite={false} /></mesh>;
 }
 
 /** Universe Studio layers: backdrop tint, something in the sky, a decoration. All optional, all from fixed keys. */

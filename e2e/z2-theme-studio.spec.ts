@@ -7,7 +7,7 @@ test('theme studio: accent, text size and corners apply at once and survive a re
   const w = watchErrors(page);
   await quickUser(page, 'Stylist');
   await page.goto('/theme');
-  await expect(page.getByRole('heading', { name: 'Theme studio' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Universe studio' })).toBeVisible();
   await page.getByRole('radiogroup', { name: 'Mode' }).getByRole('radio', { name: 'Light' }).click();
   await page.getByRole('radio', { name: 'Jade' }).click();
   await expect(page.getByRole('radio', { name: 'Jade' })).toHaveAttribute('aria-checked', 'true');
