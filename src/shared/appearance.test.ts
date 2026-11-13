@@ -22,7 +22,9 @@ describe('theme studio presets', () => {
 
   it('falls back to defaults for unknown or missing values', () => {
     expect(normaliseAppearance(null)).toEqual(DEFAULT_APPEARANCE);
-    expect(normaliseAppearance({ accent: 'neon', textSize: 'large', corners: 3, extra: 'x' })).toEqual({ accent: 'ember', textSize: 'large', corners: 'soft' });
+    expect(normaliseAppearance({ accent: 'neon', textSize: 'large', corners: 3, extra: 'x' })).toEqual({ accent: 'ember', textSize: 'large', corners: 'soft', world: DEFAULT_APPEARANCE.world });
+    // Universe Studio values are fixed keys too: unknown ones fall back per part, known ones are kept.
+    expect(normaliseAppearance({ world: { backdrop: 'aurora', celestial: 'death-star', extra: 1 } }).world).toEqual({ ...DEFAULT_APPEARANCE.world, backdrop: 'aurora' });
   });
 
   it('produces the CSS variables for a scheme', () => {

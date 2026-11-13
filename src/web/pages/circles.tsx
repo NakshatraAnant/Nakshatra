@@ -14,6 +14,7 @@ import { AssignTier, CircleEvents, CircleModeration, TierBadge, TiersPanel, useT
 import { CircleMarket } from './circleMarket';
 import { circleCover, circleSymbol } from '../lib/visual';
 import { CircleWorld } from '../components/StarWorlds';
+import { CIRCLE_ENVIRONMENTS } from '../../shared/circleEnvironments';
 
 export const CIRCLE_THEME_COLORS: Record<string, [string, string]> = {
   dusk: ['#2a1d4a', '#c98a96'], saffron: ['#3a1e05', '#e9a23b'], monsoon: ['#0b2230', '#6fa8dc'],
@@ -104,7 +105,7 @@ export function CirclesPage() {
 }
 
 interface CircleDetailResp {
-  circle: { id: string; name: string; description: string; theme: string; invitePolicy: string; ownerId: string };
+  circle: { id: string; name: string; description: string; theme: string; environment: string; invitePolicy: string; ownerId: string };
   me: { role: string; canInvite: boolean; isAdmin: boolean };
   members: { userId: string; role: string; displayName?: string; handle?: string; archetype: string | null; contributed: boolean; tier: { name: string; color: string } | null }[];
   level: { name: string; points: number; next: { name: string; at: number } | null };
@@ -287,7 +288,7 @@ export function CircleDetail() {
             {tab === 'play' && <div className="space-y-6"><GameLauncher circleId={d.circle.id} /><SessionList circleId={d.circle.id} /></div>}
             {tab === 'members' && (
               <div className="space-y-6">
-                <CircleWorld name={d.circle.name} glow={(CIRCLE_THEME_COLORS[d.circle.theme] ?? CIRCLE_THEME_COLORS.dusk)[1]} activation={d.activation}
+                <CircleWorld name={d.circle.name} environment={d.circle.environment} glow={(CIRCLE_THEME_COLORS[d.circle.theme] ?? CIRCLE_THEME_COLORS.dusk)[1]} activation={d.activation}
                   members={d.members.map((m) => ({ userId: m.userId, name: m.displayName ?? 'Member', role: m.role, contributed: m.contributed, you: m.userId === me?.id, archetype: m.archetype, tier: m.tier ? { name: m.tier.name, hex: (CIRCLE_THEME_COLORS[m.tier.color] ?? CIRCLE_THEME_COLORS.saffron)[1] } : null }))} />
                 <Card><h2 className="mb-3 font-display text-2xl">Invite</h2><InvitePanel circleId={d.circle.id} canInvite={d.me.canInvite} isAdmin={d.me.isAdmin} /></Card>
                 <TiersPanel circleId={d.circle.id} />
@@ -339,7 +340,8 @@ function CircleSettings({ d, onLeave, onArchive }: { d: CircleDetailResp; onLeav
   const [name, setName] = useState(d.circle.name);
   const [theme, setTheme] = useState(d.circle.theme);
   const [policy, setPolicy] = useState(d.circle.invitePolicy);
-  const save = useMutation({ mutationFn: () => patch(`circles/${d.circle.id}`, { name, theme, invitePolicy: policy }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['circle', d.circle.id] }); toast('Saved', 'success'); }, onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error') });
+  const [environment, setEnvironment] = useState(d.circle.environment);
+  const save = useMutation({ mutationFn: () => patch(`circles/${d.circle.id}`, { name, theme, environment, invitePolicy: policy }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['circle', d.circle.id] }); toast('Saved', 'success'); }, onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error') });
   return (
     <div className="space-y-6">
       {d.me.isAdmin ? (
@@ -347,6 +349,13 @@ function CircleSettings({ d, onLeave, onArchive }: { d: CircleDetailResp; onLeav
           <h2 className="font-display text-2xl">Circle settings</h2>
           <Field label="Name">{(id) => <Input id={id} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />}</Field>
           <Field label="Theme">{(id) => <Select id={id} value={theme} onChange={(e) => setTheme(e.target.value)}>{THEMES.map((t) => <option key={t} value={t}>{t}</option>)}</Select>}</Field>
+          <div className="space-y-1.5">
+            <p id="env-h" className="text-sm font-semibold text-fg">Environment</p>
+            <div role="radiogroup" aria-labelledby="env-h" className="flex flex-wrap gap-1.5">
+              {CIRCLE_ENVIRONMENTS.map((e) => <button key={e.key} type="button" role="radio" aria-checked={environment === e.key} title={e.line} onClick={() => setEnvironment(e.key)} className={cx('flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm', environment === e.key ? 'border-fg text-fg' : 'border-line text-fg-2 hover:border-line-strong')}><span aria-hidden="true" className="h-3 w-3 rounded-full" style={{ background: e.accent }} />{e.label}</button>)}
+            </div>
+            <p className="text-xs text-fg-3">Where your circle’s world lives (Members tab). Everyone in the circle sees the same one.</p>
+          </div>
           <Field label="Who can create invite links">{(id) => <Select id={id} value={policy} onChange={(e) => setPolicy(e.target.value)}><option value="members">Any member</option><option value="admins">Admins only</option></Select>}</Field>
           <Button loading={save.isPending} onClick={() => save.mutate()}>Save</Button>
         </Card>

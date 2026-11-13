@@ -7,6 +7,7 @@ import { GraphicsQualitySetting, SoundSetting } from '../components/IdentityWorl
 import { ACCENTS, CORNERS, DEFAULT_APPEARANCE, TEXT_SIZES, normaliseAppearance, type Appearance } from '../../shared/appearance';
 import { Link } from 'react-router';
 import { StudioNav } from '../components/IdentityIntro';
+import { UniverseStudio } from '../components/UniverseStudio';
 
 type Prefs = { colorScheme?: 'system' | 'dark' | 'light'; appearance?: Appearance; reducedMotion?: boolean };
 
@@ -31,7 +32,8 @@ export function ThemeStudioPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <StudioNav />
-      <PageHeader kicker="Identity Studio" title="Theme studio" subtitle="Make Nakshatra feel like yours. Changes apply straight away, on every device you use." />
+      <PageHeader kicker="Identity Studio" title="Universe studio" subtitle="Your identity world’s environment, and how the whole app looks for you." />
+      <UniverseStudio />
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <section className="space-y-2">

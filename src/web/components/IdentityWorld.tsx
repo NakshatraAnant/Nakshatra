@@ -5,6 +5,8 @@ import { ArchetypeArt, ResponsiveArt } from './visual';
 import { archetypeAccent, envArt } from '../lib/visual';
 import type { Persona } from '../lib/persona';
 import { publicEvent } from '../lib/cosmic';
+import { useMyUniverse } from './UniverseStudio';
+import type { Universe } from '../../shared/universe';
 import { REVEAL_STAGES, worldFor } from '../three/archetypeWorlds';
 import { GRAPHICS_LEVELS, getGraphicsLevel, onGraphicsChange, setGraphicsLevel, type GraphicsLevel } from '../three/quality';
 import { getSoundOn, onSoundChange, playCue, setSoundOn } from '../lib/sound';
@@ -13,8 +15,9 @@ import type { IdentitySceneData } from '../three/identity';
 /* All three.js code is behind this import: pages only pay for it when a scene is actually shown. */
 const IdentityScene3D = lazy(() => import('../three/identity').then((m) => ({ default: m.IdentityScene3D })));
 
-export function sceneData(p: Persona): IdentitySceneData {
+export function sceneData(p: Persona, universe?: Universe): IdentitySceneData {
   return {
+    universe,
     archetypeKey: p.key, accent: archetypeAccent(p.key),
     dimensions: p.dimensions.map((d) => ({ key: d.key, name: d.name, score: d.score })),
     // Only a stored blended result shows a companion; a plain "secondary" match does not.
@@ -44,7 +47,8 @@ export function RevealTheatre({ persona }: { persona: Persona }) {
   const [runId, setRunId] = useState(0);
   const [skip, setSkip] = useState(false);
   const [stage, setStage] = useState(intro ? 0 : REVEAL_STAGES.length - 1);
-  const data = useMemo(() => sceneData(persona), [persona]);
+  const universe = useMyUniverse();
+  const data = useMemo(() => sceneData(persona, universe), [persona, universe]);
   const done = stage >= REVEAL_STAGES.length - 1;
   useEffect(() => { if (done) try { if (localStorage.getItem(seenKey) !== '1') publicEvent('reveal_completed'); localStorage.setItem(seenKey, '1'); } catch { /* storage unavailable */ } }, [done, seenKey]);
   // Chapter five says what is true for this result: a stored blend, a nearby second archetype, or neither.
@@ -83,7 +87,8 @@ export function RevealTheatre({ persona }: { persona: Persona }) {
 
 /** Home: the person's identity world at rest, with the usual links right beside it. */
 export function HomeWorld({ persona }: { persona: Persona }) {
-  const data = useMemo(() => sceneData(persona), [persona]);
+  const universe = useMyUniverse();
+  const data = useMemo(() => sceneData(persona, universe), [persona, universe]);
   const still = <div className="absolute inset-0"><Backdrop /></div>;
   return (
     <Card className="grid items-center gap-4 overflow-hidden p-0 sm:grid-cols-[minmax(0,260px)_1fr]" aria-label="Your identity world">
@@ -121,7 +126,8 @@ function lean(d: { low: string; high: string; score: number }): string {
  */
 export function DimensionExplorer({ persona }: { persona: Persona }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const data = useMemo(() => sceneData(persona), [persona]);
+  const universe = useMyUniverse();
+  const data = useMemo(() => sceneData(persona, universe), [persona, universe]);
   const pick = (k: string) => setSelected((s) => (s === k ? null : k));
   const d = persona.dimensions.find((x) => x.key === selected);
   const still = <div className="absolute inset-0"><Backdrop /></div>;

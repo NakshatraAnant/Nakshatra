@@ -29,3 +29,17 @@ describe('atmospheres', () => {
     expect(moonLight(270)).toBe('50% lit and shrinking');
   });
 });
+
+describe('assessment atmosphere', () => {
+  const qs = [{ id: 'a', dimension: 'energy', key: 1 }, { id: 'b', dimension: 'energy', key: -1 }, { id: 'c', dimension: 'voice', key: 1 }];
+  it('fills each light with progress and leans with the answers, without touching them', async () => {
+    const { assessmentGlow } = await import('./atmosphere');
+    const answers = { a: 5 };
+    const g = assessmentGlow(qs, ['energy', 'voice'], answers);
+    expect(g).toEqual([{ dimension: 'energy', glow: 0.5, lean: 1 }, { dimension: 'voice', glow: 0, lean: 0 }]);
+    expect(answers).toEqual({ a: 5 });
+    // A reverse-keyed statement leans the other way; the same answers always give the same picture.
+    expect(assessmentGlow(qs, ['energy'], { a: 5, b: 5 })[0]).toEqual({ dimension: 'energy', glow: 1, lean: 0 });
+    expect(assessmentGlow(qs, ['energy', 'voice'], answers)).toEqual(g);
+  });
+});

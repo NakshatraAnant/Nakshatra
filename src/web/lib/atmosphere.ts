@@ -49,3 +49,23 @@ export function moonLight(phaseAngle: number): string {
   if (lit >= 98) return 'Full moon';
   return `${lit}% lit and ${way}`;
 }
+
+/* ---------------- Assessment atmosphere ---------------- */
+
+export interface DimensionGlow { dimension: string; glow: number; lean: number }
+
+/**
+ * How the assessment's background should look for a set of answers: one light per dimension. `glow` is how many
+ * of that dimension's statements are answered (0…1), so the sky fills in as you progress; `lean` (−1…+1) is which
+ * way those answers point so far, which nudges the light sideways. It reads the answers and never changes them —
+ * scoring stays entirely in shared/personality.ts — and the same answers always give the same picture, so a
+ * resumed assessment comes back exactly as it was left.
+ */
+export function assessmentGlow(questions: { id: string; dimension: string; key: number }[], dimensions: string[], answers: Record<string, number>): DimensionGlow[] {
+  return dimensions.map((dimension) => {
+    const qs = questions.filter((q) => q.dimension === dimension);
+    const done = qs.filter((q) => typeof answers[q.id] === 'number');
+    const lean = done.length ? done.reduce((sum, q) => sum + ((answers[q.id] - 3) / 2) * q.key, 0) / done.length : 0;
+    return { dimension, glow: qs.length ? done.length / qs.length : 0, lean: Math.max(-1, Math.min(1, lean)) };
+  });
+}

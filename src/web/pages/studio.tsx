@@ -13,6 +13,7 @@ import { publicEvent, shareOrDownload } from '../lib/cosmic';
 import { ShareLinkPanel } from './share';
 import { DimensionExplorer, RevealTheatre } from '../components/IdentityWorld';
 import { IdentityIntro, StudioNav } from '../components/IdentityIntro';
+import { AssessmentAtmosphere } from '../components/Atmosphere';
 
 interface QuestionsResp { version: string; questions: { id: string; text: string }[]; scale: string[]; note: string }
 
@@ -60,7 +61,8 @@ export function Assessment({ onDone, submitLabel = 'See my archetype', initial }
         setBusy(false);
       };
       return (
-        <div ref={top}>
+        <div ref={top} className="relative isolate">
+          <AssessmentAtmosphere answers={answers} />
           {resumed && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-fg-2" role="status">
               <span>Picked up where you left off.</span>

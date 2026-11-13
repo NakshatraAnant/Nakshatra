@@ -7,8 +7,9 @@ import { useToast } from '../components/ui/overlays';
 import { AVATAR_PARTS, AVATAR_PART_KEYS, DEFAULT_AVATAR, randomAvatar, swatch, type AvatarConfig, type AvatarPart } from '../../shared/avatar';
 import { AvatarPreview } from '../components/Showcase';
 import { StudioNav } from '../components/IdentityIntro';
+import { archetypeAccent } from '../lib/visual';
 
-const PART_LABEL: Record<AvatarPart, string> = { skin: 'Skin tone', face: 'Face shape', hair: 'Hair', hairColor: 'Hair colour', eyes: 'Eyes', brows: 'Eyebrows', mouth: 'Mouth', accessory: 'Extras', background: 'Background' };
+const PART_LABEL: Record<AvatarPart, string> = { skin: 'Skin tone', face: 'Face shape', hair: 'Hair', hairColor: 'Hair colour', eyes: 'Eyes', brows: 'Eyebrows', mouth: 'Mouth', accessory: 'Extras', background: 'Background', outfit: 'Outfit', pose: 'Pose' };
 
 /** Avatar creator: build a drawn picture from parts — no photo needed. */
 export function AvatarCreatorPage() {
@@ -26,6 +27,9 @@ function Builder({ initial, inUse }: { initial: AvatarConfig; inUse: boolean }) 
   const qc = useQueryClient();
   const toast = useToast();
   const [c, setC] = useState<AvatarConfig>(initial);
+  // Identity treatment: your archetype's colour as a halo behind the figure, when you have a result.
+  const identity = useQuery({ queryKey: ['identity-me'], queryFn: () => get<{ persona: { key: string } | null }>('identity/me') });
+  const aura = identity.data?.persona ? archetypeAccent(identity.data.persona.key) : null;
   useEffect(() => setC(initial), [initial]);
   const done = (msg: string) => { void qc.invalidateQueries({ queryKey: ['me'] }); void qc.invalidateQueries({ queryKey: ['avatar-builder'] }); toast(msg, 'success'); };
   const fail = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Could not save', 'error');
@@ -34,7 +38,7 @@ function Builder({ initial, inUse }: { initial: AvatarConfig; inUse: boolean }) 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,260px)_1fr]">
       <div className="space-y-3 md:sticky md:top-20 md:self-start">
-        <AvatarPreview config={c} />
+        <AvatarPreview config={c} aura={aura} />
         <div className="flex flex-wrap justify-center gap-2">
           <Button loading={save.isPending} onClick={() => save.mutate()}>Save as my picture</Button>
           <Button variant="secondary" onClick={() => setC(randomAvatar())}>Surprise me</Button>

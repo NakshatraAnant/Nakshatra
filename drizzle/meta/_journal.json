@@ -204,6 +204,13 @@
       "when": 1794344714875,
       "tag": "0028_sponsored_quiz_quest",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794570502135,
+      "tag": "0029_collab_drops_circle_environment",
+      "breakpoints": true
     }
   ]
 }

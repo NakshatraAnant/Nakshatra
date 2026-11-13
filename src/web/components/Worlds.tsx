@@ -7,6 +7,7 @@ import { Constellation } from './ui/data';
 import { ArchetypeArt, ResponsiveArt } from './visual';
 import { achievementArt, archetypeAccent, envArt } from '../lib/visual';
 import type { Persona } from '../lib/persona';
+import type { Universe } from '../../shared/universe';
 import { worldFor } from '../three/archetypeWorlds';
 import { ACHIEVEMENTS, type AchievementFamily } from '../../shared/gamification';
 
@@ -16,7 +17,7 @@ const AchievementGallery3D = lazy(() => import('../three/gallery').then((m) => (
 
 /* ---------------- Profile world ---------------- */
 
-interface PublicIdentity { handle: string; displayName: string; persona: Pick<Persona, 'key' | 'name' | 'signature' | 'traits' | 'dimensions'> | null }
+interface PublicIdentity { handle: string; displayName: string; universe?: Universe; persona: Pick<Persona, 'key' | 'name' | 'signature' | 'traits' | 'dimensions'> | null }
 
 /**
  * A person's identity world on their profile. It is drawn only from what the server returns for this viewer
@@ -28,8 +29,8 @@ export function ProfileWorld({ handle, self }: { handle: string; self: boolean }
   const persona = q.data?.persona ?? null;
   const data = useMemo(() => persona && ({
     archetypeKey: persona.key, accent: archetypeAccent(persona.key),
-    dimensions: persona.dimensions.map((d) => ({ key: d.key, name: d.name, score: d.score })), blend: null,
-  }), [persona]);
+    dimensions: persona.dimensions.map((d) => ({ key: d.key, name: d.name, score: d.score })), blend: null, universe: q.data?.universe,
+  }), [persona, q.data?.universe]);
   if (!persona || !data) return null;
   const world = worldFor(persona.key);
   const scores = Object.fromEntries(persona.dimensions.map((d) => [d.key, d.score]));

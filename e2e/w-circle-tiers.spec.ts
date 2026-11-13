@@ -35,6 +35,8 @@ test('circle tiers: owner adds a tier and a members-only channel → tiered memb
   await core.goto(`/circles/${circle.id}`);
   await core.getByRole('button', { name: /# Route planning · Trail leads\+/ }).click();
   await core.getByPlaceholder('Something on your mind.').fill('Saturday: Nandi Hills, 5 am start');
+  await core.getByRole('button', { name: 'Preview' }).click();
+  await expect(core.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await core.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(core.getByText('Saturday: Nandi Hills, 5 am start')).toBeVisible();
 

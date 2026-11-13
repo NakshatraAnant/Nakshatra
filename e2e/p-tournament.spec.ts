@@ -32,7 +32,10 @@ test('tournament: host invites a friend → friend joins, plays a timed run → 
 
   await b.goto(url);
   await b.getByRole('button', { name: 'Join' }).click();
+  // Real time left, then a three-second get-ready before the server hands over the questions.
+  await expect(b.getByRole('timer', { name: 'Closes in' })).toBeVisible();
   await b.getByRole('button', { name: 'Start' }).click();
+  await expect(b.getByLabel('Get ready')).toBeVisible();
   await expect(b.getByRole('timer', { name: 'Time left' })).toBeVisible();
   for (const [, [, right]] of qs.entries()) await b.getByRole('radio', { name: right }).check();
   await b.waitForTimeout(4000); // a human-paced run (instant answers are held for review)
@@ -40,6 +43,11 @@ test('tournament: host invites a friend → friend joins, plays a timed run → 
   const runCard = b.getByLabel('Your run');
   await expect(runCard.getByText('3 / 3')).toBeVisible();
   await expect(runCard.getByText('Currently #1')).toBeVisible();
+  // Open tournament: the run is complete but nothing is called a win yet, and there is nothing to claim.
+  await expect(runCard.getByRole('heading', { name: 'Run complete' })).toBeVisible();
+  await expect(runCard.getByText('not final yet', { exact: false })).toBeVisible();
+  await expect(runCard.getByText('nothing to claim', { exact: false })).toBeVisible();
+  await expect(runCard.getByRole('link', { name: 'All tournaments' })).toBeVisible();
   await expect(b.getByLabel('Standings').getByText('You')).toBeVisible();
   const arena = b.getByRole('region', { name: 'Tournament arena' });
   await expect(arena).toBeVisible();

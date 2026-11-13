@@ -52,6 +52,7 @@ const membership = () => import('./pages/membership');
 const quizzes = () => import('./pages/quizzes');
 const tournaments = () => import('./pages/tournaments');
 const creators = () => import('./pages/creators');
+const collabs = () => import('./pages/collabs');
 const collections = () => import('./pages/collections');
 const perks = () => import('./pages/perks');
 const orgs = () => import('./pages/orgs');
@@ -148,6 +149,8 @@ export const router = createBrowserRouter([
           { path: '/identity', element: page(studio, 'IdentityStudio') },
           { path: '/explore', element: page(explore, 'ExplorePage') },
           { path: '/create', element: page(explore, 'CreatePage') },
+          { path: '/create/together', element: page(collabs, 'CollabsPage') },
+          { path: '/create/together/:id', element: page(collabs, 'CollabPage') },
           { path: '/merch', element: page(merch, 'MerchPage') },
           { path: '/membership', element: page(membership, 'MembershipPage') },
           { path: '/membership/join/:token', element: page(membership, 'MembershipJoin') },

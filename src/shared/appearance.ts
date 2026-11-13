@@ -4,6 +4,8 @@
  * readable contrast against every surface in both schemes (see appearance.test.ts). Free for everyone.
  */
 
+import { DEFAULT_UNIVERSE, normaliseUniverse, type Universe } from './universe';
+
 export type Scheme = 'dark' | 'light';
 type Tone = { accent: string; strong: string; ink: string };
 
@@ -33,8 +35,8 @@ export const SURFACES: Record<Scheme, string[]> = {
   light: ['#f6f1e8', '#fbf8f2', '#f0e9dc', '#e6ddcc'],
 };
 
-export type Appearance = { accent: string; textSize: string; corners: string };
-export const DEFAULT_APPEARANCE: Appearance = { accent: 'ember', textSize: 'standard', corners: 'soft' };
+export type Appearance = { accent: string; textSize: string; corners: string; world: Universe };
+export const DEFAULT_APPEARANCE: Appearance = { accent: 'ember', textSize: 'standard', corners: 'soft', world: DEFAULT_UNIVERSE };
 export const ACCENT_KEYS = ACCENTS.map((a) => a.key) as [string, ...string[]];
 export const TEXT_SIZE_KEYS = TEXT_SIZES.map((t) => t.key) as [string, ...string[]];
 export const CORNER_KEYS = CORNERS.map((c) => c.key) as [string, ...string[]];
@@ -47,11 +49,12 @@ export function normaliseAppearance(raw: unknown): Appearance {
     accent: pick(r.accent, ACCENT_KEYS, DEFAULT_APPEARANCE.accent),
     textSize: pick(r.textSize, TEXT_SIZE_KEYS, DEFAULT_APPEARANCE.textSize),
     corners: pick(r.corners, CORNER_KEYS, DEFAULT_APPEARANCE.corners),
+    world: normaliseUniverse(r.world),
   };
 }
 
 /** CSS custom properties (and root font size) for an appearance in a scheme. */
-export function appearanceVars(a: Appearance, scheme: Scheme): Record<string, string> {
+export function appearanceVars(a: Partial<Appearance>, scheme: Scheme): Record<string, string> {
   const n = normaliseAppearance(a);
   const tone = ACCENTS.find((x) => x.key === n.accent)![scheme];
   const radii = CORNERS.find((c) => c.key === n.corners)!.radii;

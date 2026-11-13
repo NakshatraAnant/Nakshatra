@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Scene3D } from './core';
 import { Nebula, Starfield } from './elements';
 import { RING_RADIUS, layoutStars, type MapStar } from '../lib/starmap';
+import { environmentFor } from '../../shared/circleEnvironments';
 
 /**
  * Star map scene (see lib/starmap.ts): a centre, three faint rings and the stars on them. Choosing a star turns
@@ -93,7 +94,36 @@ function Orbits({ stars, centre, progress, selected, onSelect, animate }: { star
   );
 }
 
-export function StarMap3D({ stars, centre, progress = null, selected, onSelect, label, fallback }: {
+/**
+ * Circle environments (shared/circleEnvironments.ts): one component, five configurations. Each adds a tinted sky
+ * and a few shared-geometry props around the same star map, so the layout and interaction never change.
+ */
+function Environment({ kind, animate }: { kind: string; animate: boolean }) {
+  const env = environmentFor(kind);
+  const g = useRef<THREE.Group>(null);
+  useFrame((s, dt) => {
+    if (!g.current || !animate) return;
+    if (env.key === 'islands') g.current.children.forEach((c, i) => { c.position.y = -1.2 + (i % 3) * 0.9 + Math.sin(s.clock.elapsedTime * 0.5 + i) * 0.15; });
+    else g.current.rotation.y += Math.min(dt, 0.05) * (env.key === 'sanctuary' ? 0.05 : 0.02);
+  });
+  const mat = <meshBasicMaterial color={env.accent} transparent opacity={0.35} wireframe={env.key === 'observatory' || env.key === 'studio'} />;
+  const around = (n: number, r: number) => Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + 0.4; return [Math.cos(a) * r, Math.sin(a) * r] as const; });
+  return (
+    <>
+      <mesh><sphereGeometry args={[42, 24, 16]} /><meshBasicMaterial color={env.sky[1]} side={THREE.BackSide} transparent opacity={0.45} depthWrite={false} /></mesh>
+      <group ref={g} position={[0, 0.3, -1.2]}>
+        {env.key === 'observatory' && <><mesh><sphereGeometry args={[7.2, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2]} />{mat}</mesh><mesh rotation={[1.1, 0.3, 0]}><torusGeometry args={[6.2, 0.02, 6, 96]} /><meshBasicMaterial color={env.accent} transparent opacity={0.6} /></mesh></>}
+        {env.key === 'garden' && around(9, 6.3).map(([x, z], i) => <group key={i} position={[x, -1.1, z]}><mesh position={[0, 0.5, 0]}><cylinderGeometry args={[0.02, 0.03, 1, 5]} /><meshBasicMaterial color="#3f8f5f" /></mesh><mesh position={[0, 1.1 + (i % 3) * 0.12, 0]}><icosahedronGeometry args={[0.22 + (i % 2) * 0.08, 0]} /><meshBasicMaterial color={env.accent} transparent opacity={0.85} /></mesh></group>)}
+        {env.key === 'islands' && around(6, 6.6).map(([x, z], i) => <mesh key={i} position={[x, 0, z]}><cylinderGeometry args={[0.7 + (i % 2) * 0.3, 0.25, 0.4, 7]} /><meshStandardMaterial color="#3a5d78" emissive={env.accent} emissiveIntensity={0.18} flatShading /></mesh>)}
+        {env.key === 'studio' && around(5, 6.2).map(([x, z], i) => <mesh key={i} position={[x, (i % 2) * 0.9, z]} rotation={[i * 0.4, i * 0.9, 0.2]}><boxGeometry args={[1.1, 1.5, 0.08]} />{mat}</mesh>)}
+        {env.key === 'sanctuary' && [5.6, 6.4, 7.2].map((r, i) => <mesh key={r} rotation={[Math.PI / 2 + i * 0.25, i * 0.5, 0]}><torusGeometry args={[r, 0.018, 6, 120]} /><meshBasicMaterial color={env.accent} transparent opacity={0.5 - i * 0.1} /></mesh>)}
+      </group>
+    </>
+  );
+}
+
+export function StarMap3D({ stars, centre, progress = null, selected, onSelect, label, fallback, environment = null }: {
+  environment?: string | null;
   stars: MapStar[]; centre: string; progress?: number | null; selected: string | null; onSelect: (id: string) => void; label: string; fallback: React.ReactNode;
 }) {
   return (
@@ -101,7 +131,7 @@ export function StarMap3D({ stars, centre, progress = null, selected, onSelect, 
       {({ quality, reducedMotion }) => (
         <>
           <Starfield quality={quality === 'high' ? 'medium' : 'low'} radius={46} seed={stars.length + 11} animate={!reducedMotion} />
-          <Nebula intensity={0.4} />
+          {environment ? <Environment kind={environment} animate={!reducedMotion} /> : <Nebula intensity={0.4} />}
           <Orbits stars={stars} centre={centre} progress={progress} selected={selected} onSelect={onSelect} animate={!reducedMotion} />
         </>
       )}

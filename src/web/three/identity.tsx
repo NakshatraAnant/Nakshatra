@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Scene3D, mulberry32 } from './core';
 import { Nebula, Starfield } from './elements';
+import { BACKDROP_COLORS, DEFAULT_UNIVERSE, LIGHT_COLORS, type Universe } from '../../shared/universe';
 import { REPLAY_SPEED, REVEAL_LENGTH, worldFor, type ArchetypeWorld, type WorldForm } from './archetypeWorlds';
 
 /**
@@ -23,6 +24,8 @@ export interface IdentitySceneData {
   accent: string;
   dimensions: { key: string; name: string; score: number }[];
   blend: { secondaryKey: string; accent: string; primaryWeight: number } | null;
+  /** The owner's Universe Studio choices; defaults when absent. */
+  universe?: Universe;
 }
 
 type Clock = { t: number; idle: number };
@@ -139,7 +142,10 @@ function DimensionRings({ data, clock, selected, onSelect }: { data: IdentitySce
 
 const PARTICLES = { dust: { n: 140, size: 0.035, speed: 0.02, spread: 5.2 }, motes: { n: 90, size: 0.06, speed: 0.05, spread: 4.4 }, sparks: { n: 70, size: 0.05, speed: 0.16, spread: 4.0 }, embers: { n: 80, size: 0.07, speed: 0.07, spread: 3.6 } } as const;
 
-function Companions({ world, accent, seed, clock, animate, density }: { world: ArchetypeWorld; accent: string; seed: number; clock: React.RefObject<Clock>; animate: boolean; density: number }) {
+function Companions({ world: base, particles, accent, seed, clock, animate, density: baseDensity }: { world: ArchetypeWorld; particles: string; accent: string; seed: number; clock: React.RefObject<Clock>; animate: boolean; density: number }) {
+  // Universe Studio can swap the particle kind (or switch particles off) without touching the archetype's own data.
+  const world = useMemo(() => (particles in PARTICLES ? { ...base, particles: particles as ArchetypeWorld['particles'] } : base), [base, particles]);
+  const density = particles === 'none' ? 0 : baseDensity;
   const sats = useRef<THREE.Group>(null);
   const pts = useRef<THREE.Points>(null);
   const cfg = PARTICLES[world.particles];
@@ -217,6 +223,33 @@ function Core({ clock }: { clock: React.RefObject<Clock> }) {
   return <mesh><sphereGeometry args={[0.16, 16, 12]} /><meshBasicMaterial ref={mat} color="#fff4dd" transparent opacity={0} /></mesh>;
 }
 
+/** Universe Studio layers: backdrop tint, something in the sky, a decoration. All optional, all from fixed keys. */
+function UniverseLayers({ u, accent, animate }: { u: Universe; accent: string; animate: boolean }) {
+  const lanterns = useRef<THREE.Group>(null);
+  useFrame((_, dt) => { if (lanterns.current && animate) lanterns.current.rotation.y += Math.min(dt, 0.05) * 0.25; });
+  const tint = (BACKDROP_COLORS[u.backdrop] ?? BACKDROP_COLORS.nebula)[1];
+  return (
+    <>
+      {u.backdrop !== 'void' && <mesh><sphereGeometry args={[40, 24, 16]} /><meshBasicMaterial color={tint} side={THREE.BackSide} transparent opacity={0.4} depthWrite={false} /></mesh>}
+      {u.backdrop === 'nebula' && <Nebula intensity={0.5} />}
+      {u.celestial === 'moon' && <mesh position={[4.2, 3.4, -5]}><sphereGeometry args={[0.9, 24, 16]} /><meshStandardMaterial color="#e9e4d6" emissive="#e9e4d6" emissiveIntensity={0.25} roughness={0.9} /></mesh>}
+      {u.celestial === 'ringed' && (
+        <group position={[4.4, 3.2, -6]} rotation={[0.5, 0, 0.3]}>
+          <mesh><sphereGeometry args={[0.8, 24, 16]} /><meshStandardMaterial color={accent} roughness={0.7} /></mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[1.3, 0.05, 6, 64]} /><meshBasicMaterial color="#f2ece1" transparent opacity={0.7} /></mesh>
+        </group>
+      )}
+      {u.celestial === 'twin' && [[3.6, 3.6], [4.5, 3.0]].map(([x, y], i) => <mesh key={i} position={[x, y, -5]}><sphereGeometry args={[i ? 0.16 : 0.24, 12, 10]} /><meshBasicMaterial color={i ? '#cfe4ff' : '#fff4dd'} /></mesh>)}
+      {u.decoration === 'halo' && <mesh position={[0, 0, -1.4]}><torusGeometry args={[4.6, 0.03, 8, 120]} /><meshBasicMaterial color="#f2ece1" transparent opacity={0.55} /></mesh>}
+      {u.decoration === 'lanterns' && (
+        <group ref={lanterns} rotation={[0.35, 0, 0]}>
+          {Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2; return <mesh key={i} position={[Math.cos(a) * 4.7, Math.sin(i * 1.7) * 0.5, Math.sin(a) * 4.7]}><sphereGeometry args={[0.11, 10, 8]} /><meshBasicMaterial color="#f3c87a" /></mesh>; })}
+        </group>
+      )}
+    </>
+  );
+}
+
 function Timeline({ clock, intro, skip, animate, fast, onStage }: { clock: React.RefObject<Clock>; intro: boolean; skip: boolean; animate: boolean; fast: boolean; onStage?: (t: number) => void }) {
   const camera = useThree((s) => s.camera);
   const last = useRef(-1);
@@ -239,6 +272,8 @@ export function IdentityScene3D({ data, intro = false, runId = 0, skip = false, 
   onStage?: (t: number) => void; label: string; fallback: React.ReactNode; className?: string;
 }) {
   const world = worldFor(data.archetypeKey);
+  const u = data.universe ?? DEFAULT_UNIVERSE;
+  const light = LIGHT_COLORS[u.lighting] ?? LIGHT_COLORS.warm;
   const seed = useMemo(() => [...data.archetypeKey].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7), [data.archetypeKey]);
   const clock = useRef<Clock>({ t: 0, idle: 0 });
   // A replay restarts the same deterministic timeline.
@@ -247,16 +282,16 @@ export function IdentityScene3D({ data, intro = false, runId = 0, skip = false, 
     <Scene3D label={label} fallback={fallback} className={className} camera={{ position: [0, 0, 12.5], fov: 50 }}>
       {({ quality, reducedMotion, density }) => (
         <>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[4, 5, 6]} intensity={40} color="#f3e4c0" />
+          <ambientLight intensity={light.fill} />
+          <pointLight position={[4, 5, 6]} intensity={40} color={light.key} />
           <pointLight position={[-5, -3, 4]} intensity={18} color={data.accent} />
           <Timeline clock={clock} intro={intro} skip={skip} animate={!reducedMotion} fast={runId > 0} onStage={onStage} />
           <Core clock={clock} />
           <Starfield quality={quality === 'high' ? 'medium' : 'low'} radius={46} seed={seed % 997} animate={!reducedMotion} />
-          <Nebula intensity={0.5} />
+          <UniverseLayers u={u} accent={data.accent} animate={!reducedMotion} />
           <DimensionRings data={data} clock={clock} selected={selected} onSelect={onSelect} />
           <Shell world={world} accent={data.accent} radius={2.5} clock={clock} animate={!reducedMotion} appearAt={[3.8, 5.2]} />
-          <Companions world={world} accent={data.accent} seed={seed} clock={clock} animate={!reducedMotion} density={density} />
+          <Companions world={world} particles={u.particles} accent={data.accent} seed={seed} clock={clock} animate={!reducedMotion} density={density} />
           {data.blend && <BlendCompanion blend={data.blend} clock={clock} animate={!reducedMotion} />}
         </>
       )}

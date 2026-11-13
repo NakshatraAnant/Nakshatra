@@ -19,6 +19,7 @@ import { currentChart, relationOf } from '../services/identity';
 import { collectibleStates } from '../services/progress';
 import { blockedPhrases, screenText } from '../services/moderation';
 import { evaluateReferral } from '../services/referrals';
+import { normaliseAppearance } from '../../shared/appearance';
 
 /** Identity attributes and their default visibility (stored in profiles.fieldVisibility). */
 export const IDENTITY_FIELDS = { persona: 'public', labels: 'public', cosmic: 'connections' } as const;
@@ -184,6 +185,8 @@ export async function studioRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     return {
       handle: prof.handle, displayName: prof.displayName, cardStyle: prof.cardStyle,
+      // Their Universe Studio choices: purely cosmetic, shown with their identity world.
+      universe: normaliseAppearance(prof.appearance).world,
       persona: latest ? (({ key, name, signature, traits, secondary, dimensions }) => ({ key, name, signature, traits, secondary, dimensions }))(personaView(latest)) : null,
       labels: show('labels') ? prof.identityLabels : [],
       cosmic,

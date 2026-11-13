@@ -1,10 +1,10 @@
 import { Suspense, lazy, useMemo, useState } from 'react';
 import { Button, Card, cx } from './ui/primitives';
-import { avatarDataUrl, swatch, type AvatarConfig } from '../../shared/avatar';
+import { avatarDataUrl, type AvatarConfig } from '../../shared/avatar';
 import { OFFERING_LABEL, type OfferingKind } from '../../shared/creator';
 
 /* three.js stays behind these imports: a page only pays for it when a scene is shown. */
-const AvatarStage3D = lazy(() => import('../three/showcase').then((m) => ({ default: m.AvatarStage3D })));
+const AvatarFigure3D = lazy(() => import('../three/avatarFigure').then((m) => ({ default: m.AvatarFigure3D })));
 const CreatorShowcase3D = lazy(() => import('../three/showcase').then((m) => ({ default: m.CreatorShowcase3D })));
 
 /* ---------------- Avatar stage ---------------- */
@@ -13,23 +13,20 @@ const CreatorShowcase3D = lazy(() => import('../three/showcase').then((m) => ({ 
  * The avatar preview, flat or on a 3D stage. Flat is the default; the stage is opt-in and remembers nothing
  * beyond this visit. Both show exactly the same picture.
  */
-export function AvatarPreview({ config }: { config: AvatarConfig }) {
-  const [stage, setStage] = useState(false);
+export function AvatarPreview({ config, aura = null }: { config: AvatarConfig; aura?: string | null }) {
   const src = useMemo(() => avatarDataUrl(config), [config]);
-  // The blink frame: same avatar, eyes closed. Sleepy eyes already look closed, so they never blink.
-  const blinkSrc = useMemo(() => (config.eyes === 'sleepy' ? null : avatarDataUrl({ ...config, eyes: 'sleepy' })), [config]);
-  const flat = <img src={src} alt="Your avatar preview" width={240} height={240} className="mx-auto aspect-square w-full max-w-[240px] rounded-full border border-line" />;
+  const picture = (size: string) => <img src={src} alt="Your avatar picture" width={240} height={240} className={`aspect-square rounded-full border border-line ${size}`} />;
+  const still = <div className="absolute inset-[14%]">{picture('h-full w-full')}</div>;
   return (
     <div className="space-y-2">
-      {stage ? (
-        <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-[var(--radius-xl)] bg-canvas-deep" data-theme="dark" data-testid="avatar-stage">
-          <Suspense fallback={<div className="absolute inset-[12%]">{flat}</div>}>
-            <AvatarStage3D src={src} blinkSrc={blinkSrc} rim={swatch('background', config.background) ?? '#d9b26f'} label="Your avatar as a medallion on a small stage. It flips when you change something and blinks now and then." fallback={<div className="absolute inset-[12%]">{flat}</div>} />
-          </Suspense>
+      <div className="relative mx-auto aspect-[4/5] w-full max-w-[280px] overflow-hidden rounded-[var(--radius-xl)] bg-canvas-deep" data-theme="dark" data-testid="avatar-stage" data-pose={config.pose}>
+        <Suspense fallback={still}>
+          <AvatarFigure3D config={config} aura={aura} label={`Your avatar as a 3D figure, ${config.pose === 'wave' ? 'waving' : config.pose === 'hips' ? 'hands on hips' : config.pose === 'think' ? 'thinking' : 'standing relaxed'}. It updates as you choose parts.`} fallback={still} />
+        </Suspense>
+        {/* The round picture is what shows across the app; the figure is its full-body studio view. */}
+        <div className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/45 py-1 pl-1 pr-2.5">
+          {picture('h-9 w-9')}<span className="text-[11px] text-[#e6dcc8]">Your picture</span>
         </div>
-      ) : flat}
-      <div className="text-center">
-        <Button size="sm" variant="ghost" aria-pressed={stage} onClick={() => setStage((s) => !s)}>{stage ? 'Flat view' : 'View on a 3D stage'}</Button>
       </div>
     </div>
   );

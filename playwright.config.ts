@@ -20,11 +20,9 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     // Uses the installed Microsoft Edge so no browser download is needed. Set E2E_CHANNEL=chromium to use Playwright's bundle.
     channel: process.env.E2E_CHANNEL === 'chromium' ? undefined : (process.env.E2E_CHANNEL ?? 'msedge'),
-    // NOTE: this top-level option is not applied by this Playwright version (found 2026-11-13: pages report
-    // prefers-reduced-motion: no-preference), so journeys actually run with full motion. Tests that need reduced
-    // motion create their own context with { reducedMotion: 'reduce' }. Moving it into contextOptions would change
-    // what every existing spec exercises, so it is left as is and documented.
-    reducedMotion: 'reduce',
+    // Journeys run with full motion (what most people see). Reduced motion is exercised on purpose in
+    // e2e/z13-reduced-motion.spec.ts, which sets contextOptions.reducedMotion itself — a top-level `reducedMotion`
+    // here is silently ignored by Playwright, which is how this suite ran with full motion unnoticed.
     // Tracing makes multi-user journeys 4-5x slower with software WebGL (Journey I: 19 s untraced vs ~90 s traced),
     // so traces are recorded only on the retry of a failed test.
     trace: 'on-first-retry',
@@ -32,7 +30,7 @@ export default defineConfig({
   },
   projects: [
     ...(PERF ? [
-      { name: 'perf', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 }, reducedMotion: 'no-preference' as const, launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-unsafe-swiftshader'] } }, testMatch: /(perf|sweep)\.spec/ },
+      { name: 'perf', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 }, launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-unsafe-swiftshader'] } }, testMatch: /(perf|sweep)\.spec/ },
     ] : [
     { name: 'desktop', use: { ...devices['Desktop Edge'], viewport: { width: 1366, height: 900 } }, testIgnore: [/mobile\.spec/, /widths\.spec/, /perf\.spec/, /sweep\.spec/, LEGACY_DIR, ...(LEGACY ? [/legacy-modules\.spec/, /h-progress\.spec/] : [])] },
     // Layout checks at the supported phone/tablet/desktop widths.

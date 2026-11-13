@@ -24,6 +24,8 @@ test('circle spaces: channels → weekly event + RSVP → report reviewed and me
   await a.getByRole('button', { name: '# Books' }).click();
   await expect(a.getByText('What we are reading')).toBeVisible();
   await a.getByPlaceholder('Something on your mind.').fill('Starting Gitanjali this week.');
+  await a.getByRole('button', { name: 'Preview' }).click();
+  await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(a.getByText('Starting Gitanjali this week.')).toBeVisible();
   await a.getByRole('button', { name: '# General' }).click();

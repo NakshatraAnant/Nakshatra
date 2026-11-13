@@ -54,6 +54,7 @@ export function Composer({ circleId, circleName, channelId, onPosted, defaultTyp
   const id = useQuery({ queryKey: ['identity-me'], queryFn: () => get<{ pseudonym: string | null }>('identity/me') });
   const [where, setWhere] = useState(circleId ? `circle:${circleId}` : 'public');
   const [pseudo, setPseudo] = useState(false);
+  const [preview, setPreview] = useState(false);
   const limit = type === 'poll' ? 2000 : 500;
   const m = useMutation({
     mutationFn: () => {
@@ -66,7 +67,7 @@ export function Composer({ circleId, circleName, channelId, onPosted, defaultTyp
       });
     },
     onSuccess: () => {
-      setBody(''); setOptions(['', '']); setPseudo(false); setPhotos([]); setVoice(null);
+      setBody(''); setOptions(['', '']); setPseudo(false); setPhotos([]); setVoice(null); setPreview(false);
       void qc.invalidateQueries({ queryKey: ['thoughts'] });
       void qc.invalidateQueries({ queryKey: ['circle-feed'] });
       toast('Posted', 'success');
@@ -75,6 +76,27 @@ export function Composer({ circleId, circleName, channelId, onPosted, defaultTyp
     onError: (e) => toast(e instanceof ApiError ? e.message : 'Could not post', 'error'),
   });
   const visText = where === 'public' ? 'Any signed-in Nakshatra member — even if your profile is private (that only hides your profile page)' : where === 'followers' ? 'Only people who follow you' : `Only members of ${circleName ?? circles.data?.circles.find((c) => `circle:${c.id}` === where)?.name ?? 'this circle'}`;
+  const ready = type === 'image' ? photos.length > 0 : type === 'voice' ? !!voice : !!body.trim() && (type !== 'poll' || options.filter(Boolean).length >= 2);
+  // Step two: exactly what will be posted, and who will see it. Nothing is sent until Post is pressed here.
+  if (preview) {
+    return (
+      <Card className="space-y-3" aria-label="Preview">
+        <p className="eyebrow">Preview · not posted yet</p>
+        <article className="rounded-[var(--radius)] border border-line p-4">
+          <p className="text-sm text-fg-3">{pseudo && id.data?.pseudonym ? id.data.pseudonym : 'You'} · {TYPE_LABEL[type]}{topic ? ` · ${topic}` : ''}</p>
+          {body.trim() && <p className={cx('mt-2 whitespace-pre-wrap text-fg text-pretty', type === 'confession' ? 'font-display text-2xl italic' : 'text-[17px] leading-[1.45]')}>{type === 'confession' ? `“${body.trim()}”` : body.trim()}</p>}
+          {type === 'image' && (photos.length > 1 ? <PhotoCarousel urls={photos} label="Photos" /> : photos[0] ? <img src={photos[0]} alt="Photo to be posted" className="mt-3 max-h-[480px] w-full rounded-[var(--radius)] object-cover" /> : null)}
+          {type === 'voice' && voice && <VoiceNote src={voice.url} seconds={voice.seconds} />}
+          {type === 'poll' && <ul className="mt-3 space-y-1.5">{options.filter(Boolean).map((o) => <li key={o} className="rounded-[var(--radius-sm)] border border-line px-3 py-2 text-sm">{o}</li>)}</ul>}
+        </article>
+        <p className="text-sm text-fg-2"><span className="text-fg">Visible to:</span> {visText}{pseudo ? ' · shown under your pen name' : ''}</p>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-3">
+          <Button variant="ghost" disabled={m.isPending} onClick={() => setPreview(false)}>Edit</Button>
+          <Button loading={m.isPending} onClick={() => m.mutate()}>Post</Button>
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card className="space-y-3">
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Post type">
@@ -117,7 +139,7 @@ export function Composer({ circleId, circleName, channelId, onPosted, defaultTyp
       )}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <p className="text-xs text-fg-2"><span className="text-fg">Visible to:</span> {visText}{pseudo ? ' · shown under your pen name' : ''}</p>
-        <Button loading={m.isPending} disabled={type === 'image' ? !photos.length : type === 'voice' ? !voice : !body.trim() || (type === 'poll' && options.filter(Boolean).length < 2)} onClick={() => m.mutate()}>Post</Button>
+        <Button disabled={!ready} onClick={() => setPreview(true)}>Preview</Button>
       </div>
     </Card>
   );

@@ -388,3 +388,8 @@ dialog::backdrop { background: rgb(7 8 26 / 0.65); backdrop-filter: blur(4px); }
   html:not([data-motion='reduced']) .photo-develop[data-loaded='false'] { filter: blur(10px) saturate(0.6); opacity: 0.6; }
   html:not([data-motion='reduced']) [data-playing='true'] .voice-bar { transition: background-color 200ms linear; }
 }
+
+/* Assessment atmosphere: the five lights ease to their new strength and place only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .atmo-glow { transition: opacity 900ms var(--ease-standard), left 900ms var(--ease-standard); }
+}

@@ -10,6 +10,8 @@ import { ReportDialog } from './thoughts';
 import { QuizError, validateQuiz, type QuizQuestion } from '../../shared/quiz';
 import { TOURNAMENT_RULES as R, type TournamentStatus } from '../../shared/tournament';
 import { TournamentArena } from '../components/Arena';
+import { remaining, runOutcome } from '../lib/tournamentMoments';
+import { prefersReducedMotion } from '../lib/session';
 
 const STATUS: Record<TournamentStatus, { label: string; tone: 'success' | 'neutral' | 'warning' | 'danger' }> = {
   open: { label: 'Open now', tone: 'success' },
@@ -122,6 +124,36 @@ interface Detail {
 }
 interface Run { questions: { text: string; options: string[] }[]; deadline: string }
 
+/** Time until the tournament opens or closes, from its real timestamps. Refreshes the page data when it reaches zero. */
+function Clock({ to, label, onZero }: { to: string; label: string; onZero: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  const left = Date.parse(to) - now;
+  useEffect(() => {
+    if (left <= 0) { onZero(); return; }
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [left <= 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <p className="text-sm text-fg-2" role="timer" aria-label={label}><span className="text-fg-3">{label}</span> <span className="font-display text-2xl text-fg numeric" data-testid="tournament-clock">{remaining(left)}</span></p>;
+}
+
+/** Three, two, one before the questions arrive — the clock only starts when the server hands them over. */
+function ReadyCount({ onGo, onCancel }: { onGo: () => void; onCancel: () => void }) {
+  const [n, setN] = useState(3);
+  useEffect(() => {
+    if (n === 0) { onGo(); return; }
+    const id = window.setTimeout(() => setN(n - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [n]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Card className="space-y-3 text-center" aria-label="Get ready" role="status">
+      <p className="eyebrow">Get ready</p>
+      <p key={n} className="m-enter font-display text-7xl numeric text-fg">{n || 'Go'}</p>
+      <p className="text-sm text-fg-2">Your time starts when the first question appears.</p>
+      {n > 0 && <Button size="sm" variant="ghost" onClick={onCancel}>Not yet</Button>}
+    </Card>
+  );
+}
+
 export function TournamentPage() {
   const { id } = useParams();
   const qc = useQueryClient();
@@ -129,30 +161,45 @@ export function TournamentPage() {
   const q = useQuery({ queryKey: ['tournament', id], queryFn: () => get<Detail>(`play/tournaments/${id}`) });
   const [run, setRun] = useState<Run | null>(null);
   const [reporting, setReporting] = useState(false);
+  const [counting, setCounting] = useState(false);
+  const begin = () => { if (prefersReducedMotion() || window.matchMedia('(prefers-reduced-motion: reduce)').matches) start.mutate(); else setCounting(true); };
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['tournament', id] }); void qc.invalidateQueries({ queryKey: ['tournaments'] }); void qc.invalidateQueries({ queryKey: ['tournament-history'] }); };
   const fail = (e: unknown) => toast(e instanceof ApiError ? e.message : 'Something went wrong', 'error');
   const act = useMutation({ mutationFn: (what: 'join' | 'decline' | 'cancel') => post(`play/tournaments/${id}/${what}`), onSuccess: refresh, onError: fail });
-  const start = useMutation({ mutationFn: () => post<Run>(`play/tournaments/${id}/start`), onSuccess: (r) => setRun(r), onError: fail });
+  const start = useMutation({ mutationFn: () => post<Run>(`play/tournaments/${id}/start`), onSuccess: (r) => setRun(r), onError: fail, onSettled: () => setCounting(false) });
   const clear = useMutation({ mutationFn: (userId: string) => post(`admin/tournaments/${id}/entries/${userId}/clear`), onSuccess: refresh, onError: fail });
   return (
     <QueryState q={q}>{(d) => {
       const t = d.tournament;
       const playing = run || d.me.state === 'playing';
+      const outcome = runOutcome({ status: t.status, rank: d.me.rank, ranked: d.standings.length, flag: d.me.flag });
       return (
         <div className="mx-auto max-w-2xl space-y-6">
           <PageHeader kicker={<span className="inline-flex items-center gap-2">Tournament <Badge tone={STATUS[t.status].tone}>{STATUS[t.status].label}</Badge></span>} title={t.title}
             subtitle={`${t.isHost ? 'You host' : `Hosted by ${t.host}`} · ${t.questions} questions · ${t.secondsPerQuestion}s each · ${t.status === 'upcoming' ? `opens ${when(t.opensAt)}` : `closes ${when(t.closesAt)}`}`} />
 
-          {t.status === 'open' && playing && d.me.state !== 'finished' ? (
+          {t.status === 'upcoming' && <Clock to={t.opensAt} label="Opens in" onZero={refresh} />}
+          {t.status === 'open' && !run && <Clock to={t.closesAt} label="Closes in" onZero={refresh} />}
+
+          {counting ? <ReadyCount onGo={() => start.mutate()} onCancel={() => setCounting(false)} />
+          : start.isPending && !run ? <Card role="status"><p className="text-fg">Getting your questions…</p></Card>
+          : t.status === 'open' && playing && d.me.state !== 'finished' ? (
             run ? <PlayRun id={id!} run={run} onDone={() => { setRun(null); refresh(); }} /> : (
               <Card className="space-y-3"><p className="text-fg">Your run is in progress — the clock kept going.</p><Button loading={start.isPending} onClick={() => start.mutate()}>Back to my questions</Button></Card>
             )
           ) : d.me.state === 'finished' ? (
-            <Card className="space-y-2" aria-label="Your run">
-              <p className="eyebrow">Your run</p>
+            <Card className={cx('space-y-2', outcome.tone === 'win' && 'm-success border-accent/60')} aria-label="Your run">
+              <p className="eyebrow">Your run · {outcome.final ? 'final result' : 'not final yet'}</p>
+              <h2 className="font-display text-3xl text-fg">{outcome.title}</h2>
               <p className="font-display text-4xl numeric">{d.me.score} / {t.questions}</p>
               <p className="text-sm text-fg-2">{secs(d.me.durationMs)} · {d.me.flag ? 'Held for a quick review — that was faster (or later) than the rules allow. A moderator will check it.' : d.me.rank ? `Currently #${d.me.rank}` : ''}</p>
               {!d.review && t.status !== 'closed' && <p className="text-xs text-fg-3">Answers are revealed when the tournament closes.</p>}
+              <p className="text-xs text-fg-3">The standings are the result: tournaments are free and give no XP or prizes, so there is nothing to claim.</p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <ButtonLink to="/play/tournaments" size="sm" variant="secondary">All tournaments</ButtonLink>
+                <ButtonLink to="/play/tournaments/new" size="sm" variant="ghost">Host one</ButtonLink>
+                <ButtonLink to="/play" size="sm" variant="ghost">Back to Play</ButtonLink>
+              </div>
             </Card>
           ) : t.isHost ? (
             <Card className="space-y-3">
@@ -162,7 +209,7 @@ export function TournamentPage() {
           ) : d.me.state === 'joined' ? (
             <Card className="space-y-3">
               <p className="text-fg">You’re in. When you press Start you get {t.questions} questions and {Math.round(t.timeLimitSeconds)} seconds in total. One go only — the clock doesn’t pause.</p>
-              {t.status === 'open' ? <Button size="lg" loading={start.isPending} onClick={() => start.mutate()}>Start</Button> : <p className="text-sm text-fg-3">{t.status === 'upcoming' ? `Opens ${when(t.opensAt)}.` : 'This tournament is no longer running.'}</p>}
+              {t.status === 'open' ? <Button size="lg" loading={start.isPending} onClick={begin}>Start</Button> : <p className="text-sm text-fg-3">{t.status === 'upcoming' ? `Opens ${when(t.opensAt)}.` : 'This tournament is no longer running.'}</p>}
             </Card>
           ) : d.me.canJoin ? (
             <Card className="flex flex-wrap items-center gap-2">

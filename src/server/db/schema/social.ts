@@ -141,6 +141,8 @@ export const groups = pgTable('groups', {
   kind: text('kind').notNull().default('community'),
   /** Circle visual theme key (circles only). */
   theme: text('theme').notNull().default('dusk'),
+  /** Circle environment (src/shared/circleEnvironments.ts): observatory | garden | islands | studio | sanctuary. */
+  environment: text('environment').notNull().default('observatory'),
   /** Who may create invite links in a circle: admins | members */
   invitePolicy: text('invite_policy').notNull().default('members'),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -351,3 +353,27 @@ export const appeals = pgTable('appeals', {
   decisionNote: text('decision_note'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Collaborative Drops (src/shared/collab.ts): a Thought Drop drafted by an owner and up to three collaborators. */
+export const collabDrops = pgTable('collab_drops', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  opening: text('opening').notNull(),
+  /** public | followers */
+  visibility: text('visibility').notNull().default('public'),
+  /** draft | published | cancelled */
+  status: text('status').notNull().default('draft'),
+  postId: uuid('post_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('collab_drops_owner_idx').on(t.ownerId, t.status)]);
+
+export const collabMembers = pgTable('collab_members', {
+  collabId: uuid('collab_id').notNull().references(() => collabDrops.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** invited | accepted | declined | removed */
+  status: text('status').notNull().default('invited'),
+  line: text('line').notNull().default(''),
+  invitedAt: timestamp('invited_at', { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp('responded_at', { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.collabId, t.userId] }), index('collab_members_user_idx').on(t.userId, t.status)]);

@@ -15,6 +15,9 @@ export const AVATAR_PARTS = {
   mouth: opts(['smile', 'Smile'], ['grin', 'Grin'], ['neutral', 'Neutral'], ['open', 'Open']),
   accessory: opts(['none', 'None'], ['glasses', 'Glasses'], ['roundGlasses', 'Round glasses'], ['earrings', 'Earrings'], ['freckles', 'Freckles']),
   background: opts(['ember', 'Ember'], ['violet', 'Violet'], ['sky', 'Sky'], ['jade', 'Jade'], ['rose', 'Rose'], ['gold', 'Gold'], ['ink', 'Ink']),
+  outfit: opts(['ink', 'Ink'], ['ember', 'Ember'], ['violet', 'Violet'], ['sky', 'Sky'], ['jade', 'Jade'], ['rose', 'Rose'], ['gold', 'Gold'], ['bone', 'Bone']),
+  // Pose shows on the 3D figure in the Avatar Studio; the round picture is always head and shoulders.
+  pose: opts(['idle', 'Relaxed'], ['wave', 'Waving'], ['hips', 'Hands on hips'], ['think', 'Thinking']),
 } as const;
 
 export type AvatarPart = keyof typeof AVATAR_PARTS;
@@ -22,11 +25,14 @@ export type AvatarConfig = { [K in AvatarPart]: string };
 export const AVATAR_PART_KEYS = Object.keys(AVATAR_PARTS) as AvatarPart[];
 export const partKeys = (p: AvatarPart) => AVATAR_PARTS[p].map((o) => o.key) as [string, ...string[]];
 
-export const DEFAULT_AVATAR: AvatarConfig = { skin: 's3', face: 'oval', hair: 'short', hairColor: 'black', eyes: 'round', brows: 'flat', mouth: 'smile', accessory: 'none', background: 'violet' };
+export const DEFAULT_AVATAR: AvatarConfig = { skin: 's3', face: 'oval', hair: 'short', hairColor: 'black', eyes: 'round', brows: 'flat', mouth: 'smile', accessory: 'none', background: 'violet', outfit: 'ink', pose: 'idle' };
 
 const SKIN: Record<string, string> = { s1: '#f6d7c3', s2: '#eebd9d', s3: '#d39a72', s4: '#b07650', s5: '#8a5534', s6: '#5e3a22' };
 const HAIR: Record<string, string> = { black: '#1f1a17', darkBrown: '#3b2a20', brown: '#6b4a2e', auburn: '#8e3b22', blonde: '#d8b26a', grey: '#a7a3a0', violet: '#6b5fc7' };
 const BG: Record<string, string> = { ember: '#f38c48', violet: '#afacff', sky: '#69c1fc', jade: '#7ccd8e', rose: '#f696b4', gold: '#e4ac59', ink: '#212635' };
+const OUTFIT: Record<string, string> = { ink: '#212635', ember: '#c8612a', violet: '#6b5fc7', sky: '#2f7fb8', jade: '#3f8f5f', rose: '#c4567c', gold: '#b98a3a', bone: '#e6ddcc' };
+/** Colours behind the avatar's parts, for the 3D figure (three/avatarFigure.tsx). */
+export const AVATAR_COLORS = { skin: SKIN, hair: HAIR, background: BG, outfit: OUTFIT };
 const FACE: Record<string, [number, number]> = { oval: [26, 31], round: [29, 29], long: [24, 33] };
 
 export function normaliseAvatar(raw: unknown): AvatarConfig {
@@ -52,7 +58,8 @@ export function renderAvatarSvg(raw: AvatarConfig): string {
   const skin = SKIN[c.skin], hair = HAIR[c.hairColor], bg = BG[c.background];
   const [rx, ry] = FACE[c.face];
   const ink = '#1f1a17';
-  const shirt = c.background === 'ink' ? '#3c4078' : '#212635';
+  // The default ink outfit lightens on the ink background so the shoulders stay visible.
+  const shirt = c.outfit === 'ink' && c.background === 'ink' ? '#3c4078' : OUTFIT[c.outfit];
   const parts: string[] = [];
   parts.push(`<circle cx="64" cy="64" r="64" fill="${bg}"/>`);
   // Hair that falls behind the face and shoulders.
@@ -98,6 +105,6 @@ export const avatarDataUrl = (c: AvatarConfig) => `data:image/svg+xml;charset=ut
 
 /** The colour behind a colour option (skin, hair colour, background), for picker swatches. */
 export function swatch(part: AvatarPart, key: string): string | null {
-  const map = part === 'skin' ? SKIN : part === 'hairColor' ? HAIR : part === 'background' ? BG : null;
+  const map = part === 'skin' ? SKIN : part === 'hairColor' ? HAIR : part === 'background' ? BG : part === 'outfit' ? OUTFIT : null;
   return map?.[key] ?? null;
 }

@@ -18,6 +18,7 @@ import {
 } from '../services/identity';
 import { POLICY_VERSION } from './auth';
 import { ACCENT_KEYS, CORNER_KEYS, TEXT_SIZE_KEYS } from '../../shared/appearance';
+import { UNIVERSE_PARTS, universeKeys } from '../../shared/universe';
 import { AVATAR_PART_KEYS, avatarVersion, normaliseAvatar, partKeys, renderAvatarSvg, type AvatarConfig } from '../../shared/avatar';
 
 export const BirthBody = z.object({
@@ -47,7 +48,9 @@ const ProfileBody = z.object({
   fieldVisibility: z.record(z.string(), z.enum(['public', 'connections', 'private'])),
   language: z.enum(['en', 'hi']),
   colorScheme: z.enum(['system', 'dark', 'light']),
-  appearance: z.object({ accent: z.enum(ACCENT_KEYS), textSize: z.enum(TEXT_SIZE_KEYS), corners: z.enum(CORNER_KEYS) }).strict(),
+  appearance: z.object({ accent: z.enum(ACCENT_KEYS), textSize: z.enum(TEXT_SIZE_KEYS), corners: z.enum(CORNER_KEYS),
+    // Universe Studio: fixed keys only; optional so older clients keep working.
+    world: z.object(Object.fromEntries(UNIVERSE_PARTS.map((p) => [p, z.enum(universeKeys(p))])) as Record<string, z.ZodEnum<Record<string, string>>>).strict().optional() }).strict(),
   reducedMotion: z.boolean(),
   preferredSystem: z.enum(['vedic', 'western']),
 }).partial();

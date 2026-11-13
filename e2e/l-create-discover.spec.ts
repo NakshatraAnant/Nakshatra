@@ -15,16 +15,22 @@ test('Create and Discover: text, poll and photo drops; opt-in people list; next 
   // Create: a text Thought Drop, a poll and a two-photo carousel.
   await a.goto('/create');
   await a.getByPlaceholder('Something on your mind.').fill('First drop from the new Create page');
+  await a.getByRole('button', { name: 'Preview' }).click();
+  await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(a.getByText('Posted. People can now react and reply.')).toBeVisible();
   await a.getByRole('radio', { name: 'Poll' }).click();
   await a.getByPlaceholder('2–4 options to vote on.').fill('Chai or coffee?');
   await a.getByLabel('Option 1').fill('Chai');
   await a.getByLabel('Option 2').fill('Coffee');
+  await a.getByRole('button', { name: 'Preview' }).click();
+  await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
   await a.getByRole('radio', { name: 'Photo' }).click();
   await a.locator('input[type=file]').setInputFiles([{ name: 'a.png', mimeType: 'image/png', buffer: PNG }, { name: 'b.png', mimeType: 'image/png', buffer: PNG }]);
   await expect(a.getByRole('list', { name: 'Chosen photos' }).getByRole('listitem')).toHaveCount(2);
+  await a.getByRole('button', { name: 'Preview' }).click();
+  await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
   await a.goto('/thoughts');
   await expect(a.getByRole('region', { name: /2 photos/ }).first()).toBeVisible();

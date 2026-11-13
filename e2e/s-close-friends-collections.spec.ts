@@ -24,6 +24,8 @@ test('close friends + collections: list a friend → close-friends drop seen onl
   await a.getByPlaceholder('Something on your mind.').fill('Secret chai spot: the blue door on 4th Cross');
   await a.getByLabel('Who can see this').selectOption('close_friends');
   await expect(a.getByText('Only people on your close-friends list will see this.')).toBeVisible();
+  await a.getByRole('button', { name: 'Preview' }).click();
+  await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(a.getByText('Secret chai spot', { exact: false })).toBeVisible();
 

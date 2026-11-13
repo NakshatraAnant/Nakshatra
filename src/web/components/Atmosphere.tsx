@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { SKY, journalConstellation, moonLight, skyTime, starField } from '../lib/atmosphere';
+import { SKY, assessmentGlow, journalConstellation, moonLight, skyTime, starField } from '../lib/atmosphere';
+import { DIMENSIONS, QUESTIONS, type Dimension } from '../../shared/personality';
+import { DIMENSION_COLOR } from './IdentityIntro';
 
 /**
  * Journal atmosphere: a sky for the time of day where you are, and this month's journal days joined as a
@@ -52,5 +54,23 @@ export function MoonSky({ date, label, phaseAngle, tithi, paksha, nakshatra }: {
       </div>
       <figcaption className="text-xs text-fg-3">{moonLight(phaseAngle)}.</figcaption>
     </figure>
+  );
+}
+
+/**
+ * Assessment atmosphere: five soft lights behind the statements, one per dimension, that fill in as that
+ * dimension's statements are answered and drift slightly with the direction of the answers. CSS only (no 3D on
+ * this focused screen); it eases gently when motion is allowed and simply updates when it is not.
+ */
+export function AssessmentAtmosphere({ answers }: { answers: Record<string, number> }) {
+  const glow = useMemo(() => assessmentGlow(QUESTIONS, DIMENSIONS, answers), [answers]);
+  const answered = Object.keys(answers).length;
+  return (
+    <div className="pointer-events-none absolute -inset-6 -z-10 overflow-hidden" aria-hidden="true" data-testid="assessment-atmosphere" data-progress={answered}>
+      {glow.map((g, i) => (
+        <span key={g.dimension} className="atmo-glow absolute h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full" data-dimension={g.dimension} data-glow={g.glow.toFixed(2)}
+          style={{ left: `${12 + i * 19 + g.lean * 6}%`, top: `${i % 2 ? 72 : 24}%`, opacity: 0.08 + g.glow * 0.34, background: `radial-gradient(circle, ${DIMENSION_COLOR[g.dimension as Dimension]} 0, transparent 68%)` }} />
+      ))}
+    </div>
   );
 }

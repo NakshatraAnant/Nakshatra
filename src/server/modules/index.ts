@@ -44,6 +44,7 @@ import { partnerRoutes } from './partners';
 import { orgRoutes } from './orgs';
 import { circleMarketRoutes } from './circleMarket';
 import { journalRoutes } from './journal';
+import { collabRoutes } from './collabs';
 import { yearReviewRoutes } from './yearReview';
 
 async function paymentRoutes(app: FastifyInstance, ctx: Ctx) {
@@ -129,6 +130,7 @@ export async function registerModules(app: FastifyInstance, ctx: Ctx) {
   await orgRoutes(app, ctx);
   await circleMarketRoutes(app, ctx);
   await journalRoutes(app, ctx);
+  await collabRoutes(app, ctx);
   await yearReviewRoutes(app, ctx);
   await paymentRoutes(app, ctx);
 }

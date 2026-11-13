@@ -3,7 +3,7 @@ import { api, quickUser, watchErrors } from './helpers';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
-test('journal sky joins your journal days, calendar sky shows the real Moon, photos develop, avatar blinks', async ({ page }) => {
+test('journal sky joins your journal days, calendar sky shows the real Moon, photos develop, avatar figure', async ({ page }) => {
   const w = watchErrors(page);
   await quickUser(page, 'Skywatcher');
 
@@ -42,10 +42,9 @@ test('journal sky joins your journal days, calendar sky shows the real Moon, pho
   const img = page.getByRole('article').filter({ hasText: 'A photo drop' }).first().getByRole('img', { name: 'Photo shared with this post' });
   await expect(img).toHaveAttribute('data-loaded', 'true');
 
-  // Avatar stage: blink frame wired in (the label says so), still opt-in.
+  // Avatar studio: the 3D figure describes its pose.
   await page.goto('/avatar');
-  await page.getByRole('button', { name: 'View on a 3D stage' }).click();
-  await expect(page.getByTestId('avatar-stage').getByRole('group')).toHaveAttribute('aria-label', /blinks now and then/);
+  await expect(page.getByTestId('avatar-stage').getByRole('group')).toHaveAttribute('aria-label', /3D figure, standing relaxed/);
 
   await page.setViewportSize({ width: 360, height: 780 });
   for (const path of ['/journal', '/calendar']) {

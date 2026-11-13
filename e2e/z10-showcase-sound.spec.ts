@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { api, quickUser, watchErrors } from './helpers';
 
-test('avatar stage is opt-in, creator showcase points at real offerings, interface sounds stay off until switched on', async ({ browser }) => {
+test('avatar studio shows the live 3D figure and saves a pose, creator showcase points at real offerings, interface sounds stay off until switched on', async ({ browser }) => {
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
   const a = await ctxA.newPage();
@@ -12,14 +12,21 @@ test('avatar stage is opt-in, creator showcase points at real offerings, interfa
 
   // Avatar: flat by default; the 3D stage only when asked.
   await a.goto('/avatar');
-  await expect(a.getByRole('img', { name: 'Your avatar preview' })).toBeVisible();
-  await expect(a.getByTestId('avatar-stage')).toHaveCount(0);
-  await a.getByRole('button', { name: 'View on a 3D stage' }).click();
+  // The figure is live from the start, with the round picture it stands for.
   await expect(a.getByTestId('avatar-stage')).toBeVisible();
+  await expect(a.getByRole('img', { name: 'Your avatar picture' }).first()).toBeVisible();
+  await expect(a.getByTestId('avatar-stage')).toHaveAttribute('data-pose', 'idle');
+  await a.getByRole('radiogroup', { name: 'Pose' }).getByRole('radio', { name: 'Waving' }).click();
+  await a.getByRole('radiogroup', { name: 'Outfit' }).getByRole('radio', { name: 'Jade' }).click();
+  await expect(a.getByTestId('avatar-stage')).toHaveAttribute('data-pose', 'wave');
   await a.waitForTimeout(1500);
   await a.getByTestId('avatar-stage').screenshot({ path: 'test-results/shot-avatar-stage.png' });
-  await a.getByRole('button', { name: 'Flat view' }).click();
-  await expect(a.getByTestId('avatar-stage')).toHaveCount(0);
+  // Saved choices come back after a reload.
+  await a.getByRole('button', { name: 'Save as my picture' }).click();
+  await expect(a.getByText('Avatar saved', { exact: false })).toBeVisible();
+  await a.reload();
+  await expect(a.getByTestId('avatar-stage')).toHaveAttribute('data-pose', 'wave');
+  await expect(a.getByRole('radiogroup', { name: 'Outfit' }).getByRole('radio', { name: 'Jade' })).toHaveAttribute('aria-checked', 'true');
 
   // Creator showcase: two listed offerings of different kinds.
   await api(a, 'PUT', 'creators/me', { headline: 'Small joys', categories: ['art'] });

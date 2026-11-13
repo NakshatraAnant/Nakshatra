@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Card, cx } from './ui/primitives';
 import { archetypeAccent } from '../lib/visual';
 import { MAX_STARS, layoutStars, project2d, type MapStar } from '../lib/starmap';
+import { environmentFor } from '../../shared/circleEnvironments';
 
 /* three.js stays behind this import: a page only pays for it when a scene is shown. */
 const StarMap3D = lazy(() => import('../three/starmap').then((m) => ({ default: m.StarMap3D })));
@@ -34,13 +35,14 @@ function StarMap2D({ stars, centre, progress, selected }: { stars: MapStar[]; ce
   );
 }
 
-function Stage({ stars, centre, progress = null, selected, onSelect, label }: { stars: MapStar[]; centre: string; progress?: number | null; selected: string | null; onSelect: (id: string) => void; label: string }) {
+function Stage({ stars, centre, progress = null, selected, onSelect, label, environment = null }: { stars: MapStar[]; centre: string; progress?: number | null; selected: string | null; onSelect: (id: string) => void; label: string; environment?: string | null }) {
+  const env = environment ? environmentFor(environment) : null;
   const still = <StarMap2D stars={stars} centre={centre} progress={progress} selected={selected} />;
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-lg)] bg-canvas-deep" data-theme="dark">
+    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-lg)] bg-canvas-deep" data-theme="dark" data-environment={env?.key} style={env ? { background: `linear-gradient(180deg, ${env.sky[0]}, ${env.sky[1]})` } : undefined}>
       <div className="absolute inset-0">
         <Suspense fallback={still}>
-          <StarMap3D stars={stars} centre={centre} progress={progress} selected={selected} onSelect={onSelect} label={label} fallback={still} />
+          <StarMap3D stars={stars} centre={centre} progress={progress} selected={selected} onSelect={onSelect} label={label} fallback={still} environment={environment} />
         </Suspense>
       </div>
     </div>
@@ -61,7 +63,8 @@ const roleName = (r: string) => (r === 'owner' ? 'Owner' : r === 'moderator' ? '
  * tier. The arc around the centre fills as the circle comes to life. Everything shown is already visible to
  * members in the list below.
  */
-export function CircleWorld({ name, glow, members, activation }: { name: string; glow: string; members: CircleWorldMember[]; activation: { contributors: number; needed: number } }) {
+export function CircleWorld({ name, glow, members, activation, environment }: { name: string; glow: string; members: CircleWorldMember[]; activation: { contributors: number; needed: number }; environment: string }) {
+  const env = environmentFor(environment);
   const [selected, setSelected] = useState<string | null>(null);
   const shown = members.slice(0, MAX_STARS);
   const stars = useMemo<MapStar[]>(() => members.map((m) => ({
@@ -74,12 +77,12 @@ export function CircleWorld({ name, glow, members, activation }: { name: string;
   return (
     <Card className="space-y-3" aria-label="Circle world">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-2xl">Circle world</h2>
+        <div><h2 className="font-display text-2xl">Circle world</h2><p className="text-xs text-fg-3">{env.label} · {env.line}</p></div>
         <p className="text-sm text-fg-2 numeric">{joined} of {members.length} have joined in</p>
       </div>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <Stage stars={stars} centre={glow} progress={activation.needed ? activation.contributors / activation.needed : null} selected={selected} onSelect={pick}
-          label={`${name} as a small world: ${members.length} member${members.length === 1 ? '' : 's'} as stars around the circle. Use the list beside it to find someone.`} />
+        <Stage stars={stars} centre={glow} environment={env.key} progress={activation.needed ? activation.contributors / activation.needed : null} selected={selected} onSelect={pick}
+          label={`${name} in the ${env.label}: ${members.length} member${members.length === 1 ? '' : 's'} as stars around the circle. Use the list beside it to find someone.`} />
         <div className="space-y-2">
           <p className="text-xs text-fg-3">Owner and admins sit closest. Bright stars have joined in; a coloured band is a tier.</p>
           <div role="group" aria-label="Members" className="flex flex-wrap gap-1.5">

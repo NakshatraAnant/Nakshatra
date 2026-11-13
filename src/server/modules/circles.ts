@@ -13,6 +13,7 @@ import { circleLevel } from '../services/progress';
 import { evaluateReferral } from '../services/referrals';
 import { recordFirstAction } from '../services/activation';
 import { blockedPhrases, screenText } from '../services/moderation';
+import { CIRCLE_ENVIRONMENT_KEYS } from '../../shared/circleEnvironments';
 import { hydratePosts, muteFilters } from './social';
 import { flagEnabled, requireFeature } from '../services/settings';
 import { hiddenChannels, activeTier } from '../services/circleSpaces';
@@ -78,7 +79,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const contributors = await contributingMembers(ctx.db, id);
     const tiers = await ctx.db.select({ u: s.circleMemberTiers.userId, name: s.circleTiers.name, color: s.circleTiers.color }).from(s.circleMemberTiers).innerJoin(s.circleTiers, eq(s.circleTiers.id, s.circleMemberTiers.tierId)).where(and(eq(s.circleMemberTiers.circleId, id), isNull(s.circleTiers.archivedAt), activeTier()));
     return {
-      circle: { id: circle.id, name: circle.name, description: circle.description, theme: circle.theme, invitePolicy: circle.invitePolicy, createdAt: circle.createdAt, ownerId: circle.ownerId },
+      circle: { id: circle.id, name: circle.name, description: circle.description, theme: circle.theme, environment: circle.environment, invitePolicy: circle.invitePolicy, createdAt: circle.createdAt, ownerId: circle.ownerId },
       me: { role: member.role, canInvite: isAdmin(member) || circle.invitePolicy === 'members', isAdmin: isAdmin(member) },
       members: members.map((m) => {
         // Circle members see an archetype only when its owner made it public (persona visibility).
@@ -96,7 +97,7 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const { member } = await requireCircle(ctx.db, id, a.userId);
     if (!isAdmin(member)) throw forbidden('Only circle admins can change settings.');
-    const body = parse(z.object({ name: z.string().trim().min(2).max(40), description: z.string().trim().max(200), theme: z.enum(CIRCLE_THEMES), invitePolicy: z.enum(['admins', 'members']) }).partial(), req.body);
+    const body = parse(z.object({ name: z.string().trim().min(2).max(40), description: z.string().trim().max(200), theme: z.enum(CIRCLE_THEMES), environment: z.enum(CIRCLE_ENVIRONMENT_KEYS), invitePolicy: z.enum(['admins', 'members']) }).partial(), req.body);
     if (body.name || body.description) {
       const screened = screenText(`${body.name ?? ''} ${body.description ?? ''}`, await blockedPhrases(ctx.db));
       if (!screened.ok) throw badRequest(screened.reason!);

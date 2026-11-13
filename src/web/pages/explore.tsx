@@ -178,6 +178,7 @@ export function CreatePage() {
       <section aria-labelledby="more-create" className="space-y-3">
         <h2 id="more-create" className="font-display text-2xl">More to start</h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <li><Link to="/create/together" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Write a drop together</p><p className="mt-1 text-sm text-fg-2">You open, friends add a line each, and it posts as one Thought Drop.</p></Link></li>
           <li><Link to="/circles" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Start a circle</p><p className="mt-1 text-sm text-fg-2">A private space for your friends, with its own drops, events and games.</p></Link></li>
           <li><Link to="/play" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Start a game</p><p className="mt-1 text-sm text-fg-2">Twelve quick social games to play with a circle.</p></Link></li>
           <li><Link to="/play/quizzes/new" className="card block h-full p-4 hover:border-line-strong"><p className="font-semibold text-fg">Make a quiz</p><p className="mt-1 text-sm text-fg-2">Trivia about you, or a “which one are you?” for friends.</p></Link></li>
