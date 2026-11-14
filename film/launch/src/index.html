@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nakshatra — The Universe Is Open (launch film)</title>
+<meta name="viewport" content="width=1080" />
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+<style>
+  /* Brand fonts (SIL OFL), self-hosted so every frame renders with the real typefaces. */
+  @font-face { font-family: 'Instrument Serif'; src: url('../assets/fonts/instrument-serif-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Instrument Serif'; src: url('../assets/fonts/instrument-serif-latin-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Hanken Grotesk'; src: url('../assets/fonts/hanken-grotesk-latin-400-normal.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Hanken Grotesk'; src: url('../assets/fonts/hanken-grotesk-latin-500-normal.woff2') format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Hanken Grotesk'; src: url('../assets/fonts/hanken-grotesk-latin-600-normal.woff2') format('woff2'); font-weight: 600; }
+  @font-face { font-family: 'JetBrains Mono'; src: url('../assets/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2'); font-weight: 500; }
+
+  /* Tokens from docs/visual-system/tokens.css, plus the golds and lavender of the in-app introduction. */
+  :root {
+    --ink-950: #0A0C12; --ink-900: #0F121A; --bone: #F2ECE1; --bone-2: #E4DCCC; --mute: #9A958B;
+    --ember: #f38c48; --indigo: #3c448d; --violet: #714ca6; --gold: #d9b26f; --gold-pale: #f3e4c0; --lavender: #b9adf0;
+    --font-display: 'Instrument Serif', 'Times New Roman', serif;
+    --font-ui: 'Hanken Grotesk', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  html, body { margin: 0; background: #05060f; overflow: hidden; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #05060f; color: var(--bone); }
+  #gl { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+  #ui { position: absolute; inset: 0; pointer-events: none; }
+  #ui > * { position: absolute; will-change: transform, opacity; }
+
+  .hero { left: 0; right: 0; text-align: center; font-family: var(--font-display); font-weight: 400; text-transform: uppercase; font-size: 112px; line-height: 1; color: var(--bone); text-shadow: 0 0 42px rgba(243, 228, 192, 0.45), 0 2px 30px rgba(5, 6, 15, 0.9); white-space: nowrap; }
+  .caption { left: 0; right: 0; text-align: center; font-family: var(--font-display); font-style: italic; font-size: 84px; line-height: 1.05; color: var(--bone); text-shadow: 0 0 36px rgba(5, 6, 15, 0.95), 0 0 12px rgba(5, 6, 15, 0.9); white-space: nowrap; }
+  .eyebrow { left: 0; right: 0; text-align: center; font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; font-size: 30px; letter-spacing: 0.24em; color: var(--bone-2); white-space: nowrap; }
+
+  /* Product reveal: seven real recordings on a coverflow of plain device frames. */
+  #deck { left: 0; top: 0; width: 1080px; height: 1920px; perspective: 2400px; perspective-origin: 50% 50%; }
+  .phone { position: absolute; left: 50%; top: 980px; width: 664px; height: 1437px; margin: -718px 0 0 -332px; border-radius: 76px; background: #05060a; box-shadow: 0 0 0 2px rgba(242, 236, 225, 0.16), 0 0 0 14px #0b0d14, 0 0 0 15px rgba(242, 236, 225, 0.10), 0 60px 140px rgba(0, 0, 0, 0.75), 0 0 120px rgba(113, 76, 166, 0.28); transform-style: preserve-3d; backface-visibility: hidden; }
+  .phone img { position: absolute; left: 0; top: 0; width: 664px; height: 1437px; border-radius: 76px; display: block; }
+  .phone .shade { position: absolute; inset: 0; border-radius: 76px; background: #05060f; }
+  #deck-glow { left: 140px; top: 380px; width: 800px; height: 1200px; border-radius: 50%; background: radial-gradient(closest-side, rgba(243, 140, 72, 0.20), rgba(113, 76, 166, 0.16) 55%, rgba(5, 6, 15, 0) 100%); filter: blur(30px); }
+
+  /* Launch moment and end frame: the official artwork files, untouched. */
+  #mark { left: 0; right: 0; top: 0; height: 1920px; }
+  #mark img { position: absolute; left: 50%; display: block; }
+  #end { left: 0; right: 0; top: 0; height: 1920px; text-align: center; }
+  #end > * { position: absolute; left: 0; right: 0; }
+  #end .lockup { top: 600px; height: 190px; }
+  #end .lockup img { height: 190px; display: inline-block; }
+  #end .line1 { top: 905px; font-family: var(--font-mono); font-weight: 500; font-size: 33px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--bone-2); }
+  #end .line2 { top: 985px; font-family: var(--font-display); font-size: 100px; line-height: 1; text-transform: uppercase; letter-spacing: 0.035em; color: var(--bone); text-shadow: 0 0 40px rgba(243, 228, 192, 0.35); }
+  #end .rule { top: 1160px; left: 50%; right: auto; width: 120px; margin-left: -60px; height: 2px; background: linear-gradient(90deg, rgba(217, 178, 111, 0), var(--gold), rgba(217, 178, 111, 0)); }
+  #end .cta { top: 1228px; }
+  #end .cta span { display: inline-block; padding: 30px 78px 32px; border-radius: 22px; background: var(--ember); color: #14161D; font-family: var(--font-ui); font-weight: 600; font-size: 46px; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 0 18px 60px rgba(243, 140, 72, 0.38); }
+  #end .url { top: 1392px; font-family: var(--font-ui); font-weight: 500; font-size: 44px; letter-spacing: 0.03em; color: var(--bone); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1080" height="1920"></canvas>
+  <div id="ui">
+    <div id="t-time" class="hero" style="top:1440px">It’s time.</div>
+    <div id="t-wait" class="hero" style="top:1372px">The wait is over.</div>
+    <div id="cap" class="caption" style="top:1466px"></div>
+    <div id="deck-glow"></div>
+    <div id="deck"></div>
+    <div id="deck-label" class="eyebrow" style="top:176px"></div>
+    <div id="mark">
+      <img id="mark-symbol" alt="" src="/public/visual/brand/nakshatra-symbol.svg" style="top:598px;width:190px;margin-left:-95px" />
+      <img id="mark-word" alt="Nakshatra" src="/public/visual/brand/nakshatra-wordmark.svg" style="top:842px;width:820px;margin-left:-410px" />
+    </div>
+    <div id="t-live" class="hero" style="top:1124px;font-size:80px">Nakshatra is live.</div>
+    <div id="end">
+      <div class="line1">Discover your kind of person.</div>
+      <div class="line2">Enter your universe.</div>
+      <div class="rule"></div>
+      <div class="cta"><span id="cta-text"></span></div>
+      <div class="url" id="url-text"></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./film.js"></script>
+</body>
+</html>
