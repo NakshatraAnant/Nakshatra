@@ -37,7 +37,8 @@ function serve() {
 async function openFilm(browser, port, scale) {
   const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: scale });
   page.on('pageerror', (e) => { console.error('page error:', e.message); process.exitCode = 1; });
-  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error(`[${m.type()}]`, m.text().slice(0, 300)); });
+  page.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !/favicon|404/.test(m.text())) console.error(`[${m.type()}]`, m.text().slice(0, 300)); });
+  page.on('response', (r) => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico')) console.error(`missing: ${r.url()}`); });
   await page.goto(`http://127.0.0.1:${port}/film/launch/src/index.html?scale=${scale}`);
   await page.evaluate(() => window.__film.ready);
   return page;
