@@ -50,7 +50,7 @@ if (mode === 'encode') {
   const audio = resolve(OUT, 'nakshatra-launch-score.wav');
   const master = resolve(OUT, 'nakshatra-launch-30s.mp4');
   const input = ['-framerate', '30', '-i', resolve(FRAMES, '%04d.png')];
-  const video = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '15', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', '-movflags', '+faststart', '-r', '30'];
+  const video = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', '-movflags', '+faststart', '-r', '30'];
   const sound = existsSync(audio) ? ['-i', audio, '-c:a', 'aac', '-b:a', '256k', '-shortest'] : [];
   execFileSync('ffmpeg', ['-y', '-v', 'error', ...input, ...sound, ...video, master], { stdio: 'inherit' });
   console.log(`✓ ${master}${sound.length ? '' : ' (no score found — picture only)'}`);
