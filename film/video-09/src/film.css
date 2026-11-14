@@ -1,0 +1,37 @@
+/* Tokens are the app's own (src/web/styles/app.css): Ink & Ember, Instrument Serif / Hanken Grotesk / JetBrains Mono. */
+:root {
+  --ink-950: #07081a; --ink-900: #0b0c1f; --ink-800: #151735; --bone: #f2ece1; --bone-2: #e4dccc; --mist: #a9a6bd;
+  --gold-300: #ecd29d; --gold-400: #d9b26f; --violet-300: #b9adf0; --ember: #f38c48;
+  --font-display: 'Instrument Serif', 'Times New Roman', serif;
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #000; overflow: hidden; }
+#stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: var(--ink-950); }
+#gl { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+#overlay { position: absolute; inset: 0; pointer-events: none; color: var(--bone); -webkit-font-smoothing: antialiased; }
+#overlay > * { position: absolute; will-change: transform, opacity; }
+
+.headline { left: 0; right: 0; text-align: center; font-family: var(--font-display); font-weight: 400; letter-spacing: 0.01em; line-height: 0.98; text-transform: uppercase; text-shadow: 0 0 44px rgba(7, 8, 26, 0.9), 0 2px 18px rgba(7, 8, 26, 0.85); }
+.headline .gold { color: var(--gold-300); }
+.eyebrow { left: 0; right: 0; text-align: center; font-family: var(--font-mono); font-weight: 500; font-size: 26px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold-300); text-shadow: 0 0 24px rgba(7, 8, 26, 0.95); }
+.line { display: block; }
+
+.pod-label { transform-origin: 0 0; white-space: nowrap; text-align: center; text-shadow: 0 0 26px rgba(7, 8, 26, 1), 0 0 10px rgba(7, 8, 26, 1); }
+.pod-label .n { display: block; font-family: var(--font-mono); font-size: 26px; letter-spacing: 0.2em; text-transform: uppercase; }
+.pod-label .name { display: block; margin-top: 10px; font-family: var(--font-display); font-size: 88px; line-height: 1; color: var(--bone); }
+.pod-label .sig { display: block; margin-top: 12px; font-family: var(--font-display); font-style: italic; font-size: 34px; line-height: 1.12; color: var(--bone-2); white-space: normal; width: 760px; }
+
+.dim-label, .tag { font-family: var(--font-mono); font-size: 24px; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; padding: 9px 18px 8px; border-radius: 999px; background: rgba(7, 8, 26, 0.78); border: 1.5px solid currentColor; }
+
+#phone { left: 50%; top: 0; width: 760px; transform-origin: 50% 50%; border-radius: 64px; padding: 14px; background: linear-gradient(160deg, #3a3d6e, #14163a 30%, #0b0c1f 70%, #2a2d5c); box-shadow: 0 0 0 2px rgba(236, 210, 157, 0.35), 0 40px 140px rgba(0, 0, 0, 0.7), 0 0 120px rgba(141, 123, 216, 0.35); }
+#phone .screen { position: relative; width: 100%; aspect-ratio: 400 / 780; overflow: hidden; border-radius: 52px; background: #0f121a; }
+#phone .screen canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+#phone .tap { position: absolute; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 5px solid rgba(242, 236, 225, 0.95); background: rgba(242, 236, 225, 0.2); }
+#phone .example { position: absolute; left: 0; right: 0; bottom: -62px; text-align: center; font-family: var(--font-mono); font-size: 22px; letter-spacing: 0.2em; color: var(--mist); text-transform: uppercase; }
+
+.brand { left: 0; right: 0; text-align: center; }
+.brand img { display: inline-block; }
+.cta { left: 50%; transform-origin: 50% 50%; white-space: nowrap; padding: 30px 62px; border-radius: 999px; background: var(--ember); color: #1a0f06; font-family: var(--font-sans); font-weight: 700; font-size: 40px; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 0 0 70px rgba(243, 140, 72, 0.55), 0 10px 40px rgba(0, 0, 0, 0.5); }
+.vo { left: 90px; right: 90px; bottom: 150px; text-align: center; font-family: var(--font-sans); font-weight: 500; font-size: 36px; line-height: 1.25; color: #fff; text-shadow: 0 2px 12px #000, 0 0 30px #000; }
