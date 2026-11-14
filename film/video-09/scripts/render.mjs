@@ -50,7 +50,7 @@ if (from === 0 && to === 30 * fps) {
   const audio = resolve(root, 'out/audio.wav');
   const args = ['-y', '-v', 'error', '-framerate', String(fps), '-i', `${framesDir}/%05d.jpg`];
   if (existsSync(audio)) args.push('-i', audio);
-  args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart');
+  args.push('-c:v', 'libx264', '-preset', 'slow', '-b:v', '5500k', '-maxrate', '9000k', '-bufsize', '18000k', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart');
   if (existsSync(audio)) args.push('-c:a', 'aac', '-b:a', '256k', '-shortest');
   args.push(resolve(root, `out/${name}.mp4`));
   const r = spawnSync('ffmpeg', args, { stdio: 'inherit' });
