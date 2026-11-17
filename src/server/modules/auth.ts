@@ -356,8 +356,12 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
   if (!ctx.config.isProd && ctx.config.MAIL_TRANSPORT === 'dev_mailbox') {
     app.get('/api/v1/dev/mailbox', async (req) => {
       // Contains sign-in links for every account: only ever answer requests from this machine.
+      // A tunnel or reverse proxy on this machine also connects from 127.0.0.1, so anything that arrived through
+      // one (it adds forwarding headers) is refused too: the mailbox must never be reachable from outside.
       const peer = req.socket.remoteAddress ?? '';
-      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer)) throw notFound('Mailbox');
+      const h = req.headers;
+      const proxied = Boolean(h['x-forwarded-for'] || h['x-forwarded-host'] || h['x-real-ip'] || h.forwarded || h['cf-connecting-ip'] || h['cf-ray'] || h['true-client-ip']);
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) || proxied) throw notFound('Mailbox');
       const q = parse(z.object({ to: z.string().optional() }), req.query);
       const rows = await ctx.db.select().from(s.emailOutbox).orderBy(sql`${s.emailOutbox.createdAt} desc`).limit(50);
       return { notice: 'Development mailbox: these emails were stored locally and not sent.', emails: q.to ? rows.filter((r) => r.toEmail === q.to!.toLowerCase()) : rows };

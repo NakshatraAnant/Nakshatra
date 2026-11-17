@@ -333,3 +333,16 @@ describe('Retention', () => {
     expect(after.textBody).not.toContain('token=');
   });
 });
+
+describe('Development mailbox', () => {
+  it('answers only direct requests from this machine, never ones that came through a tunnel or proxy', async () => {
+    const direct = await t.app.inject({ method: 'GET', url: '/api/v1/dev/mailbox', remoteAddress: '127.0.0.1' });
+    expect(direct.statusCode).toBe(200);
+    for (const headers of [{ 'x-forwarded-for': '203.0.113.9' }, { 'cf-connecting-ip': '203.0.113.9' }, { forwarded: 'for=203.0.113.9' }, { 'x-real-ip': '203.0.113.9' }]) {
+      const viaTunnel = await t.app.inject({ method: 'GET', url: '/api/v1/dev/mailbox', remoteAddress: '127.0.0.1', headers });
+      expect(viaTunnel.statusCode).toBe(404);
+      expect(viaTunnel.body).not.toContain('token=');
+    }
+    expect((await t.app.inject({ method: 'GET', url: '/api/v1/dev/mailbox', remoteAddress: '203.0.113.9' })).statusCode).toBe(404);
+  });
+});
