@@ -27,6 +27,8 @@ test('circle spaces: channels → weekly event + RSVP → report reviewed and me
   await a.getByRole('button', { name: 'Preview' }).click();
   await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(a.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await expect(a.getByText('Starting Gitanjali this week.')).toBeVisible();
   await a.getByRole('button', { name: '# General' }).click();
   await expect(a.getByText('Starting Gitanjali this week.')).toHaveCount(0);

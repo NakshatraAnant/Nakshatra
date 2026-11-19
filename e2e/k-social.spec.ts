@@ -80,6 +80,8 @@ test('Journey K: archetype preview → save → circle → invite → Thought Dr
   await friend.getByRole('button', { name: 'Preview' }).click();
   await expect(friend.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await friend.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(friend.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await expect(friend.getByText('Who is up for chai at 6?')).toBeVisible();
   await page.goto(circleUrl);
   await expect(page.getByText('Who is up for chai at 6?')).toBeVisible();

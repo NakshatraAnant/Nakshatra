@@ -18,6 +18,8 @@ test('Create and Discover: text, poll and photo drops; opt-in people list; next 
   await a.getByRole('button', { name: 'Preview' }).click();
   await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(a.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await expect(a.getByText('Posted. People can now react and reply.')).toBeVisible();
   await a.getByRole('radio', { name: 'Poll' }).click();
   await a.getByPlaceholder('2–4 options to vote on.').fill('Chai or coffee?');
@@ -26,12 +28,16 @@ test('Create and Discover: text, poll and photo drops; opt-in people list; next 
   await a.getByRole('button', { name: 'Preview' }).click();
   await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(a.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await a.getByRole('radio', { name: 'Photo' }).click();
   await a.locator('input[type=file]').setInputFiles([{ name: 'a.png', mimeType: 'image/png', buffer: PNG }, { name: 'b.png', mimeType: 'image/png', buffer: PNG }]);
   await expect(a.getByRole('list', { name: 'Chosen photos' }).getByRole('listitem')).toHaveCount(2);
   await a.getByRole('button', { name: 'Preview' }).click();
   await expect(a.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await a.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(a.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await a.goto('/thoughts');
   await expect(a.getByRole('region', { name: /2 photos/ }).first()).toBeVisible();
   await expect(a.getByText('Chai or coffee?').first()).toBeVisible();

@@ -9,7 +9,7 @@ import { api, quickUser, seededAccount, signIn } from './helpers';
  * test-results/sweep.json and fail the test.
  */
 const MEMBER = [
-  '/home', '/identity', '/explore', '/create', '/thoughts', '/circles', '/play', '/play/quizzes', '/play/quizzes/new', '/play/tournaments',
+  '/home', '/identity', '/explore', '/create', '/create/together', '/thoughts', '/circles', '/play', '/play/quizzes', '/play/quizzes/new', '/play/tournaments',
   '/play/tournaments/new', '/play/leaderboard', '/progress', '/journal', '/year', '/theme', '/avatar', '/unlocks', '/saved', '/close-friends',
   '/creators', '/creator-studio', '/invite', '/today', '/cosmic-id', '/chart', '/calendar', '/bonds', '/membership', '/merch', '/perks', '/orgs',
   '/notifications', '/search?q=star', '/support', '/settings', '/settings/privacy', '/settings/security', '/settings/notifications', '/settings/data',

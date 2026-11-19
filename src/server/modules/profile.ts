@@ -262,6 +262,8 @@ export async function profileRoutes(app: FastifyInstance, ctx: Ctx) {
     const viewer = await relationOf(ctx.db, viewerId, ownerId);
     const vis = { ...DEFAULT_FIELD_VISIBILITY, ...(p.profiles.fieldVisibility as Record<string, FieldVis>) };
     const limited = p.profiles.visibility === 'private' && viewer === 'public';
+    // Counts that someone viewed a profile; who was viewed is never recorded.
+    if (viewerId && viewer !== 'self') await track(ctx.db, viewerId, 'profile_viewed');
     const base = {
       userId: ownerId, handle: p.profiles.handle, displayName: p.profiles.displayName, avatarUrl: p.profiles.avatarUrl,
       theme: p.profiles.theme, emblem: p.profiles.emblem, background: p.profiles.background, viewer, limited,

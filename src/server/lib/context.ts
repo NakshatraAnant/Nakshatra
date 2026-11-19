@@ -37,6 +37,7 @@ export const EVENT_TAXONOMY: Record<string, { meaningful: boolean; description: 
   reflection_written: { meaningful: true, description: 'Reflection or intention saved.' },
   ritual_completed: { meaningful: true, description: 'Daily ritual marked complete.' },
   profile_shared: { meaningful: true, description: 'Share link/card generated.' },
+  profile_viewed: { meaningful: false, description: 'A member opened another member’s profile (whose is not recorded).' },
   bond_created: { meaningful: true, description: 'Bond created.' },
   bond_invitation_sent: { meaningful: true, description: 'Bond invitation sent.' },
   invitation_accepted: { meaningful: true, description: 'Bond invitation accepted.' },

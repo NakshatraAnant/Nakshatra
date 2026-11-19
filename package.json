@@ -24,6 +24,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/server/db/migrate-cli.ts",
     "db:seed": "tsx src/server/db/seed-cli.ts",
+    "guest": "tsx scripts/create-guest.ts",
     "db:reset": "tsx src/server/db/reset-cli.ts",
     "db:backup": "tsx src/server/db/backup-cli.ts",
     "audit:secrets": "tsx scripts/secret-scan.ts",

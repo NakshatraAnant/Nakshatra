@@ -38,6 +38,8 @@ test('circle tiers: owner adds a tier and a members-only channel → tiered memb
   await core.getByRole('button', { name: 'Preview' }).click();
   await expect(core.getByLabel('Preview').getByText('not posted yet', { exact: false })).toBeVisible();
   await core.getByRole('button', { name: 'Post', exact: true }).click();
+  // The preview closes only once the post is saved.
+  await expect(core.getByLabel('Preview', { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await expect(core.getByText('Saturday: Nandi Hills, 5 am start')).toBeVisible();
 
   await other.goto(`/circles/${circle.id}`);
