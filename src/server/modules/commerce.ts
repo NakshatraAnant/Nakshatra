@@ -95,6 +95,9 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
       await track(tx, o.userId, 'product_ordered', { items: items.length, digital: !hasPhysical });
     },
     onFailed: async (c, tx, payment) => {
+      // With a live provider one declined attempt is not the end: the buyer can retry on the same order, which
+      // expires by itself after an hour. Cancelling here would refund the successful retry.
+      if (payment.provider === 'razorpay') return;
       const [o] = await tx.select().from(s.orders).where(eq(s.orders.id, payment.purposeId));
       if (o?.status === 'pending_payment') {
         await tx.update(s.orders).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(s.orders.id, o.id));
@@ -133,6 +136,16 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     onFailed: async (_c, tx, payment) => {
       const [sub] = await tx.select().from(s.subscriptions).where(eq(s.subscriptions.id, payment.purposeId));
       if (sub?.status === 'pending_payment') await tx.update(s.subscriptions).set({ status: 'cancelled' }).where(eq(s.subscriptions.id, sub.id));
+    },
+    onRefunded: async (c, tx, payment, amount) => {
+      const [sub] = await tx.select().from(s.subscriptions).where(eq(s.subscriptions.id, payment.purposeId));
+      if (!sub) return;
+      if (payment.status === 'refunded') {
+        // A full refund ends what that payment bought.
+        const ended = await tx.update(s.entitlements).set({ revokedAt: new Date() }).where(and(eq(s.entitlements.sourceType, 'payment'), eq(s.entitlements.sourceId, payment.id), isNull(s.entitlements.revokedAt))).returning({ expiresAt: s.entitlements.expiresAt });
+        if (ended.some((x) => x.expiresAt?.getTime() === sub.currentPeriodEnd?.getTime())) await tx.update(s.subscriptions).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(s.subscriptions.id, sub.id));
+      }
+      await notify(c, tx, { userId: sub.userId, category: 'orders', title: `Refund of ₹${(amount / 100).toFixed(2)} processed`, body: 'Nakshatra+ membership', link: '/settings/subscription' });
     },
   });
 
@@ -310,7 +323,8 @@ export async function commerceRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!o) throw notFound('Order');
     if (o.status !== 'pending_payment') throw conflict('Only unpaid orders can be cancelled here. For paid orders, request a refund.');
     await ctx.db.transaction(async (tx) => {
-      await tx.update(s.orders).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(s.orders.id, id));
+      const done = await tx.update(s.orders).set({ status: 'cancelled', updatedAt: new Date() }).where(and(eq(s.orders.id, id), eq(s.orders.status, 'pending_payment'))).returning({ id: s.orders.id });
+      if (!done.length) throw conflict('This order changed while you were cancelling it. Refresh and try again.');
       if (o.paymentId) await tx.update(s.payments).set({ status: 'cancelled', updatedAt: new Date() }).where(and(eq(s.payments.id, o.paymentId), eq(s.payments.status, 'created')));
       await restock(tx, id, 'adjustment');
     });

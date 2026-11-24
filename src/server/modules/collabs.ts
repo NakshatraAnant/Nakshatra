@@ -172,7 +172,7 @@ export async function collabRoutes(app: FastifyInstance, ctx: Ctx) {
     const claimed = await db.update(s.collabDrops).set({ status: 'published', updatedAt: new Date() }).where(and(eq(s.collabDrops.id, c.id), eq(s.collabDrops.status, 'draft'))).returning({ id: s.collabDrops.id });
     if (!claimed.length) throw conflict('This drop is already published.');
     // The one publishing path: the same route a normal Thought Drop uses, as the owner.
-    const res = await app.inject({ method: 'POST', url: '/api/v1/posts', headers: { cookie: req.headers.cookie ?? '', 'x-csrf-token': String(req.headers['x-csrf-token'] ?? ''), 'content-type': 'application/json' }, payload: { kind: 'thought', body, visibility: c.visibility } });
+    const res = await app.inject({ method: 'POST', url: '/api/v1/posts', remoteAddress: req.ip, headers: { cookie: req.headers.cookie ?? '', 'x-csrf-token': String(req.headers['x-csrf-token'] ?? ''), 'content-type': 'application/json' }, payload: { kind: 'thought', body, visibility: c.visibility } });
     if (res.statusCode >= 300) {
       await db.update(s.collabDrops).set({ status: 'draft' }).where(eq(s.collabDrops.id, c.id));
       const err = (() => { try { return (res.json() as { error?: { message?: string } }).error?.message; } catch { return null; } })();

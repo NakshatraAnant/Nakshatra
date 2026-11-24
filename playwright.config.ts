@@ -46,7 +46,8 @@ export default defineConfig({
   webServer: {
     command: 'npx tsx scripts/e2e-server.ts',
     url: `http://127.0.0.1:${PORT}/api/health`,
-    timeout: 180_000,
+    // Seeding the throwaway database is slow on a busy machine; E2E_SERVER_TIMEOUT (ms) raises the limit.
+    timeout: Number(process.env.E2E_SERVER_TIMEOUT ?? 180_000),
     reuseExistingServer: false,
     stdout: 'pipe',
   },

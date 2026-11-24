@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
-import { badRequest, notFound, parse, unauthorized } from '../lib/http';
+import { QueryFlag, badRequest, likePattern, notFound, parse, unauthorized } from '../lib/http';
 import { requireAuth, SESSION_COOKIE } from '../lib/auth';
 import { decryptField, sha256, verifyPassword } from '../lib/crypto';
 import { NOTIFICATION_CATEGORIES } from '../lib/notify';
@@ -27,7 +27,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
   /* ---------- Notifications ---------- */
   app.get('/api/v1/notifications', async (req) => {
     const a = requireAuth(req);
-    const { unread } = parse(z.object({ unread: z.coerce.boolean().optional() }), req.query);
+    const { unread } = parse(z.object({ unread: QueryFlag.optional() }), req.query);
     const rows = await ctx.db.select().from(s.notifications).where(and(eq(s.notifications.userId, a.userId), unread ? isNull(s.notifications.readAt) : undefined)).orderBy(desc(s.notifications.createdAt)).limit(100);
     const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.userId, a.userId), isNull(s.notifications.readAt)));
     return { notifications: rows, unreadCount: n };
@@ -57,7 +57,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const body = parse(z.object({
       preferences: z.array(z.object({ category: z.enum(NOTIFICATION_CATEGORIES), inApp: z.boolean(), email: z.boolean() })).optional(),
-      settings: z.object({ quietStart: z.string().regex(/^\d{2}:\d{2}$/).nullable(), quietEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable(), dailyCap: z.number().int().min(1).max(50), unsubscribedAllEmail: z.boolean() }).partial().optional(),
+      settings: z.object({ quietStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), quietEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), dailyCap: z.number().int().min(1).max(50), unsubscribedAllEmail: z.boolean() }).partial().optional(),
     }), req.body);
     for (const p of body.preferences ?? []) {
       await ctx.db.insert(s.notificationPreferences).values({ userId: a.userId, category: p.category, inApp: p.inApp, email: p.email }).onConflictDoUpdate({ target: [s.notificationPreferences.userId, s.notificationPreferences.category], set: { inApp: p.inApp, email: p.email } });
@@ -85,7 +85,9 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
     if (purpose === 'birth_data_processing' && !granted) {
       // Withdrawing consent removes birth data and every chart derived from it.
       await ctx.db.delete(s.birthProfiles).where(eq(s.birthProfiles.userId, a.userId));
-      await ctx.db.update(s.profiles).set({ onboardingCompletedAt: null }).where(eq(s.profiles.userId, a.userId));
+      // Members who also took the assessment have finished onboarding without birth details.
+      const [assessed] = await ctx.db.select({ id: s.assessmentResults.id }).from(s.assessmentResults).where(eq(s.assessmentResults.userId, a.userId)).limit(1);
+      if (!assessed) await ctx.db.update(s.profiles).set({ onboardingCompletedAt: null }).where(eq(s.profiles.userId, a.userId));
       await ctx.db.update(s.chartShareGrants).set({ revokedAt: new Date() }).where(and(eq(s.chartShareGrants.grantorId, a.userId), isNull(s.chartShareGrants.revokedAt)));
       await audit(ctx.db, { actorId: a.userId, action: 'privacy.birth_consent_withdrawn' });
     }
@@ -176,7 +178,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/api/v1/search', async (req) => {
     const a = requireAuth(req);
     const { q, scope } = parse(z.object({ q: z.string().trim().min(1).max(80), scope: z.enum(['all', 'people', 'experts', 'courses', 'products', 'events', 'vendors', 'groups', 'thoughts']).default('all') }), req.query);
-    const like = `%${q}%`;
+    const like = likePattern(q);
     // Scopes owned by a switched-off module return nothing (the module's API is off too).
     const mods = await enabledModules(ctx.db, a.userId);
     const SCOPE_MODULE: Record<string, string> = { experts: 'experts', courses: 'learning', products: 'premium', vendors: 'weddings', groups: 'community' };
@@ -199,7 +201,7 @@ export async function accountRoutes(app: FastifyInstance, ctx: Ctx) {
     if (want('thoughts')) {
       const rows = await ctx.db.select({ id: s.posts.id, kind: s.posts.kind, body: s.posts.body, pseudonymous: s.posts.pseudonymous, penName: s.posts.penName, authorId: s.posts.authorId, displayName: s.profiles.displayName, handle: s.profiles.handle, pseudonym: s.profiles.pseudonym, createdAt: s.posts.createdAt })
         .from(s.posts).innerJoin(s.profiles, eq(s.profiles.userId, s.posts.authorId))
-        .where(and(isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), eq(s.posts.visibility, 'public'), sql`${s.posts.body} ilike ${like}`,
+        .where(and(isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), eq(s.posts.visibility, 'public'), or(isNull(s.posts.expiresAt), sql`${s.posts.expiresAt} > now()`), sql`${s.posts.body} ilike ${like}`,
           sql`not exists (select 1 from blocks b where (b.blocker_id = ${a.userId} and b.blocked_id = ${s.posts.authorId}) or (b.blocker_id = ${s.posts.authorId} and b.blocked_id = ${a.userId}))`)).orderBy(sql`${s.posts.createdAt} desc`).limit(20);
       results.thoughts = rows.map((r) => ({ id: r.id, kind: r.kind, body: r.body.slice(0, 200), createdAt: r.createdAt, author: r.pseudonymous && r.authorId !== a.userId ? { pseudonym: r.penName ?? r.pseudonym ?? 'Anonymous member' } : { handle: r.handle, displayName: r.displayName } }));
     }
@@ -314,7 +316,7 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.datingMatches).set({ unmatchedAt: new Date(), unmatchedBy: userId }).where(and(isNull(s.datingMatches.unmatchedAt), or(eq(s.datingMatches.userA, userId), eq(s.datingMatches.userB, userId))));
     await del('matchmakingProfile', tx.delete(s.matchmakingProfiles).where(eq(s.matchmakingProfiles.userId, userId)).returning({ id: s.matchmakingProfiles.userId }));
     await tx.update(s.familyMembers).set({ status: 'revoked', revokedAt: new Date() }).where(or(eq(s.familyMembers.principalId, userId), eq(s.familyMembers.memberUserId, userId)));
-    await del('posts', tx.update(s.posts).set({ deletedAt: new Date(), body: '', imageUrl: null, card: null }).where(eq(s.posts.authorId, userId)).returning({ id: s.posts.id }));
+    await del('posts', tx.update(s.posts).set({ deletedAt: new Date(), body: '', imageUrl: null, imageUrls: [], audioUrl: null, audioSeconds: null, card: null, penName: null }).where(eq(s.posts.authorId, userId)).returning({ id: s.posts.id }));
     await tx.update(s.comments).set({ deletedAt: new Date(), body: '' }).where(eq(s.comments.authorId, userId));
     await del('messages', tx.update(s.messages).set({ deletedAt: new Date(), body: '', attachmentUrl: null }).where(eq(s.messages.senderId, userId)).returning({ id: s.messages.id }));
     await tx.update(s.conversationMembers).set({ state: 'left' }).where(eq(s.conversationMembers.userId, userId));
@@ -329,6 +331,20 @@ export async function deleteAccount(ctx: Ctx, userId: string, reason: string | n
     await tx.update(s.groups).set({ archivedAt: new Date() }).where(and(eq(s.groups.ownerId, userId), eq(s.groups.kind, 'circle'), isNull(s.groups.archivedAt)));
     await tx.delete(s.notifications).where(eq(s.notifications.userId, userId));
     await tx.delete(s.sessions).where(eq(s.sessions.userId, userId));
+    await tx.delete(s.authTokens).where(eq(s.authTokens.userId, userId));
+    // Copies of personal data: past exports, old profile values, stored mail, staff roles, private lists.
+    await tx.delete(s.dataExportRequests).where(eq(s.dataExportRequests.userId, userId));
+    await tx.delete(s.profileHistory).where(eq(s.profileHistory.userId, userId));
+    const [{ email }] = await tx.select({ email: s.users.email }).from(s.users).where(eq(s.users.id, userId));
+    await tx.delete(s.emailOutbox).where(sql`lower(${s.emailOutbox.toEmail}) = ${email.toLowerCase()}`);
+    await tx.delete(s.userRoles).where(eq(s.userRoles.userId, userId));
+    await tx.delete(s.vibeCheckins).where(eq(s.vibeCheckins.userId, userId));
+    await tx.delete(s.savedSearches).where(eq(s.savedSearches.userId, userId));
+    await tx.delete(s.savedPosts).where(eq(s.savedPosts.userId, userId));
+    await tx.delete(s.savedProducts).where(eq(s.savedProducts.userId, userId));
+    await tx.delete(s.scheduledReminders).where(eq(s.scheduledReminders.userId, userId));
+    await tx.delete(s.reactions).where(eq(s.reactions.userId, userId));
+    await tx.update(s.subscriptions).set({ status: 'cancelled', cancelAtPeriodEnd: true, updatedAt: new Date() }).where(and(eq(s.subscriptions.userId, userId), inArray(s.subscriptions.status, ['active', 'past_due', 'pending_payment'])));
     await tx.delete(s.userLocations).where(eq(s.userLocations.userId, userId));
     await tx.delete(s.searchHistory).where(eq(s.searchHistory.userId, userId));
     await tx.delete(s.cartItems).where(eq(s.cartItems.userId, userId));

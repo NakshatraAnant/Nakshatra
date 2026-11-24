@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
@@ -280,7 +280,9 @@ export async function circleRoutes(app: FastifyInstance, ctx: Ctx) {
     const locked = await hiddenChannels(ctx.db, a.userId, [id]);
     if (channel && channel !== 'general' && locked.has(channel)) throw notFound('Channel');
     const rows = await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), channel === 'general' ? isNull(s.posts.channelId) : channel ? eq(s.posts.channelId, channel) : undefined, before ? lt(s.posts.createdAt, new Date(before)) : undefined)).orderBy(desc(s.posts.createdAt)).limit(21);
-    const page = rows.slice(0, 20).filter((r) => !isMuted(r) && !(r.channelId && locked.has(r.channelId)));
+    const blocks = await ctx.db.select({ a: s.blocks.blockerId, b: s.blocks.blockedId }).from(s.blocks).where(or(eq(s.blocks.blockerId, a.userId), eq(s.blocks.blockedId, a.userId)));
+    const excluded = new Set(blocks.map((b) => (b.a === a.userId ? b.b : b.a)));
+    const page = rows.slice(0, 20).filter((r) => !excluded.has(r.authorId) && !isMuted(r) && !(r.expiresAt && r.expiresAt < new Date()) && !(r.channelId && locked.has(r.channelId)));
     return { posts: await hydratePosts(ctx.db, a.userId, page), nextBefore: rows.length > 20 ? rows[19].createdAt.toISOString() : null };
   });
 

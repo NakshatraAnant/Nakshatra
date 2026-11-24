@@ -46,7 +46,7 @@ export async function messagingRoutes(app: FastifyInstance, ctx: Ctx) {
       const me = mine.find((m) => m.conversationId === c.id)!;
       const others = members.filter((m) => m.conversationId === c.id && m.userId !== a.userId);
       const [last] = await ctx.db.select().from(s.messages).where(and(eq(s.messages.conversationId, c.id), isNull(s.messages.deletedAt))).orderBy(desc(s.messages.createdAt)).limit(1);
-      const [{ unread }] = await ctx.db.select({ unread: sql<number>`count(*)::int` }).from(s.messages).where(and(eq(s.messages.conversationId, c.id), isNull(s.messages.deletedAt), ne(s.messages.senderId, a.userId), me.lastReadAt ? gt(s.messages.createdAt, me.lastReadAt) : undefined));
+      const [{ unread }] = await ctx.db.select({ unread: sql<number>`count(*)::int` }).from(s.messages).where(and(eq(s.messages.conversationId, c.id), isNull(s.messages.deletedAt), sql`${s.messages.senderId} is distinct from ${a.userId}`, me.lastReadAt ? gt(s.messages.createdAt, me.lastReadAt) : undefined));
       out.push({
         id: c.id, kind: c.kind, contextId: c.contextId, closed: Boolean(c.closedAt), myState: me.state,
         participants: others.map((o) => ({ userId: o.userId, state: o.state, ...names.get(o.userId) })),
@@ -70,7 +70,28 @@ export async function messagingRoutes(app: FastifyInstance, ctx: Ctx) {
       join conversation_members b on b.conversation_id = c.id and b.user_id = ${userId}
       where c.kind = 'direct' limit 1`);
     const existingId = (existing as unknown as { rows: { id: string }[] }).rows?.[0]?.id;
-    if (existingId) return { conversationId: existingId, existing: true };
+    if (existingId) {
+      // Deliver into the existing conversation (the typed message must never be dropped).
+      const members = await ctx.db.select().from(s.conversationMembers).where(eq(s.conversationMembers.conversationId, existingId));
+      const mine = members.find((m) => m.userId === a.userId)!;
+      const other = members.find((m) => m.userId === userId)!;
+      if (other.state === 'declined') throw forbidden('This person isn’t accepting messages from you.');
+      const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.messages).where(and(eq(s.messages.conversationId, existingId), eq(s.messages.senderId, a.userId)));
+      if (other.state === 'requested' && n >= 3) throw forbidden('Wait for your message request to be accepted before sending more.');
+      const connected = (await relationOf(ctx.db, a.userId, userId)) === 'connection';
+      // Someone who left gets a fresh request unless you're connected.
+      const otherState = other.state === 'left' ? (connected ? 'accepted' : 'requested') : other.state;
+      await ctx.db.transaction(async (tx) => {
+        if (mine.state !== 'accepted') await tx.update(s.conversationMembers).set({ state: 'accepted' }).where(and(eq(s.conversationMembers.conversationId, existingId), eq(s.conversationMembers.userId, a.userId)));
+        if (otherState !== other.state) await tx.update(s.conversationMembers).set({ state: otherState }).where(and(eq(s.conversationMembers.conversationId, existingId), eq(s.conversationMembers.userId, userId)));
+        await tx.insert(s.messages).values({ conversationId: existingId, senderId: a.userId, body: message });
+        await tx.update(s.conversations).set({ lastMessageAt: new Date() }).where(eq(s.conversations.id, existingId));
+      });
+      const sender = (await displayNames(ctx.db, [a.userId])).get(a.userId)?.displayName;
+      if (!other.mutedNotifications) await notify(ctx, ctx.db, { userId, category: 'messages', title: otherState === 'requested' ? `${sender} sent you a message request` : `New message from ${sender}`, link: `/messages/${existingId}`, dedupeKey: `msg:${existingId}:${Math.floor(Date.now() / 600000)}` });
+      await track(ctx.db, a.userId, 'message_sent', { kind: 'direct', request: otherState === 'requested' });
+      return { conversationId: existingId, existing: true, request: otherState === 'requested' };
+    }
     const relation = await relationOf(ctx.db, a.userId, userId);
     const conversationId = await ctx.db.transaction(async (tx) => {
       const [c] = await tx.insert(s.conversations).values({ kind: 'direct', createdBy: a.userId, lastMessageAt: new Date() }).returning();
@@ -108,7 +129,7 @@ export async function messagingRoutes(app: FastifyInstance, ctx: Ctx) {
     const names = await displayNames(ctx.db, members.map((x) => x.userId));
     const others = members.filter((x) => x.userId !== a.userId);
     await ctx.db.update(s.conversationMembers).set({ lastReadAt: new Date() }).where(and(eq(s.conversationMembers.conversationId, id), eq(s.conversationMembers.userId, a.userId)));
-    const otherRead = others.map((o) => o.lastReadAt).filter(Boolean).sort().at(-1) ?? null;
+    const otherRead = others.map((o) => o.lastReadAt).filter((d): d is Date => Boolean(d)).sort((x, y) => x.getTime() - y.getTime()).at(-1) ?? null;
     return {
       conversation: { id: conv.id, kind: conv.kind, contextId: conv.contextId, closed: Boolean(conv.closedAt), myState: me.state, participants: others.map((o) => ({ userId: o.userId, state: o.state, ...names.get(o.userId) })) },
       messages: rows.slice(0, limit).reverse().map((m) => ({

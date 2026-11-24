@@ -16,6 +16,16 @@ const queryClient = new QueryClient({
   },
 });
 
+// After a deploy, a tab from the previous version can no longer load its page files: reload once to get the new ones.
+window.addEventListener('vite:preloadError', (e) => {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem('nk_reloaded') ?? 0) < 30_000) return;
+    sessionStorage.setItem('nk_reloaded', String(Date.now()));
+    e.preventDefault();
+    location.reload();
+  } catch { /* storage unavailable: the error page offers a reload */ }
+});
+
 window.addEventListener('error', (e) => reportClientError('window_error', String(e.message)));
 window.addEventListener('unhandledrejection', (e) => {
   if (!(e.reason instanceof ApiError)) reportClientError('unhandled_rejection', String(e.reason?.message ?? e.reason));

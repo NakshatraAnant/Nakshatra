@@ -18,13 +18,16 @@ function csrfToken(): string {
 let primed: Promise<void> | null = null;
 async function ensureCsrf() {
   if (csrfToken()) return;
-  primed ??= fetch('/api/v1/auth/csrf', { credentials: 'same-origin' }).then(() => undefined);
+  // Cleared when done: a failed attempt (offline) or a later-removed cookie must be able to try again.
+  primed ??= fetch('/api/v1/auth/csrf', { credentials: 'same-origin' }).then(() => undefined).finally(() => { primed = null; });
   await primed;
 }
 
 export async function api<T = unknown>(path: string, init: { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal } = {}): Promise<T> {
   const method = init.method ?? (init.body !== undefined || init.form ? 'POST' : 'GET');
-  if (method !== 'GET') await ensureCsrf();
+  if (method !== 'GET') {
+    try { await ensureCsrf(); } catch { throw new ApiError(0, 'network_error', 'We could not reach Nakshatra. Check your connection and try again.'); }
+  }
   const headers: Record<string, string> = { accept: 'application/json' };
   if (method !== 'GET') headers['x-csrf-token'] = csrfToken();
   if (init.body !== undefined) headers['content-type'] = 'application/json';
@@ -66,7 +69,7 @@ export function idempotencyKey(): string {
 
 /** Reports client-side errors without personal data. */
 export function reportClientError(kind: string, message: string) {
-  void api('client-errors', { method: 'POST', body: { kind, message: message.slice(0, 280), route: location.pathname.replace(/[0-9a-f-]{36}/g, ':id').slice(0, 120) } }).catch(() => undefined);
+  void api('client-errors', { method: 'POST', body: { kind, message: message.slice(0, 280), route: location.pathname.replace(/[0-9a-f-]{36}/g, ':id').replace(/\/(?=[\w-]*[\dA-Z_])[\w-]{16,}/g, '/:token').slice(0, 120) } }).catch(() => undefined);
 }
 
 const FIELD_LABELS: Record<string, string> = { interestedIn: 'Interested in', placeId: 'City', ageMin: 'Min age', ageMax: 'Max age', maxDistanceKm: 'Max distance', acknowledgeSafety: 'Safety guidelines' };

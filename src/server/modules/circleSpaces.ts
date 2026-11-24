@@ -258,9 +258,10 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       const simulated = payment.provider === 'dev_simulator';
       const [{ going }] = await tx.select({ going: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, e.id), eq(s.eventRsvps.status, 'going')));
       // Paid after the event was cancelled, started or filled up: refund automatically.
-      if (e.status === 'cancelled' || e.startsAt <= new Date() || (e.capacity && going >= e.capacity)) {
+      const [other] = await tx.select({ id: s.eventTickets.id }).from(s.eventTickets).where(and(eq(s.eventTickets.eventId, e.id), eq(s.eventTickets.userId, t.userId), eq(s.eventTickets.status, 'paid'), ne(s.eventTickets.id, t.id)));
+      if (other || e.status === 'cancelled' || e.startsAt <= new Date() || (e.capacity && going >= e.capacity)) {
         await tx.update(s.eventTickets).set({ status: 'refund_due' }).where(eq(s.eventTickets.id, t.id));
-        await notify(c, tx, { userId: t.userId, category: 'circles', title: `We’re refunding your ticket for ${e.title}`, body: e.status === 'cancelled' ? 'The event was cancelled.' : 'The event filled up or started before your payment arrived.', link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-late:${t.id}` });
+        await notify(c, tx, { userId: t.userId, category: 'circles', title: `We’re refunding your ticket for ${e.title}`, body: other ? 'You already had a ticket.' : e.status === 'cancelled' ? 'The event was cancelled.' : 'The event filled up or started before your payment arrived.', link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-late:${t.id}` });
         return;
       }
       await tx.update(s.eventTickets).set({ status: 'paid' }).where(eq(s.eventTickets.id, t.id));
@@ -284,7 +285,9 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       }
       if (payment.refundedPaise >= payment.amountPaise) {
         await tx.update(s.eventTickets).set({ status: 'refunded' }).where(eq(s.eventTickets.id, t.id));
-        await tx.update(s.eventRsvps).set({ status: 'cancelled' }).where(and(eq(s.eventRsvps.eventId, t.eventId), eq(s.eventRsvps.userId, t.userId)));
+        const [other] = await tx.select({ id: s.eventTickets.id }).from(s.eventTickets).where(and(eq(s.eventTickets.eventId, t.eventId), eq(s.eventTickets.userId, t.userId), eq(s.eventTickets.status, 'paid')));
+        // Refunding a duplicate must not take away the place the other ticket paid for.
+        if (!other) await tx.update(s.eventRsvps).set({ status: 'cancelled' }).where(and(eq(s.eventRsvps.eventId, t.eventId), eq(s.eventRsvps.userId, t.userId)));
         const [e] = await tx.select({ title: s.events.title, groupId: s.events.groupId }).from(s.events).where(eq(s.events.id, t.eventId));
         await notify(c, tx, { userId: t.userId, category: 'circles', title: `Refunded: ${e.title}`, body: `${rupeesLabel(amountPaise)} is on its way back to you.`, link: `/circles/${e.groupId}?tab=events`, dedupeKey: `ticket-refunded:${t.id}` });
       }
@@ -423,14 +426,16 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     const { member } = await requireCircleAdmin(id, a.userId);
     // Reports about posts and comments in this circle that no circle moderator has reviewed yet. Reporters stay anonymous.
     const reported = await db.execute(sql`
-      select r.id, r.reason, r.target_type, r.target_id, r.created_at, coalesce(p.body, c.body) as body, coalesce(p.author_id, c.author_id) as author_id, coalesce(p.id, c.post_id) as post_id
+      select r.id, r.reason, r.target_type, r.target_id, r.created_at, coalesce(p.body, c.body) as body, coalesce(p.author_id, c.author_id) as author_id, coalesce(p.id, c.post_id) as post_id,
+        coalesce(p.pseudonymous, c.as_pseudonym) as hidden, coalesce(p.pen_name, cp.pen_name) as pen_name
       from reports r
       left join posts p on r.target_type = 'post' and p.id = r.target_id and p.group_id = ${id} and p.deleted_at is null
       left join comments c on r.target_type = 'comment' and c.id = r.target_id and c.deleted_at is null
         and exists (select 1 from posts pp where pp.id = c.post_id and pp.group_id = ${id})
+      left join posts cp on cp.id = c.post_id
       where (p.id is not null or c.id is not null)
         and not exists (select 1 from circle_report_reviews v where v.report_id = r.id)
-      order by r.created_at desc limit 50`) as unknown as { rows: { id: string; reason: string; target_type: string; target_id: string; created_at: string; body: string; author_id: string; post_id: string }[] };
+      order by r.created_at desc limit 50`) as unknown as { rows: { id: string; reason: string; target_type: string; target_id: string; created_at: string; body: string; author_id: string; post_id: string; hidden: boolean; pen_name: string | null }[] };
     const timeouts = await db.select().from(s.circleTimeouts).where(and(eq(s.circleTimeouts.circleId, id), gt(s.circleTimeouts.until, new Date())));
     const banned = await db.select({ u: s.groupMembers.userId }).from(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.status, 'banned')));
     const log = await db.select().from(s.auditLogs).where(and(eq(s.auditLogs.targetType, 'group'), eq(s.auditLogs.targetId, id))).orderBy(desc(s.auditLogs.createdAt)).limit(30);
@@ -445,7 +450,7 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
     return {
       role: member.role,
       stats: { members: members.n, newMembers: joined.n, postsThisWeek: posts.n, openReports: reported.rows.length, activeTimeouts: timeouts.length },
-      reports: reported.rows.map((r) => ({ id: r.id, reason: r.reason, targetType: r.target_type, postId: r.post_id, preview: (r.body ?? '').slice(0, 200), author: name(r.author_id), authorId: r.author_id, createdAt: r.created_at })),
+      reports: reported.rows.map((r) => ({ id: r.id, reason: r.reason, targetType: r.target_type, postId: r.post_id, preview: (r.body ?? '').slice(0, 200), author: r.hidden ? r.pen_name ?? 'Anonymous member' : name(r.author_id), authorId: r.hidden ? null : r.author_id, createdAt: r.created_at })),
       timeouts: timeouts.map((t) => ({ userId: t.userId, name: name(t.userId), until: t.until, reason: t.reason })),
       banned: banned.map((b) => ({ userId: b.u, name: name(b.u) })),
       log: log.map((l) => ({ action: l.action.replace(/^circle\./, '').replace(/_/g, ' '), by: name(l.actorId), about: (l.meta as { userId?: string })?.userId ? name((l.meta as { userId: string }).userId) : null, at: l.createdAt })),
@@ -457,13 +462,13 @@ export async function circleSpaceRoutes(app: FastifyInstance, ctx: Ctx) {
       const [c] = await db.select({ c: s.comments, g: s.posts.groupId }).from(s.comments).innerJoin(s.posts, eq(s.posts.id, s.comments.postId)).where(eq(s.comments.id, targetId));
       if (!c || c.g !== circleId) throw notFound('Comment');
       await db.update(s.comments).set({ deletedAt: new Date() }).where(eq(s.comments.id, targetId));
-      await audit(db, { actorId, action: 'circle.comment_removed', targetType: 'group', targetId: circleId, meta: { userId: c.c.authorId, commentId: targetId } });
+      await audit(db, { actorId, action: 'circle.comment_removed', targetType: 'group', targetId: circleId, meta: { ...(c.c.asPseudonym ? {} : { userId: c.c.authorId }), commentId: targetId } });
       return;
     }
     const [p] = await db.select().from(s.posts).where(and(eq(s.posts.id, targetId), eq(s.posts.groupId, circleId)));
     if (!p) throw notFound('Post');
     await db.update(s.posts).set({ deletedAt: new Date() }).where(eq(s.posts.id, targetId));
-    await audit(db, { actorId, action: 'circle.post_removed', targetType: 'group', targetId: circleId, meta: { userId: p.authorId, postId: targetId } });
+    await audit(db, { actorId, action: 'circle.post_removed', targetType: 'group', targetId: circleId, meta: { ...(p.pseudonymous ? {} : { userId: p.authorId }), postId: targetId } });
   }
 
   /** Circle moderators decide for their circle. The platform report stays open for Nakshatra's own review. */

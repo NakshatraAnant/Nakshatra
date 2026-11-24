@@ -223,7 +223,23 @@ export async function playRoutes(app: FastifyInstance, ctx: Ctx) {
       if (sess.hostId === a.userId) await ctx.db.update(s.gameSessions).set({ status: 'abandoned', updatedAt: new Date() }).where(eq(s.gameSessions.id, id));
       else await ctx.db.delete(s.gameParticipants).where(and(eq(s.gameParticipants.sessionId, id), eq(s.gameParticipants.userId, a.userId)));
     } else {
-      await ctx.db.update(s.gameParticipants).set({ leftAt: new Date() }).where(and(eq(s.gameParticipants.sessionId, id), eq(s.gameParticipants.userId, a.userId)));
+      const after = await ctx.db.transaction(async (tx) => {
+        const [locked] = await tx.select().from(s.gameSessions).where(eq(s.gameSessions.id, id)).for('update');
+        await tx.update(s.gameParticipants).set({ leftAt: new Date() }).where(and(eq(s.gameParticipants.sessionId, id), eq(s.gameParticipants.userId, a.userId)));
+        if (locked.status !== 'active') return null;
+        const left = await activeParticipants(tx, id);
+        if (!left.length) {
+          await tx.update(s.gameSessions).set({ status: 'abandoned', updatedAt: new Date() }).where(eq(s.gameSessions.id, id));
+          return null;
+        }
+        // The game must not stall: someone else becomes host, and a round that waited only for this player closes.
+        if (locked.hostId === a.userId) await tx.update(s.gameSessions).set({ hostId: left[0].userId, updatedAt: new Date() }).where(eq(s.gameSessions.id, id));
+        const round = (locked.state as SessionState).rounds[locked.roundIndex];
+        const subs = await roundSubs(tx, id, locked.roundIndex);
+        if (round.kind !== 'resolve' && subs.length && !pendingActors(round, left.map((p) => p.userId), subs).length) return closeRound(ctx, tx, id);
+        return null;
+      });
+      if (after) await afterCompletion(ctx, after);
     }
     return { ok: true };
   });
@@ -248,7 +264,8 @@ export async function playRoutes(app: FastifyInstance, ctx: Ctx) {
       if (e instanceof GameError) throw badRequest(e.message);
       throw e;
     }
-    await ctx.db.update(s.gameSessions).set({ status: 'active', roundIndex: 0, state, updatedAt: new Date() }).where(eq(s.gameSessions.id, id));
+    const started = await ctx.db.update(s.gameSessions).set({ status: 'active', roundIndex: 0, state, updatedAt: new Date() }).where(and(eq(s.gameSessions.id, id), eq(s.gameSessions.status, 'lobby'))).returning({ id: s.gameSessions.id });
+    if (!started.length) throw badRequest('This game has already started.');
     await track(ctx.db, a.userId, 'game_started', { game: sess.gameKey, players: players.length });
     for (const p of players) if (p.userId !== a.userId) await notify(ctx, ctx.db, { userId: p.userId, category: 'games', title: `${def.name} has started`, link: `/play/${id}`, dedupeKey: `game-start:${id}` });
     return { ok: true };

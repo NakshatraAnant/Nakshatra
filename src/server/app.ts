@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -30,9 +30,24 @@ export interface BuiltApp {
 
 const REDACT = ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]', 'body.password', '*.password', '*.token'];
 
+/** Errors as logged. A failed query quotes its parameters (message text, emails, tokens), so those are cut off. */
+export function logError(err: Error & { code?: unknown; cause?: unknown }): { type: string; message: string; stack: string; code?: string; cause?: string } {
+  const cut = (v: string | undefined) => (v ?? '').replace(/\nparams:[\s\S]*?(?=\n\s+at |$)/, '\nparams: [redacted]');
+  const cause = err.cause as { message?: string; code?: string } | undefined;
+  return { type: err.name, message: cut(err.message), stack: cut(err.stack), code: typeof err.code === 'string' ? err.code : cause?.code, cause: cause?.message };
+}
+
+/** Request addresses as logged: one-time links (email, invite, gift tokens) and typed searches never reach the logs. */
+export function logUrl(url: string): string {
+  const [path, query] = url.split('?', 2);
+  const safe = path.replace(/\/(c\/join|org\/join|membership\/join|weddings\/join|circle-invites|org-invites|gifts\/claim|by-token|link|rsvp|invite|family\/accept|accept)\/[A-Za-z0-9_-]{12,}/g, '/$1/[redacted]');
+  if (!query) return safe;
+  return `${safe}?${query.replace(/(^|&)(token|code|q|email|to)=[^&]*/gi, '$1$2=[redacted]')}`;
+}
+
 export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; logger?: boolean } = {}): Promise<BuiltApp> {
   const app = Fastify({
-    logger: opts.logger === false ? false : { level: config.LOG_LEVEL, redact: { paths: REDACT, censor: '[redacted]' } },
+    logger: opts.logger === false ? false : { level: config.LOG_LEVEL, redact: { paths: REDACT, censor: '[redacted]' }, serializers: { req: (r: FastifyRequest) => ({ method: r.method, url: logUrl(r.url), remoteAddress: r.ip }), err: logError } },
     bodyLimit: 1024 * 1024,
     trustProxy: config.TRUST_PROXY > 0 ? (_addr: string, hop: number) => hop < config.TRUST_PROXY : false,
     genReqId: () => randomToken(8),
@@ -76,11 +91,15 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     (req as unknown as { rawBody: string }).rawBody = body as string;
     if (!body) return done(null, {});
+    let parsed: unknown;
     try {
-      done(null, JSON.parse(body as string));
+      parsed = JSON.parse(body as string);
     } catch {
-      done(new AppError(400, 'bad_json', 'Malformed JSON body'), undefined);
+      return done(new AppError(400, 'bad_json', 'Malformed JSON body'), undefined);
     }
+    // PostgreSQL text cannot hold NUL; refuse it here rather than fail inside a query.
+    if ((body as string).includes('\\u0000')) return done(new AppError(400, 'bad_json', 'Text contains characters that are not allowed.'), undefined);
+    done(null, parsed);
   });
 
   app.decorateRequest('auth', null);
@@ -89,6 +108,9 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
     recordRequest(req.routeOptions?.url ?? (req.url.startsWith('/api/') ? 'api:unmatched' : 'static'), reply.elapsedTime, reply.statusCode);
   });
   app.addHook('onRequest', async (req, reply) => {
+    if (req.url.includes('%00')) throw new AppError(400, 'bad_request', 'That address is not valid.');
+    // Personal data never belongs in a browser or shared cache; routes serving cacheable files set their own header.
+    if (req.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
     // Double-submit CSRF: every client gets a random CSRF cookie; unsafe API calls must echo it in a header.
     let csrf = req.cookies[CSRF_COOKIE];
     if (!csrf) {
@@ -121,8 +143,10 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
     reply.code(status).send(body);
   });
 
-  app.get('/api/health', async () => {
+  app.get('/api/health', async (_req, reply) => {
     const dbOk = await dbHandle.ping().catch(() => false);
+    // 503 lets the host's health check see that the database is unreachable.
+    if (!dbOk) reply.code(503);
     return { status: dbOk ? 'ok' : 'degraded', database: dbHandle.kind, dbOk, time: new Date().toISOString() };
   });
   app.get('/api/v1/integrations', async () => ({ integrations: integrationStatus(config), aiFeatures: 'none' }));
@@ -150,7 +174,8 @@ export async function buildApp(config: AppConfig, opts: { dbHandle?: DbHandle; l
     await app.register(fastifyStatic, { root: webDist, prefix: '/', wildcard: false, index: false, maxAge: '1h', setHeaders: (res, path) => { if (/[\\/]assets[\\/]/.test(path)) res.header('cache-control', 'public, max-age=31536000, immutable'); } });
     const shell = readFileSync(join(webDist, 'index.html'), 'utf8');
     app.setNotFoundHandler(async (req, reply) => {
-      if (req.url.startsWith('/api/') || req.url.startsWith('/uploads/')) return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
+      // A missing build file (an old tab after a deploy) must be a 404, not the HTML shell.
+      if (req.url.startsWith('/api/') || req.url.startsWith('/uploads/') || req.url.startsWith('/assets/')) return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
       const html = await renderShell(ctx, shell, req.url);
       return reply.header('content-type', 'text/html; charset=utf-8').header('cache-control', 'no-cache').send(html);
     });

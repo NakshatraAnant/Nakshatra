@@ -6,7 +6,7 @@ import { useI18n, type I18nKey } from '../../lib/i18n';
 import { isStaff, useMe } from '../../lib/session';
 import { Icon, Logo, type IconName } from '../ui/icons';
 import { Avatar, IconButton, cx } from '../ui/primitives';
-import { Drawer } from '../ui/overlays';
+import { Drawer, useToast } from '../ui/overlays';
 import { MaskIcon } from '../MaskIcon';
 import { uiIcon } from '../../lib/visual';
 import { ModuleUnavailable, useModules } from '../../lib/modules';
@@ -109,9 +109,11 @@ export function AppShell() {
   const nav = useNavigate();
   const loc = useLocation();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const signOut = async () => {
-    await post('auth/logout');
+    // Offline or an already-ended session must not leave the button looking dead.
+    try { await post('auth/logout'); } catch { toast('Could not sign out. Check your connection and try again.', 'error'); return; }
     qc.clear();
     nav('/');
   };
