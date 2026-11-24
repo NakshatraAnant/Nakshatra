@@ -1,0 +1,3 @@
+ALTER TABLE "wedding_budget_items" ADD COLUMN "vendor_booking_id" uuid;--> statement-breakpoint
+ALTER TABLE "wedding_budget_items" ADD CONSTRAINT "wedding_budget_items_vendor_booking_id_vendor_bookings_id_fk" FOREIGN KEY ("vendor_booking_id") REFERENCES "public"."vendor_bookings"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "wedding_budget_vendor_booking_uq" ON "wedding_budget_items" USING btree ("vendor_booking_id");

@@ -1,0 +1,137 @@
+table,schema_file,domain,columns,foreign_keys,indexes_declared,unique_indexes,json_columns,array_columns,soft_delete,used_by_core_identity_social_product
+calculation_configs,astro.ts,astrology,7,0,0,0,1,0,no,no
+charts,astro.ts,astrology,12,2,2,0,2,0,no,no
+chart_placements,astro.ts,astrology,9,1,2,0,0,0,no,no
+interpretation_content,astro.ts,astrology,17,0,1,1,1,0,no,no
+saved_insights,astro.ts,astrology,10,2,1,1,0,0,no,no
+timeline_events,astro.ts,astrology,10,1,1,0,0,1,no,no
+ritual_completions,astro.ts,astrology,6,1,0,1,0,0,no,no
+user_locations,astro.ts,astrology,6,1,0,0,0,0,no,no
+daily_lesson_progress,astro.ts,astrology,4,1,0,1,0,0,no,no
+users,auth.ts,identity/auth,14,0,0,2,0,0,yes,yes
+user_roles,auth.ts,identity/auth,4,1,0,1,0,0,no,yes
+sessions,auth.ts,identity/auth,10,1,1,1,0,0,yes,yes
+auth_tokens,auth.ts,identity/auth,7,1,0,1,0,0,no,yes
+profiles,auth.ts,identity/auth,26,1,0,2,1,4,no,yes
+profile_history,auth.ts,identity/auth,4,1,1,0,1,0,no,no
+birth_profiles,auth.ts,identity/auth,18,1,1,0,0,0,no,no
+consent_records,auth.ts,identity/auth,6,1,1,0,0,0,no,yes
+products,commerce.ts,commerce & payments,19,1,1,1,1,2,no,yes
+product_variants,commerce.ts,commerce & payments,9,1,1,1,1,0,no,yes
+inventory_movements,commerce.ts,commerce & payments,6,1,0,0,0,0,no,no
+cart_items,commerce.ts,commerce & payments,4,2,0,1,0,0,no,yes
+saved_products,commerce.ts,commerce & payments,3,2,0,1,0,0,no,no
+discounts,commerce.ts,commerce & payments,10,0,0,1,0,0,no,no
+orders,commerce.ts,commerce & payments,19,1,1,2,1,0,no,yes
+order_items,commerce.ts,commerce & payments,11,3,1,0,0,0,no,yes
+shipments,commerce.ts,commerce & payments,6,1,0,0,0,0,no,no
+return_requests,commerce.ts,commerce & payments,8,3,0,0,0,0,no,no
+payments,commerce.ts,commerce & payments,14,1,1,1,0,0,no,yes
+payment_events,commerce.ts,commerce & payments,10,1,0,1,1,0,no,yes
+refunds,commerce.ts,commerce & payments,10,1,0,1,0,0,no,yes
+subscription_plans,commerce.ts,commerce & payments,7,0,0,0,0,1,no,no
+subscriptions,commerce.ts,commerce & payments,10,2,1,0,0,0,no,no
+entitlements,commerce.ts,commerce & payments,9,1,1,1,0,0,yes,yes
+report_documents,commerce.ts,commerce & payments,7,2,0,0,1,0,no,yes
+wedding_projects,commerce.ts,weddings & vendors,12,1,0,0,0,0,no,no
+wedding_members,commerce.ts,weddings & vendors,8,2,2,0,0,1,no,no
+wedding_tasks,commerce.ts,weddings & vendors,8,1,0,0,0,0,no,no
+wedding_budget_items,commerce.ts,weddings & vendors,8,2,0,1,0,0,no,no
+wedding_events,commerce.ts,weddings & vendors,6,1,0,0,0,0,no,no
+wedding_guests,commerce.ts,weddings & vendors,12,1,1,1,0,0,no,no
+vendors,commerce.ts,weddings & vendors,13,1,1,0,0,2,no,no
+vendor_unavailability,commerce.ts,weddings & vendors,4,1,0,1,0,0,no,no
+vendor_inquiries,commerce.ts,weddings & vendors,10,3,2,0,0,0,no,no
+vendor_quotes,commerce.ts,weddings & vendors,8,1,0,0,1,0,no,no
+vendor_bookings,commerce.ts,weddings & vendors,7,3,0,0,0,0,no,no
+vendor_payment_milestones,commerce.ts,weddings & vendors,7,1,0,0,0,0,no,no
+expert_profiles,experts.ts,expert marketplace,14,1,0,0,0,2,no,no
+expert_credentials,experts.ts,expert marketplace,9,1,1,0,0,0,no,no
+expert_services,experts.ts,expert marketplace,10,1,1,0,0,0,no,no
+availability_rules,experts.ts,expert marketplace,5,1,1,0,0,0,no,no
+availability_exceptions,experts.ts,expert marketplace,6,1,0,0,0,0,no,no
+bookings,experts.ts,expert marketplace,20,4,2,0,0,0,no,no
+booking_status_history,experts.ts,expert marketplace,7,1,0,0,0,0,no,no
+consultation_notes,experts.ts,expert marketplace,6,2,0,0,0,0,no,no
+reviews,experts.ts,expert marketplace,10,1,1,1,0,0,no,no
+disputes,experts.ts,expert marketplace,11,1,0,0,0,0,no,no
+payouts,experts.ts,expert marketplace,11,1,0,0,1,0,no,no
+courses,experts.ts,learning (LMS),17,1,0,1,0,1,no,no
+course_chapters,experts.ts,learning (LMS),4,1,0,0,0,0,no,no
+lessons,experts.ts,learning (LMS),10,2,1,0,0,0,no,no
+quizzes,experts.ts,learning (LMS),3,1,0,1,1,0,no,no
+enrollments,experts.ts,learning (LMS),8,2,0,1,0,0,no,no
+lesson_progress,experts.ts,learning (LMS),3,2,0,1,0,0,no,no
+quiz_attempts,experts.ts,learning (LMS),7,2,1,0,1,0,no,no
+lesson_bookmarks,experts.ts,learning (LMS),3,2,0,1,0,0,no,no
+lesson_notes,experts.ts,learning (LMS),5,2,0,0,0,0,no,no
+certificates,experts.ts,learning (LMS),7,2,0,2,1,0,no,no
+dating_profiles,match.ts,dating & matchmaking,25,1,0,0,1,4,no,no
+dating_actions,match.ts,dating & matchmaking,4,2,1,1,0,0,no,no
+dating_matches,match.ts,dating & matchmaking,7,2,0,1,0,0,no,no
+verification_requests,match.ts,dating & matchmaking,10,1,1,0,1,0,no,no
+matchmaking_profiles,match.ts,dating & matchmaking,22,1,0,0,2,3,no,no
+mm_shortlist,match.ts,dating & matchmaking,4,2,0,1,0,0,no,no
+mm_connections,match.ts,dating & matchmaking,10,3,0,1,0,0,no,no
+mm_stage_history,match.ts,dating & matchmaking,5,1,0,0,0,0,no,no
+family_members,match.ts,dating & matchmaking,11,2,2,1,0,1,yes,no
+family_suggestions,match.ts,dating & matchmaking,6,3,0,0,0,0,no,no
+xp_ledger,platform.ts,platform,6,1,1,1,0,0,no,yes
+user_achievements,platform.ts,platform,4,1,0,1,0,0,no,yes
+challenge_progress,platform.ts,platform,5,1,0,1,0,0,no,no
+user_collectibles,platform.ts,platform,4,1,0,1,0,0,no,no
+daily_checkins,platform.ts,platform,3,1,0,1,0,0,no,no
+notifications,platform.ts,platform,9,1,1,1,0,0,no,yes
+notification_preferences,platform.ts,platform,5,1,0,1,0,0,no,yes
+notification_settings,platform.ts,platform,7,1,0,0,0,0,no,yes
+notification_templates,platform.ts,platform,6,0,0,0,0,0,no,no
+scheduled_reminders,platform.ts,platform,10,1,1,1,0,0,no,no
+email_outbox,platform.ts,platform,11,0,1,0,0,0,no,yes
+data_export_requests,platform.ts,platform,6,1,0,0,1,0,no,yes
+deletion_requests,platform.ts,platform,7,0,0,0,1,0,no,yes
+audit_logs,platform.ts,platform,8,0,2,0,1,0,no,yes
+analytics_events,platform.ts,platform,6,0,2,0,1,0,no,yes
+feature_flags,platform.ts,platform,6,0,0,0,0,0,no,yes
+experiments,platform.ts,platform,5,0,0,0,0,1,no,no
+experiment_assignments,platform.ts,platform,4,2,0,1,0,0,no,no
+platform_settings,platform.ts,platform,4,0,0,0,1,0,no,yes
+support_tickets,platform.ts,platform,10,1,1,0,0,0,no,no
+ticket_messages,platform.ts,platform,6,1,0,0,0,0,no,no
+search_history,platform.ts,platform,5,1,1,0,0,0,no,no
+saved_searches,platform.ts,platform,6,1,0,0,1,0,no,no
+uploads,platform.ts,platform,8,1,0,0,0,0,no,yes
+stored_files,platform.ts,platform,6,0,0,0,0,0,no,yes
+referrals,platform.ts,platform,9,2,1,1,0,0,no,yes
+assessment_results,play.ts,identity studio / circles / play,9,1,1,0,2,0,no,yes
+circle_invites,play.ts,identity studio / circles / play,9,2,1,1,0,0,yes,yes
+game_sessions,play.ts,identity studio / circles / play,11,2,2,0,1,0,no,yes
+game_participants,play.ts,identity studio / circles / play,7,2,1,1,0,0,no,yes
+game_submissions,play.ts,identity studio / circles / play,7,2,0,1,1,0,no,yes
+ritual_responses,play.ts,identity studio / circles / play,8,1,1,1,1,0,no,yes
+bonds,social.ts,astrology bonds,13,3,2,0,0,0,yes,no
+bond_invitations,social.ts,astrology bonds,11,3,1,1,0,0,no,no
+chart_share_grants,social.ts,astrology bonds,8,2,1,0,0,0,yes,no
+compatibility_results,social.ts,astrology bonds,8,3,1,0,1,0,no,no
+report_shares,social.ts,astrology bonds,9,3,1,0,0,0,yes,no
+bond_notes,social.ts,astrology bonds,5,2,1,0,0,0,no,no
+bond_milestones,social.ts,astrology bonds,6,2,1,0,0,0,no,no
+blocks,social.ts,social,3,2,0,1,0,0,no,yes
+mutes,social.ts,social,3,2,0,1,0,0,no,yes
+follows,social.ts,social,4,2,1,1,0,0,no,yes
+groups,social.ts,social,12,1,0,1,0,1,yes,yes
+group_members,social.ts,social,5,2,1,1,0,0,no,yes
+posts,social.ts,social,15,2,3,0,1,1,yes,yes
+poll_options,social.ts,social,4,1,1,0,0,0,no,yes
+poll_votes,social.ts,social,4,3,0,1,0,0,no,yes
+reactions,social.ts,social,4,2,0,1,0,0,no,yes
+comments,social.ts,social,8,2,1,0,0,0,yes,yes
+saved_posts,social.ts,social,3,2,0,1,0,0,no,yes
+feed_feedback,social.ts,social,4,2,0,1,0,0,no,yes
+events,social.ts,social,15,2,1,0,0,0,no,yes
+event_rsvps,social.ts,social,4,2,0,1,0,0,no,yes
+conversations,social.ts,messaging,7,1,0,0,0,0,no,no
+conversation_members,social.ts,messaging,5,2,1,1,0,0,no,no
+messages,social.ts,messaging,8,2,1,0,0,0,yes,no
+reports,social.ts,social,14,1,2,0,0,0,no,yes
+moderation_actions,social.ts,social,8,2,0,0,0,0,no,yes
+appeals,social.ts,social,8,2,0,0,0,0,no,yes

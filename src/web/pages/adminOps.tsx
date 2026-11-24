@@ -1,0 +1,155 @@
+import { useState } from 'react';
+import { Link } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiError, get, post } from '../lib/api';
+import { Button, Card, Input, cx } from '../components/ui/primitives';
+import { EmptyState, QueryState } from '../components/ui/feedback';
+import { useToast } from '../components/ui/overlays';
+
+type Light = 'green' | 'amber' | 'red' | 'grey';
+interface Item { key: string; area: string; feature: string; status: Light; reason: string; dependency: string | null; works: string; launchImpact: string; link: string | null }
+interface Readiness { generatedAt: string; summary: Record<Light, number>; items: Item[] }
+
+const LIGHT: Record<Light, { label: string; dot: string; text: string }> = {
+  red: { label: 'Blocks launch', dot: 'bg-danger', text: 'text-danger' },
+  amber: { label: 'Works with a caveat', dot: 'bg-warning', text: 'text-warning' },
+  green: { label: 'Ready', dot: 'bg-success', text: 'text-success' },
+  grey: { label: 'Off / not built', dot: 'bg-fg-3', text: 'text-fg-3' },
+};
+const ORDER: Light[] = ['red', 'amber', 'green', 'grey'];
+
+export function LaunchReadiness() {
+  const q = useQuery({ queryKey: ['admin-readiness'], queryFn: () => get<Readiness>('admin/launch-readiness'), refetchInterval: 60_000 });
+  const [filter, setFilter] = useState<Light | ''>('');
+  return (
+    <QueryState q={q}>{(d) => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="Filter by status">
+          {ORDER.map((l) => (
+            <button key={l} type="button" aria-pressed={filter === l} onClick={() => setFilter(filter === l ? '' : l)} className={cx('card p-3 text-left', filter === l && 'border-accent')}>
+              <span className="flex items-center gap-2 text-sm text-fg-2"><span className={cx('h-2.5 w-2.5 rounded-full', LIGHT[l].dot)} aria-hidden="true" />{LIGHT[l].label}</span>
+              <span className="mt-1 block font-display text-3xl numeric">{d.summary[l]}</span>
+            </button>
+          ))}
+        </div>
+        <ul className="space-y-3">
+          {d.items.filter((i) => !filter || i.status === filter).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status)).map((i) => (
+            <li key={i.key} className="card p-4" data-status={i.status}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-fg-3">{i.area}</p>
+                  <h3 className="font-display text-xl">{i.feature}</h3>
+                </div>
+                <span className={cx('inline-flex items-center gap-1.5 text-sm', LIGHT[i.status].text)}><span className={cx('h-2.5 w-2.5 rounded-full', LIGHT[i.status].dot)} aria-hidden="true" />{LIGHT[i.status].label}</span>
+              </div>
+              <p className="mt-2 text-sm text-fg">{i.reason}</p>
+              <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[140px_1fr]">
+                <dt className="text-fg-3">What works</dt><dd className="text-fg-2">{i.works}</dd>
+                {i.dependency && <><dt className="text-fg-3">Needs</dt><dd className="text-fg-2">{i.dependency}</dd></>}
+                <dt className="text-fg-3">Launch impact</dt><dd className="text-fg-2">{i.launchImpact}</dd>
+              </dl>
+              {i.link && <Link to={i.link} className="mt-2 inline-flex text-sm text-accent underline underline-offset-2">Open</Link>}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-fg-3">Computed live from configuration and data at {new Date(d.generatedAt).toLocaleString()}.</p>
+      </div>
+    )}</QueryState>
+  );
+}
+
+interface Perf { since: string; overallApi: { sampled: number; p50: number; p95: number; p99: number }; routes: { route: string; requests: number; sampled: number; p50: number; p95: number; p99: number; max: number; serverErrors: number }[]; memoryMb: number; uptimeSeconds: number; dbPingMs: number; note: string }
+
+export function PerformanceAdmin() {
+  const q = useQuery({ queryKey: ['admin-perf'], queryFn: () => get<Perf>('admin/performance'), refetchInterval: 15_000 });
+  return (
+    <QueryState q={q}>{(d) => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {[['API p50', `${Math.round(d.overallApi.p50)} ms`], ['API p95', `${Math.round(d.overallApi.p95)} ms`], ['API p99', `${Math.round(d.overallApi.p99)} ms`], ['DB ping', `${d.dbPingMs} ms`], ['Memory', `${d.memoryMb} MB`]].map(([k, v]) => (
+            <Card key={k} className="p-3"><p className="text-xs text-fg-3">{k}</p><p className="font-display text-2xl numeric">{v}</p></Card>
+          ))}
+        </div>
+        <Card>
+          <h3 className="font-display text-2xl">Slowest routes (by p95)</h3>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead><tr className="text-left text-xs text-fg-3"><th className="py-1 font-normal">Route</th><th className="font-normal">Requests</th><th className="font-normal">p50</th><th className="font-normal">p95</th><th className="font-normal">p99</th><th className="font-normal">5xx</th></tr></thead>
+              <tbody>{d.routes.slice(0, 40).map((r) => (
+                <tr key={r.route} className="border-t border-line">
+                  <th scope="row" className="py-1.5 pr-2 text-left font-mono text-xs font-normal text-fg-2">{r.route}</th>
+                  <td className="numeric">{r.requests}</td><td className="numeric">{r.p50}</td>
+                  <td className={cx('numeric', r.p95 > 1000 ? 'text-danger' : r.p95 > 300 && 'text-warning')}>{r.p95}</td>
+                  <td className="numeric">{r.p99}</td><td className={cx('numeric', r.serverErrors > 0 && 'text-danger')}>{r.serverErrors}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-fg-3">{d.note} Up {Math.round(d.uptimeSeconds / 60)} min.</p>
+        </Card>
+      </div>
+    )}</QueryState>
+  );
+}
+
+export function StudentRequests() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['admin-students'], queryFn: () => get<{ requests: { id: string; name: string; institution: string; emailDomain: string; createdAt: string }[] }>('admin/student-verifications') });
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const decide = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'approved' | 'rejected' }) => post(`admin/student-verifications/${id}`, { decision, note: notes[id] ?? '' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin-students'] }); toast('Saved', 'success'); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error'),
+  });
+  return (
+    <QueryState q={q} empty={(d) => (!d.requests.length ? <EmptyState icon="check" title="No student requests waiting" /> : null)}>{(d) => (
+      <ul className="space-y-3">{d.requests.map((r) => (
+        <li key={r.id} className="card space-y-2 p-4">
+          <p className="text-fg"><strong>{r.name}</strong> · {r.institution}</p>
+          <p className="text-xs text-fg-3">Verified email domain: {r.emailDomain} · {new Date(r.createdAt).toLocaleDateString()}</p>
+          <Input aria-label={`Note for ${r.name}`} placeholder="Note (shown to them)" value={notes[r.id] ?? ''} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
+          <div className="flex gap-2"><Button size="sm" onClick={() => decide.mutate({ id: r.id, decision: 'approved' })}>Approve</Button><Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: r.id, decision: 'rejected' })}>Reject</Button></div>
+        </li>
+      ))}</ul>
+    )}</QueryState>
+  );
+}
+
+interface CreatorRow { userId: string; handle: string; name: string; status: string; tipsEnabled: boolean; heldNetPaise: number; platformFeePaise: number; simulatedNetPaise: number }
+
+/** Creator pages: status, held earnings (no payouts exist) and suspension with a reason (audited, creator notified). */
+export function CreatorsAdmin() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['admin-creators'], queryFn: () => get<{ payoutsAvailable: boolean; creators: CreatorRow[] }>('admin/creators') });
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const set = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'suspended' }) => post(`admin/creators/${userId}/status`, { status, reason: reasons[userId] ?? '' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin-creators'] }); toast('Saved', 'success'); },
+    onError: (e) => toast(e instanceof ApiError ? e.message : 'Failed', 'error'),
+  });
+  const inr = (p: number) => `₹${(p / 100).toLocaleString('en-IN')}`;
+  return (
+    <QueryState q={q} empty={(d) => (!d.creators.length ? <EmptyState icon="sparkle" title="No creator pages yet" /> : null)}>{(d) => (
+      <div className="space-y-3">
+        {!d.payoutsAvailable && <p className="text-sm text-fg-2">Payouts are not built: tip earnings are held in the ledger. Simulated amounts come from the development payment simulator and are not real money.</p>}
+        <ul className="space-y-3">{d.creators.map((c) => (
+          <li key={c.userId} className="card space-y-2 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link to={`/creators/${c.handle}`} className="font-semibold text-fg underline-offset-2 hover:underline">{c.name}</Link>
+              <span className={cx('text-sm', c.status === 'suspended' ? 'text-danger' : 'text-fg-2')}>{c.status}{c.tipsEnabled ? ' · tips on' : ''}</span>
+            </div>
+            <p className="text-xs text-fg-3 numeric">Held {inr(c.heldNetPaise)} · platform fee {inr(c.platformFeePaise)} · simulated {inr(c.simulatedNetPaise)}</p>
+            <div className="flex flex-wrap gap-2">
+              <Input aria-label={`Reason for ${c.name}`} className="min-w-0 flex-1" placeholder="Reason (sent to the creator)" value={reasons[c.userId] ?? ''} onChange={(e) => setReasons({ ...reasons, [c.userId]: e.target.value })} />
+              {c.status === 'suspended'
+                ? <Button size="sm" variant="secondary" onClick={() => set.mutate({ userId: c.userId, status: 'active' })}>Restore</Button>
+                : <Button size="sm" variant="ghost" onClick={() => set.mutate({ userId: c.userId, status: 'suspended' })}>Suspend</Button>}
+            </div>
+          </li>
+        ))}</ul>
+      </div>
+    )}</QueryState>
+  );
+}

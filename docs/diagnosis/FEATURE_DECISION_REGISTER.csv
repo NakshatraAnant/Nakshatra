@@ -1,0 +1,37 @@
+id,area,feature,current_state,evidence_label,decision,reason,return_condition
+F01,landing,Landing page with six pillars,"No sample output; six promises",Observed,Improve,One promise + labelled live sample + one CTA,-
+F02,auth,Signup before value,Works; ~5 steps before first output (email verification not required before onboarding),Observed,Improve,Make account optional; verify only before payment or Bond,-
+F03,auth,Sessions / throttling / password reset,Solid,Observed,Keep,Security baseline,-
+F04,onboarding,Interests + system picker step,Works,Observed,Remove from MVP flow,Not needed for first value,Personalisation evidence
+F05,identity,Cosmic ID six layers 3D/2D,Works; text from thin shared pool,Verified (content stats),Improve,Distinct Vedic/Western text; Hinglish; three hero layers first,-
+F06,identity,Share card PNG 600x440,Works,Observed,Improve,Add 1080x1920 story card with one quotable line + compare link,-
+F07,astro,Western/Vedic chart pages (North/South Indian),Works; reference-tested,Observed,Keep,Depth for enthusiasts and trust,-
+F08,astro,Calendar / Panchang / festivals / muhurat,Works,Observed,Keep (secondary),Candidate free SEO pages,-
+F09,content,Interpretation rules (276; ~6.5k words; 0 Hindi),Thin and duplicated,Verified,Improve (priority 1),Core value is the words,-
+F10,today,Daily briefing / ritual / reflection,Works; pools repeat within ~2 weeks,Verified,Hide,Not in wedge; content too thin,>=20% payers return unprompted in 30d AND >=90 days distinct content
+F11,journey,XP / achievements / saved insights,Works,Observed,Hide,Rewards consumption of repeats,Same as F10
+F12,bonds,Consented invite Bond,Works; invitee must sign up,Observed,Improve (core),Invitee enters own data without account,-
+F13,bonds,Private Bond with third-party birth data,Works,Observed,Remove from MVP surface,Processes third-party data on self-attested permission only,Explicit notice + counsel review
+F14,bonds,Compatibility dimensions + Guna Milan,Works; dimensions not single score,Observed,Keep (core),Right honest design,-
+F15,bonds,Shared report links + revocation,Works,Observed,Keep (core),Consent asset,-
+F16,commerce,Vedic report Rs 299,Reuses free interpret() text,Observed,Hide until rebuilt,Refund/review risk,New text >=80% not shown free
+F17,commerce,Year Ahead report Rs 399,Relies on 9 theme strings,Observed,Hide,Thin content,Rebuilt content
+F18,commerce,Western report Rs 249,Reuses free text,Observed,Hide until rebuilt,Same as F16,Same as F16
+F19,commerce,Pair report (new),Does not exist,Verified,Build (MVP feature 3),Core monetisation,-
+F20,commerce,Gift checkout (new),Does not exist,Verified,Build (MVP feature 3),Gift loop,-
+F21,commerce,Physical products (diyas / mala / ebook),Sample listings only,Observed,Hide,Remedy and authenticity risk,Separate business case + counsel
+F22,commerce,Nakshatra+ subscription,Seeded placeholder,Observed,Defer,Retention unproven; dark-pattern risk,See MONETIZATION_PLAYBOOK
+F23,commerce,Razorpay adapter,Tested vs fake only,Verified,Keep,Needed for MVP; needs merchant account,-
+F24,social,Feed / posts / comments / follows,Works; empty,Verified (0 users),Hide,Empty room effect,Organic demand for community
+F25,messaging,Polling chat,Works,Observed,Hide,Only needed by hidden modules,Return with a module that needs it
+F26,dating,Dating profiles / discover / matches,Works,Observed,Hide,Tinder Astrology Mode; liquidity; safety,Distribution partner + safety budget
+F27,matchmaking,Family matchmaking,Works,Observed,Hide,Incumbents; safety,Same as F26
+F28,weddings,Wedding planning workspace / vendors / budget,Works,Observed,Hide,Separate business,Separate business case
+F29,experts,Expert marketplace / booking / payouts,Works with sample experts,Observed,Hide,Subsidy war; advice harm,Repeated user demand + supply partner
+F30,learning,Courses / lessons / quizzes,One sample course,Observed,Hide,No content,Content partner
+F31,account,Export / delete / visibility,Works,Observed,Keep,Trust asset,-
+F32,admin,18-section admin console,Works,Observed,Keep (internal),Operations,-
+F33,admin,Funnel / cohort view (new),Does not exist,Verified,Build,Cannot learn without it,-
+F34,analytics,Anonymous-session events (new),Not supported,Inference,Build,No-signup flow needs it,-
+F35,i18n,Hindi interpretation content,None,Verified,Build (Hinglish first),India-first claim,-
+F36,3D,R3F scenes,Works with 2D fallback,Observed,Keep (no new 3D work),Impressive; value to sharing untested,Evidence 3D drives share/pay

@@ -1,0 +1,216 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792788938579,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792810586166,
+      "tag": "0001_email_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792814873250,
+      "tag": "0002_budget_vendor_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792887016874,
+      "tag": "0003_social_network",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792918610941,
+      "tag": "0004_stored_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793890974067,
+      "tag": "0005_security_privacy_gifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793893401163,
+      "tag": "0006_gamification_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793919526350,
+      "tag": "0007_mfa_recovery_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793921313578,
+      "tag": "0008_post_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793921489544,
+      "tag": "0009_people_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793923963826,
+      "tag": "0010_cod_merch",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793928434993,
+      "tag": "0011_memberships",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793929083529,
+      "tag": "0012_member_quizzes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793941379937,
+      "tag": "0013_tournaments",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793944669432,
+      "tag": "0014_creators",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793954054630,
+      "tag": "0015_circle_channels_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793955870799,
+      "tag": "0016_close_friends_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793958741396,
+      "tag": "0017_ads",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793964243536,
+      "tag": "0018_partners",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793965514153,
+      "tag": "0019_organisations",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793978378402,
+      "tag": "0020_circle_tiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794041815081,
+      "tag": "0021_circle_market",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794045118946,
+      "tag": "0022_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794073396732,
+      "tag": "0023_year_cards",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794079131575,
+      "tag": "0024_appearance",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794337924148,
+      "tag": "0025_avatar_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794338030326,
+      "tag": "0026_paid_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794340971948,
+      "tag": "0027_event_tickets",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794344714875,
+      "tag": "0028_sponsored_quiz_quest",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794570502135,
+      "tag": "0029_collab_drops_circle_environment",
+      "breakpoints": true
+    }
+  ]
+}

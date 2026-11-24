@@ -1,0 +1,18 @@
+id,phase,hypothesis,experiment,primary_metric,pass_threshold,kill_threshold,minimum_sample,needs_code,ethics_and_honesty_note
+E01,Days 2-14,J1/J2 are real recent behaviours,Problem interviews (no product shown),Share naming J1/J2 as recent behaviour,>=8 of 15,<4 of 15,15 interviews,No,Recorded consent; no birth data collected; no pitching
+E02,Days 3-10,Rewritten content beats current content,Blind A/B reading of current vs rewritten text,Preference for rewrite,>=70%,<50%,20 readers,No,Readers told both are drafts
+E03,Days 10-30,Showing output on landing raises starts,Current landing vs landing with labelled sample,Form-start rate,+50% relative,No change,500 visitors per arm,Yes,Sample clearly labelled; no fake testimonials
+E04,Days 15-30,People finish birth entry without account (H1),No-signup Cosmic ID,Start-to-complete rate,>=40%,<15%,300 starts,Yes,Same 18+ gate; short retention of anonymous charts
+E05,Days 15-30,Good Cosmic ID gets shared (H2),9:16 story card + compare link,Share or download rate,>=8%,<2%,300 completers,Yes,No pre-filled posting on user's behalf
+E06,Days 31-60,Compatibility pulls a second person (H3),Invite link; invitee enters own data without account,Partner completion per initiator,>=25%,<8%,200 initiators,Yes,Invitee consent captured; revocable
+E07,Days 31-60,Pair report sells (H4),M1 price test Rs 149/199/299,Preview-to-paid,>=1% at some price,<0.5% after 2 content iterations,300 preview completers,Yes,Real report delivered; price shown upfront; refunds easy
+E08,Days 31-60,Gifting adds revenue (H5),M2 gift option,Gift share of paid reports,>=15%,<3%,50 paid reports,Yes,Recipients enter own data
+E09,Days 31-60,Creators are the cheapest channel,M5 ten creators with codes,Completers and sales per creator,One creator >=50 completers and >=5 sales,No creator >10 completers,10 creators,Minimal,Creators disclose paid partnership
+E10,Days 61-90,Families pay for Guna explainer (H7),M3 landing + 10 J2 interviewees given real report,Pay rate,>=5 of 10 or >=2% online,<2 of 10,10 people / 300 visitors,Yes,Never advise for or against a marriage
+E11,Days 61-90,Printed artwork adds margin,M4 print pilot manual fulfilment,Attach rate on report buyers,>=2%,<0.5%,100 buyers,Minimal,Honest lead times; made to order
+E12,Days 61-90,Event-based returns beat daily,Opt-in birthday / anniversary / dasha reminders,30-day unprompted return of payers,>=20%,<5%,100 payers,Yes,Opt-in only; clear frequency
+E13,Days 31-60,Consent framing builds trust (H6),Interview + landing copy test 'only with both of you',Interview mentions; conversion lift,>=50% value it,Indifference,15 interviews,No,-
+E14,Days 31-60,Hinglish text increases completion/share,Language toggle default test,Share rate by language,+30% relative,No change,300 completers,Yes,-
+E15,Days 1-30,Name is usable,Trademark clearance search by counsel,Counsel opinion,Clear or low risk,High risk + owner unwilling to rebrand,1 search,No,-
+E16,Days 31-60,Refunds stay low,Monitor refund requests on paid reports,Refund rate,<=3%,>8%,50 paid reports,No,Refund without argument
+E17,Days 61-90,Viral coefficient sustains growth,Measure k = invites per completer x partner completion,k,>=0.3,<0.1,500 completers,Yes (analytics),Aggregate only; no ad pixels with birth data

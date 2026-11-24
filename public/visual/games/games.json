@@ -1,0 +1,209 @@
+{
+  "games": [
+    {
+      "key": "who-said-it",
+      "id": "game-who-said-it",
+      "name": "Who Said It?",
+      "hue": 285,
+      "accent": "#afacff",
+      "concept": "Concealment and reveal — a voice half seen, half hidden.",
+      "files": {
+        "symbol": "games/who-said-it/game-who-said-it-symbol.svg",
+        "symbol-mono": "games/who-said-it/game-who-said-it-symbol-mono.svg",
+        "card": "games/who-said-it/game-who-said-it-card.svg",
+        "cover": "games/who-said-it/game-who-said-it-cover.svg",
+        "active": "games/who-said-it/game-who-said-it-active.svg",
+        "result": "games/who-said-it/game-who-said-it-result.svg",
+        "celebration": "games/who-said-it/game-who-said-it-celebration.svg"
+      }
+    },
+    {
+      "key": "pick-your-chaos",
+      "id": "game-pick-your-chaos",
+      "name": "Pick Your Chaos",
+      "hue": 30,
+      "accent": "#fb9989",
+      "concept": "Scattered shards; every choice throws something loose.",
+      "files": {
+        "symbol": "games/pick-your-chaos/game-pick-your-chaos-symbol.svg",
+        "symbol-mono": "games/pick-your-chaos/game-pick-your-chaos-symbol-mono.svg",
+        "card": "games/pick-your-chaos/game-pick-your-chaos-card.svg",
+        "cover": "games/pick-your-chaos/game-pick-your-chaos-cover.svg",
+        "active": "games/pick-your-chaos/game-pick-your-chaos-active.svg",
+        "result": "games/pick-your-chaos/game-pick-your-chaos-result.svg",
+        "celebration": "games/pick-your-chaos/game-pick-your-chaos-celebration.svg"
+      }
+    },
+    {
+      "key": "honest-vote",
+      "id": "game-honest-vote",
+      "name": "The Honest Vote",
+      "hue": 195,
+      "accent": "#3bcfcf",
+      "concept": "A balance under tension — the group tips it.",
+      "files": {
+        "symbol": "games/honest-vote/game-honest-vote-symbol.svg",
+        "symbol-mono": "games/honest-vote/game-honest-vote-symbol-mono.svg",
+        "card": "games/honest-vote/game-honest-vote-card.svg",
+        "cover": "games/honest-vote/game-honest-vote-cover.svg",
+        "active": "games/honest-vote/game-honest-vote-active.svg",
+        "result": "games/honest-vote/game-honest-vote-result.svg",
+        "celebration": "games/honest-vote/game-honest-vote-celebration.svg"
+      }
+    },
+    {
+      "key": "one-line-confessions",
+      "id": "game-one-line-confessions",
+      "name": "One-Line Confessions",
+      "hue": 330,
+      "accent": "#e39bdc",
+      "concept": "A keyhole over a single line. Vast negative space.",
+      "files": {
+        "symbol": "games/one-line-confessions/game-one-line-confessions-symbol.svg",
+        "symbol-mono": "games/one-line-confessions/game-one-line-confessions-symbol-mono.svg",
+        "card": "games/one-line-confessions/game-one-line-confessions-card.svg",
+        "cover": "games/one-line-confessions/game-one-line-confessions-cover.svg",
+        "active": "games/one-line-confessions/game-one-line-confessions-active.svg",
+        "result": "games/one-line-confessions/game-one-line-confessions-result.svg",
+        "celebration": "games/one-line-confessions/game-one-line-confessions-celebration.svg"
+      }
+    },
+    {
+      "key": "archetype-showdown",
+      "id": "game-archetype-showdown",
+      "name": "Archetype Showdown",
+      "hue": 15,
+      "accent": "#fa969f",
+      "concept": "Two forms pointed at each other across a spark.",
+      "files": {
+        "symbol": "games/archetype-showdown/game-archetype-showdown-symbol.svg",
+        "symbol-mono": "games/archetype-showdown/game-archetype-showdown-symbol-mono.svg",
+        "card": "games/archetype-showdown/game-archetype-showdown-card.svg",
+        "cover": "games/archetype-showdown/game-archetype-showdown-cover.svg",
+        "active": "games/archetype-showdown/game-archetype-showdown-active.svg",
+        "result": "games/archetype-showdown/game-archetype-showdown-result.svg",
+        "celebration": "games/archetype-showdown/game-archetype-showdown-celebration.svg"
+      }
+    },
+    {
+      "key": "friend-decoder",
+      "id": "game-friend-decoder",
+      "name": "Friend Decoder",
+      "hue": 165,
+      "accent": "#62d0a4",
+      "concept": "A grid with one cell that is truly them.",
+      "files": {
+        "symbol": "games/friend-decoder/game-friend-decoder-symbol.svg",
+        "symbol-mono": "games/friend-decoder/game-friend-decoder-symbol-mono.svg",
+        "card": "games/friend-decoder/game-friend-decoder-card.svg",
+        "cover": "games/friend-decoder/game-friend-decoder-cover.svg",
+        "active": "games/friend-decoder/game-friend-decoder-active.svg",
+        "result": "games/friend-decoder/game-friend-decoder-result.svg",
+        "celebration": "games/friend-decoder/game-friend-decoder-celebration.svg"
+      }
+    },
+    {
+      "key": "this-or-that",
+      "id": "game-this-or-that",
+      "name": "This or That",
+      "hue": 60,
+      "accent": "#efa464",
+      "concept": "Opposed halves: outline against solid.",
+      "files": {
+        "symbol": "games/this-or-that/game-this-or-that-symbol.svg",
+        "symbol-mono": "games/this-or-that/game-this-or-that-symbol-mono.svg",
+        "card": "games/this-or-that/game-this-or-that-card.svg",
+        "cover": "games/this-or-that/game-this-or-that-cover.svg",
+        "active": "games/this-or-that/game-this-or-that-active.svg",
+        "result": "games/this-or-that/game-this-or-that-result.svg",
+        "celebration": "games/this-or-that/game-this-or-that-celebration.svg"
+      }
+    },
+    {
+      "key": "plot-twist",
+      "id": "game-plot-twist",
+      "name": "Plot Twist",
+      "hue": 240,
+      "accent": "#69c1fc",
+      "concept": "A line that turns back on itself before it ends.",
+      "files": {
+        "symbol": "games/plot-twist/game-plot-twist-symbol.svg",
+        "symbol-mono": "games/plot-twist/game-plot-twist-symbol-mono.svg",
+        "card": "games/plot-twist/game-plot-twist-card.svg",
+        "cover": "games/plot-twist/game-plot-twist-cover.svg",
+        "active": "games/plot-twist/game-plot-twist-active.svg",
+        "result": "games/plot-twist/game-plot-twist-result.svg",
+        "celebration": "games/plot-twist/game-plot-twist-celebration.svg"
+      }
+    },
+    {
+      "key": "hot-take-arena",
+      "id": "game-hot-take-arena",
+      "name": "Hot Take Arena",
+      "hue": 0,
+      "accent": "#f696b4",
+      "concept": "Rising chevrons above an arena floor.",
+      "files": {
+        "symbol": "games/hot-take-arena/game-hot-take-arena-symbol.svg",
+        "symbol-mono": "games/hot-take-arena/game-hot-take-arena-symbol-mono.svg",
+        "card": "games/hot-take-arena/game-hot-take-arena-card.svg",
+        "cover": "games/hot-take-arena/game-hot-take-arena-cover.svg",
+        "active": "games/hot-take-arena/game-hot-take-arena-active.svg",
+        "result": "games/hot-take-arena/game-hot-take-arena-result.svg",
+        "celebration": "games/hot-take-arena/game-hot-take-arena-celebration.svg"
+      }
+    },
+    {
+      "key": "prediction-market",
+      "id": "game-prediction-market",
+      "name": "Prediction Market",
+      "hue": 135,
+      "accent": "#96c979",
+      "concept": "A forecast trail of growing points. Fictional points only.",
+      "files": {
+        "symbol": "games/prediction-market/game-prediction-market-symbol.svg",
+        "symbol-mono": "games/prediction-market/game-prediction-market-symbol-mono.svg",
+        "card": "games/prediction-market/game-prediction-market-card.svg",
+        "cover": "games/prediction-market/game-prediction-market-cover.svg",
+        "active": "games/prediction-market/game-prediction-market-active.svg",
+        "result": "games/prediction-market/game-prediction-market-result.svg",
+        "celebration": "games/prediction-market/game-prediction-market-celebration.svg"
+      },
+      "notes": "Fictional, non-redeemable points only. Never show currency symbols, odds, or cash-out language."
+    },
+    {
+      "key": "memory-lane",
+      "id": "game-memory-lane",
+      "name": "Memory Lane",
+      "hue": 45,
+      "accent": "#f79e75",
+      "concept": "Archival timeline with one held moment.",
+      "files": {
+        "symbol": "games/memory-lane/game-memory-lane-symbol.svg",
+        "symbol-mono": "games/memory-lane/game-memory-lane-symbol-mono.svg",
+        "card": "games/memory-lane/game-memory-lane-card.svg",
+        "cover": "games/memory-lane/game-memory-lane-cover.svg",
+        "active": "games/memory-lane/game-memory-lane-active.svg",
+        "result": "games/memory-lane/game-memory-lane-result.svg",
+        "celebration": "games/memory-lane/game-memory-lane-celebration.svg"
+      }
+    },
+    {
+      "key": "compatibility-lab",
+      "id": "game-compatibility-lab",
+      "name": "The Compatibility Lab",
+      "hue": 345,
+      "accent": "#ee97c9",
+      "concept": "Two circles and the lens they share.",
+      "files": {
+        "symbol": "games/compatibility-lab/game-compatibility-lab-symbol.svg",
+        "symbol-mono": "games/compatibility-lab/game-compatibility-lab-symbol-mono.svg",
+        "card": "games/compatibility-lab/game-compatibility-lab-card.svg",
+        "cover": "games/compatibility-lab/game-compatibility-lab-cover.svg",
+        "active": "games/compatibility-lab/game-compatibility-lab-active.svg",
+        "result": "games/compatibility-lab/game-compatibility-lab-result.svg",
+        "celebration": "games/compatibility-lab/game-compatibility-lab-celebration.svg"
+      }
+    }
+  ]
+}

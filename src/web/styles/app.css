@@ -1,0 +1,395 @@
+@import 'tailwindcss';
+
+/*
+ * Nakshatra design tokens — "Ink & Ember" (docs/visual-system/). Semantic roles map to raw
+ * palette values per theme. Dark ink is the signature default; light ("paper") follows user preference.
+ * Ember is the one accent: primary actions, focus, live and earned moments.
+ */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+  --font-display: 'Instrument Serif', 'Times New Roman', serif;
+  --font-sans: 'Hanken Grotesk', 'Noto Sans Devanagari', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-deva: 'Noto Sans Devanagari', 'Hanken Grotesk', sans-serif;
+
+  /* Ink & Ember palette */
+  --color-ink-x950: #0a0c12;
+  --color-ink-x900: #0f121a;
+  --color-ink-x800: #161a25;
+  --color-ink-x700: #212635;
+  --color-bone: #f2ece1;
+  --color-bone-2: #e4dccc;
+  --color-mute: #9a958b;
+  --color-paper: #f6f1e8;
+  --color-ember: #f38c48;
+  --color-ember-deep: #b95115;
+
+  --color-ink-950: #07081a;
+  --color-ink-900: #0b0c1f;
+  --color-ink-850: #10122a;
+  --color-ink-800: #151735;
+  --color-ink-700: #1d2046;
+  --color-ink-600: #2a2d5c;
+  --color-ink-500: #3c4078;
+  --color-ivory-50: #fbf8f1;
+  --color-ivory-100: #f3eee2;
+  --color-ivory-200: #e6dfcd;
+  --color-mist-300: #c9c5da;
+  --color-mist-400: #a9a6bd;
+  --color-mist-500: #85829c;
+  --color-gold-300: #ecd29d;
+  --color-gold-400: #d9b26f;
+  --color-gold-500: #c39a51;
+  --color-gold-700: #8a6526;
+  --color-violet-300: #b9adf0;
+  --color-violet-400: #8d7bd8;
+  --color-violet-600: #5d4bb0;
+  --color-celestial-300: #a9cdf0;
+  --color-celestial-400: #6fa8dc;
+  --color-rose-400: #c98a96;
+  --color-copper-400: #c27c54;
+  --color-jade-400: #7fb69a;
+  --color-ember-400: #e07a5f;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 24px -12px rgb(0 0 0 / 0.45);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.2), 0 24px 48px -20px rgb(0 0 0 / 0.6);
+
+  --ease-orbit: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --breakpoint-xs: 380px;
+}
+
+/* Semantic utilities (bg-surface, text-fg-2, border-line, …) resolve to theme variables. */
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-canvas-deep: var(--bg-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-violet: var(--violet);
+  --color-celestial: var(--celestial);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+}
+
+:root {
+  --z-base: 0;
+  --z-nav: 30;
+  --z-overlay: 50;
+  --z-dialog: 60;
+  --z-toast: 70;
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 480ms;
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  /* 3D lighting parameters shared with the scene code via getComputedStyle. */
+  --light-key: #f3e4c0;
+  --light-fill: #6c62c8;
+  --light-rim: #6fa8dc;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: var(--color-ink-x950);
+  --bg-deep: #07080d;
+  --surface: var(--color-ink-x900);
+  --surface-2: var(--color-ink-x800);
+  --surface-3: var(--color-ink-x700);
+  --line: rgb(242 236 225 / 0.08);
+  --line-strong: rgb(242 236 225 / 0.18);
+  --text: var(--color-bone);
+  --text-2: #cfc8bb; /* between bone and mute for secondary copy */
+  --text-3: var(--color-mute);
+  --accent: var(--color-ember);
+  --accent-strong: #f6a26a;
+  --accent-ink: var(--color-ink-x950);
+  --violet: #afacff;
+  --celestial: #69c1fc;
+  --success: #7ccd8e;
+  --danger: #ed756e;
+  --warning: #e4ac59;
+  --chart-1: #f38c48;
+  --chart-2: #afacff;
+  --chart-3: #69c1fc;
+  --chart-4: #f696b4;
+  --chart-5: #7ccd8e;
+  --chart-6: #e4ac59;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: var(--color-paper);
+  --bg-deep: #ede6d8;
+  --surface: #fbf8f2;
+  --surface-2: #f0e9dc;
+  --surface-3: #e6ddcc;
+  --line: rgb(20 22 29 / 0.1);
+  --line-strong: rgb(20 22 29 / 0.22);
+  --text: #14161d;
+  --text-2: #363944;
+  --text-3: #5b5d66;
+  /* Ember on paper, darkened from ember-deep so text and 15% tinted badges keep ≥ 4.5:1. */
+  --accent: #9a4410;
+  --accent-strong: #7d360b;
+  --accent-ink: #fbf8f2;
+  --violet: #5d4bb0;
+  --celestial: #225585;
+  --success: #22603f;
+  --danger: #963b22;
+  --warning: #6f4f19;
+  --chart-1: #8a6526;
+  --chart-2: #5d4bb0;
+  --chart-3: #2f6da8;
+  --chart-4: #a5566a;
+  --chart-5: #2f7a55;
+  --chart-6: #9a5530;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'tnum' 0;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  /* One soft indigo glow at most (style guide): no purple gradients. */
+  background: radial-gradient(1100px 520px at 15% -12%, rgb(60 68 141 / 0.14), transparent 62%), var(--bg);
+  background-attachment: fixed;
+}
+
+[data-theme='light'] body {
+  background: var(--bg);
+}
+
+:lang(hi) body, .deva { font-family: var(--font-deva); }
+
+/* Instrument Serif is for 24px and up; smaller text uses Hanken Grotesk. */
+.font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+.font-mono { font-family: var(--font-mono); }
+/* Mono eyebrow labels above headlines: 11px, uppercase, +0.12em, mute. */
+.eyebrow { font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+.text-pretty { text-wrap: pretty; }
+.numeric { font-variant-numeric: tabular-nums; }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+}
+
+::selection { background: rgb(243 140 72 / 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+[data-motion='reduced'] *, [data-motion='reduced'] *::before, [data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Fine orbital hairline used as a structural motif. */
+.orbit-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rise-in { animation: rise-in var(--dur-slow) var(--ease-orbit) both; }
+
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+
+/* Respect safe areas on mobile for the bottom navigation. */
+.safe-bottom { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+
+dialog::backdrop { background: rgb(7 8 26 / 0.65); backdrop-filter: blur(4px); }
+
+/* Grid items default to min-width:auto, so a wide child (e.g. a horizontally scrolling table) would widen the
+   whole column and overflow the page on phones. Let grid children shrink; inner wrappers scroll instead. */
+.grid > * { min-width: 0; }
+
+/*
+ * Motion system. Durations: --dur-fast (feedback), --dur-base (UI state), --dur-slow (entrances),
+ * --dur-reveal (identity reveals only). Distances stay small (≤ 12px) so motion explains change
+ * without travelling. Everything here collapses under prefers-reduced-motion or data-motion=reduced.
+ */
+:root {
+  --dur-reveal: 1400ms;
+  --stagger: 45ms;
+  --rise-distance: 8px;
+}
+
+/* Sigil: strokes draw in sequence, nakshatra ticks light one after another, the core settles last.
+   Only under no-preference: reduced motion shows the finished sigil immediately (no delayed fills). */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) svg[data-animate] .sigil-draw {
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    animation: sigil-draw var(--dur-reveal) var(--ease-settle) forwards;
+    animation-delay: calc(var(--i, 0) * 160ms + 200ms);
+  }
+  html:not([data-motion='reduced']) svg[data-animate] .sigil-tick {
+    animation: sigil-fade var(--dur-slow) var(--ease-orbit) both;
+    animation-delay: calc(var(--i, 0) * 22ms);
+  }
+  html:not([data-motion='reduced']) svg[data-animate] .sigil-body {
+    animation: sigil-fade var(--dur-slow) var(--ease-orbit) both;
+    animation-delay: calc(900ms + var(--i, 0) * 70ms);
+  }
+  html:not([data-motion='reduced']) svg[data-animate] .sigil-core {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sigil-core var(--dur-slow) var(--ease-settle) both;
+    animation-delay: 1100ms;
+  }
+}
+@keyframes sigil-draw { to { stroke-dashoffset: 0; } }
+@keyframes sigil-fade { from { opacity: 0; } }
+@keyframes sigil-core { from { opacity: 0; transform: scale(0.2); } }
+
+/* Ink & Ember artwork helpers (src/web/components/visual.tsx). */
+.mask-icon { -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-position: center; mask-position: center; }
+.art-responsive { width: 100%; height: 100%; object-fit: cover; object-position: var(--pos-p); }
+@media (min-width: 768px) { .art-responsive { object-position: var(--pos-l); } }
+/* Text over artwork sits on a scrim (gradient.scrimLeft / scrimBottom). */
+.scrim-left { background: linear-gradient(90deg, rgb(10 12 18 / 0.92) 0%, rgb(10 12 18 / 0.7) 38%, rgb(10 12 18 / 0) 70%); }
+.scrim-bottom { background: linear-gradient(0deg, rgb(15 18 26 / 0.95) 0%, rgb(15 18 26 / 0.6) 45%, rgb(15 18 26 / 0) 75%); }
+/* Locked earned rewards: grayscale + low opacity (component-specifications.md). */
+.locked-art { filter: grayscale(1); opacity: 0.35; }
+/* Motion tokens from motion-guidelines.md. */
+:root { --dur-instant: 120ms; --dur-reveal-seq: 1400ms; --ease-standard: cubic-bezier(0.2, 0.7, 0.2, 1); --ease-emph: cubic-bezier(0.16, 1, 0.3, 1); --ease-exit: cubic-bezier(0.4, 0, 1, 1); }
+@keyframes art-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes art-pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes art-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes emblem-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .reveal-env { animation: art-fade 400ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .reveal-sigil { animation: art-pop 800ms var(--ease-emph) 200ms both; }
+  html:not([data-motion='reduced']) .reveal-name { animation: art-rise 400ms var(--ease-emph) 800ms both; }
+  html:not([data-motion='reduced']) .reveal-rest { animation: art-rise 300ms var(--ease-standard) 1100ms both; }
+  html:not([data-motion='reduced']) .loading-emblem { animation: emblem-turn 2400ms linear infinite; }
+  html:not([data-motion='reduced']) .result-pop { animation: art-pop 600ms var(--ease-emph) both; }
+}
+
+/* ---------------- Motion patterns (motion-v2) ----------------
+   Short, purposeful, never blocking. Every animation below runs only under prefers-reduced-motion:
+   no-preference AND without the in-app reduced-motion setting; otherwise elements simply appear. */
+@keyframes xp-float { 0% { opacity: 0; transform: translateY(6px) scale(0.92); } 18% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-22px); } }
+@keyframes burst-ring { from { opacity: 0.85; transform: scale(0.4); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes celebrate-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes progress-fill { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .motion-page { animation: page-in 220ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .motion-xp { animation: xp-float 1400ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-burst { animation: burst-ring 900ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-celebrate { animation: celebrate-in 320ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .motion-fill { transform-origin: left; animation: progress-fill 600ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .motion-press { transition: transform 120ms var(--ease-standard); }
+  html:not([data-motion='reduced']) .motion-press:active { transform: scale(0.97); }
+}
+
+/* ---------- Motion presets (motion-v2) ----------
+ * One vocabulary for interface motion: add a class, get the house timing. 3D scenes animate in their own render
+ * loop; these are for ordinary DOM. Everything here is disabled when motion is reduced. */
+@keyframes m-float { 50% { transform: translateY(-4px); } }
+@keyframes m-pulse { 50% { opacity: 0.55; } }
+@keyframes m-glow { 50% { box-shadow: 0 0 0 6px rgb(from var(--accent) r g b / 0.14); } }
+@keyframes m-ring { from { opacity: 0.9; transform: scale(0.7); } to { opacity: 0; transform: scale(1.6); } }
+@keyframes m-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.quest-ring { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .m-enter { animation: art-rise var(--dur-base) var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-reveal { animation: art-pop 600ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-fade { animation: art-fade var(--dur-base) var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .m-float { animation: m-float 5s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-pulse { animation: m-pulse 2.4s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-glow { animation: m-glow 2.4s ease-in-out infinite; }
+  html:not([data-motion='reduced']) .m-success { animation: art-pop 420ms var(--ease-emph) both; }
+  html:not([data-motion='reduced']) .m-error { animation: m-shake 280ms var(--ease-standard) 1; }
+  html:not([data-motion='reduced']) .m-hover { transition: transform var(--dur-fast) var(--ease-standard); }
+  html:not([data-motion='reduced']) .m-hover:hover { transform: translateY(-2px); }
+  html:not([data-motion='reduced']) .quest-ring { animation: m-ring 1.8s var(--ease-standard) infinite; }
+}
+
+/* ---------------- Reaction burst (Thought Drops) ----------------
+   A few sparks fly out of a reaction button when you add a reaction — never when you remove one. CSS only, so the
+   feed never loads 3D for it. Hidden entirely under reduced motion. */
+.react-burst { position: absolute; inset: 0; pointer-events: none; display: none; }
+.react-burst i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 9999px; background: var(--burst, var(--accent)); opacity: 0; }
+.react-burst[data-kind='star'] { --burst: #d9b26f; }
+.react-burst[data-kind='sun'] { --burst: #e9a23b; }
+.react-burst[data-kind='moon'] { --burst: #b9adf0; }
+.react-burst[data-kind='heart'] { --burst: #e07a8f; }
+.react-burst[data-kind='star'] i { border-radius: 1px; transform: rotate(45deg); }
+@keyframes burst-fly {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4); }
+}
+@keyframes react-pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .react-burst { display: block; }
+  html:not([data-motion='reduced']) .react-burst i { animation: burst-fly 620ms var(--ease-standard) both; }
+  html:not([data-motion='reduced']) .react-pop { animation: react-pop 320ms var(--ease-emph) both; }
+}
+
+/* ---------------- Atmospheres (journal and calendar skies) ----------------
+   A slow twinkle on the background stars only when motion is allowed. */
+@keyframes atmo-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.85; } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .atmo-star { animation: atmo-twinkle 4.8s ease-in-out infinite; }
+}
+
+/* ---------------- Media effects (Thought Drops) ----------------
+   Photos develop from a soft blur once loaded; the playing voice waveform breathes. Both only with motion allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .photo-develop { transition: filter 600ms var(--ease-standard), opacity 600ms var(--ease-standard); }
+  html:not([data-motion='reduced']) .photo-develop[data-loaded='false'] { filter: blur(10px) saturate(0.6); opacity: 0.6; }
+  html:not([data-motion='reduced']) [data-playing='true'] .voice-bar { transition: background-color 200ms linear; }
+}
+
+/* Assessment atmosphere: the five lights ease to their new strength and place only when motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) .atmo-glow { transition: opacity 900ms var(--ease-standard), left 900ms var(--ease-standard); }
+}

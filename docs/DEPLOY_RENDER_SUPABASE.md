@@ -1,0 +1,97 @@
+# Deploying Nakshatra on Render (free) + Supabase (free)
+
+One Render web service runs the whole app: the Fastify API and the built React frontend, from the repo's `Dockerfile`. Supabase provides PostgreSQL. `render.yaml` describes the service; secrets are entered in the Render dashboard, never committed.
+
+What happens on every boot: migrations run, reference data (games, prompts, offers) is loaded, and the app's tables are locked down (row level security on, Supabase API roles revoked). Demo data and test accounts are **never** created in production.
+
+**Database layout.** The Supabase project "Nakshatra" already holds 22 tables from an earlier prototype in `public` (no users; 11 reference rows in `archetypes`). Several share names with Nakshatra's (`profiles`, `products`, `referrals`, `analytics_events`, `audit_logs`). They are left exactly as they are. With `DATABASE_SCHEMA=nakshatra` (set in `render.yaml`), every app table, index, foreign key and the migration history live in the `nakshatra` schema. Each connection's search path is that schema alone, so no query can reach the legacy tables. The schema is created by the app on its first boot.
+
+Allow about 30 minutes. Do the parts in order.
+
+---
+
+## Part 1 · Supabase database (about 10 min)
+
+1. Open https://supabase.com/dashboard and pick the project **Nakshatra** (Singapore, currently paused).
+2. Click **Restore project** and wait until the status shows as healthy (a few minutes).
+   - If restore isn't offered (projects paused too long can't be restored), click **New project** instead: organisation = your org, name `nakshatra`, region **Southeast Asia (Singapore)**, plan **Free**. Save the database password it asks for.
+3. *(Already done: the project was restored on 25 Oct 2026, and its legacy tables were inspected and are left untouched; see "Database layout" above.)*
+4. **Turn off the Data API** (the app doesn't use it, and this closes the public HTTP route to your tables):
+   **Project Settings** (gear icon) → **Data API** → switch **Enable Data API** off → **Save**.
+   The Data API only ever exposes `public` (the legacy tables, which have row level security on). The app's `nakshatra` schema is never exposed, the API roles (`anon`, `authenticated`, `service_role`) are revoked from it, and its tables have row level security on, so they stay closed even if this switch is turned back on.
+5. **Database password.** If you don't know it: **Project Settings → Database → Reset database password**, then copy the new one somewhere safe.
+6. **Connection string.** Click **Connect** (top of the project page) → **Connection String** tab → set **Method** to **Session pooler** → copy the URI. It looks like
+   `postgresql://postgres.<project-ref>:<YOUR-PASSWORD>@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`
+   Replace the password placeholder (Supabase shows it as `[YOUR-PASSWORD]`) with your password. If the password contains `@ : / ? # %`, use the URL-encoded form (for example `@` → `%40`). Use the **Session pooler** URI, not "Direct connection": Render has no IPv6, and the direct host is IPv6-only.
+7. **CA certificate.** **Project Settings → Database → SSL Configuration → Download certificate**. Open the downloaded `.crt` file in Notepad and copy **everything**, including the `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----` lines.
+
+## Part 2 · Email sender (about 5 min, free)
+
+Production needs real email for verification, password resets and notifications. Any SMTP provider works. Brevo's free plan (300 emails a day) is one option:
+
+1. Sign up at https://www.brevo.com, then **Senders, Domains & Dedicated IPs → Senders → Add a sender** with the address you want mail to come from, and confirm it.
+2. **SMTP & API → SMTP** tab → **Generate a new SMTP key**. Note the **Login** shown on that page and the key.
+3. Build the value for `SMTP_URL`: `smtp://LOGIN:KEY@smtp-relay.brevo.com:587`. In the login, replace `@` with `%40`.
+4. `MAIL_FROM` is `Nakshatra <the-address-you-verified>`.
+
+## Part 3 · GitHub (about 5 min)
+
+1. https://github.com/new → Repository name `nakshatra` → **Private** → don't add a README, .gitignore or licence → **Create repository**.
+2. Copy the repository URL (`https://github.com/<you>/nakshatra.git`).
+3. Push the code. Claude can run this for you once you share the URL, or you can run it in this folder yourself. It pushes the current branch as `main`:
+
+```bash
+git remote add origin https://github.com/<you>/nakshatra.git
+```
+
+```bash
+git push -u origin visual/ink-ember-integration:main
+```
+
+Git for Windows opens a browser window to sign in to GitHub the first time.
+
+## Part 4 · Render (about 10 min, plus build time)
+
+1. Sign up at https://render.com using **Sign in with GitHub**. When GitHub asks which repositories Render may access, choose **Only select repositories → nakshatra**.
+2. Dashboard → **New +** → **Blueprint**.
+3. Pick the **nakshatra** repository. Render reads `render.yaml` and shows one service, **nakshatra** (Free, Singapore, Docker).
+4. Render asks for the values marked secret. Paste:
+
+   | Key | Value |
+   |---|---|
+   | `DATABASE_URL` | the Session pooler URI from Part 1, step 6 |
+   | `DATABASE_CA_CERT` | the full certificate text from Part 1, step 7 |
+   | `SMTP_URL` | from Part 2 |
+   | `MAIL_FROM` | from Part 2 |
+
+   `APP_SECRET` is generated by Render automatically. Don't type one.
+5. Click **Apply** (or **Deploy Blueprint**). The first Docker build takes about 5–10 minutes. Watch **Logs**. Success ends with
+   `Nakshatra API listening on http://0.0.0.0:4000 (database: postgres)`.
+6. Your site is live at the URL at the top of the service page, `https://nakshatra-xxxx.onrender.com` (or `https://nakshatra.onrender.com`). Send it to Claude for a production check.
+
+If the deploy fails, copy the last 30 lines of **Logs** to Claude.
+
+## Part 5 · Your domain (after the site works)
+
+1. Render → service **nakshatra** → **Settings** → **Custom Domains** → **Add Custom Domain** → enter `www.yourdomain.com`, then add `yourdomain.com` too.
+2. Render shows the DNS records to create. Usually:
+   - `CNAME` `www` → `nakshatra-xxxx.onrender.com`
+   - an `A` record for the bare domain (`@`), pointing to the IP Render shows
+3. Add them where the domain's DNS is managed (GoDaddy → **My Products → Domain → DNS**, or Cloudflare → **DNS → Records** if the domain uses Cloudflare nameservers). **Only add these records. Don't delete MX, TXT or other existing records**, because those keep your email working. With Cloudflare, set these two records to **DNS only** (grey cloud) so Render can issue the certificate.
+4. Back in Render, click **Verify** on each domain and wait for **Certificate issued**.
+5. Render → **Environment** → **Add Environment Variable** `APP_ORIGIN` = `https://www.yourdomain.com` → **Save, rebuild and deploy**. Email links then point to your domain.
+
+---
+
+## Free-tier limits to know about
+
+- **Render free web service** stops after 15 minutes without traffic. The next visit takes roughly a minute to wake it. The scheduler (expiring invites, queued email retries) only runs while it's awake.
+- **Uploads are stored in PostgreSQL** (`STORAGE_DRIVER=database`), because the free instance's disk is wiped on every restart and deploy. Each file is limited to 5 MB (`DATABASE_FILE_MAX_MB`), and files count toward Supabase's 500 MB. Larger media, such as lesson videos, is refused with a clear message. Cloudflare R2 would remove this limit, but enabling R2 requires adding billing details in the Cloudflare dashboard.
+- **Supabase free** has 500 MB of database storage and **pauses after 7 days without database activity**. Restore it from the dashboard if that happens. Free projects have no downloadable backups, so take your own (below).
+- Payments are off (`PAYMENT_PROVIDER=none`). The ₹29 and ₹99 offers are visible but can't be bought until Razorpay keys are added.
+
+## Updating, rolling back, backups
+
+- **Update:** push to `main` and Render rebuilds and deploys automatically.
+- **Roll back:** Render → service → **Events** → choose an earlier successful deploy → **Rollback**. Migrations only add things, so rolling back the app doesn't touch data.
+- **Back up:** with PostgreSQL client tools installed, `pg_dump "<DATABASE_URL>" -n nakshatra -Fc -f nakshatra-YYYY-MM-DD.dump` (`-n nakshatra` limits it to the app's schema). **Restore** into an empty database with `pg_restore -d "<DATABASE_URL>" --no-owner nakshatra-YYYY-MM-DD.dump`.

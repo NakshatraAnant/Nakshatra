@@ -1,0 +1,59 @@
+# Render Blueprint for Nakshatra (free web service, Docker runtime).
+# The database is external (Supabase PostgreSQL); see docs/DEPLOY_RENDER_SUPABASE.md.
+# Values marked `sync: false` are entered in the Render dashboard on first deploy and never live in git.
+services:
+  - type: web
+    name: nakshatra
+    runtime: docker
+    plan: free
+    # Same region as the Supabase project (ap-southeast-1) to keep query latency low.
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "4000"
+      # Render's proxy sits in front of the app; trust one hop so rate limits see real client IPs.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: LOG_LEVEL
+        value: info
+      - key: APP_SECRET
+        generateValue: true
+      # Supabase "Session pooler" connection string (IPv4, port 5432).
+      - key: DATABASE_URL
+        sync: false
+      # Supabase CA certificate (PEM) so the TLS connection is verified, not just encrypted.
+      - key: DATABASE_CA_CERT
+        sync: false
+      # The Supabase project also holds an earlier prototype's tables in public (left untouched);
+      # every Nakshatra table, and its migration history, lives in this schema instead.
+      - key: DATABASE_SCHEMA
+        value: nakshatra
+      # Supabase's free session pooler has a small per-project client limit.
+      - key: DATABASE_POOL_MAX
+        value: "5"
+      # APP_ORIGIN is not set here: the app uses Render's RENDER_EXTERNAL_URL (the onrender.com address).
+      # Add APP_ORIGIN=https://your-domain in the dashboard once a custom domain is connected.
+      # Paid offers stay visible but cannot be bought until Razorpay keys are configured.
+      - key: PAYMENT_PROVIDER
+        value: none
+      - key: MAIL_TRANSPORT
+        value: smtp
+      - key: SMTP_URL
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAX_UPLOAD_MB
+        value: "5"
+      # The free instance's disk is wiped on restart, so uploads are stored in PostgreSQL instead.
+      - key: STORAGE_DRIVER
+        value: database
+      - key: DATABASE_FILE_MAX_MB
+        value: "5"

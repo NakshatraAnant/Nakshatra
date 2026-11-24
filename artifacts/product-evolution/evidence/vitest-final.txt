@@ -1,0 +1,269 @@
+
+ RUN  v4.1.12 C:/Users/anant/Desktop/Nakshatra
+
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > straight-lined sheet of all 1 is inconclusive, never a clear match 9ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > straight-lined sheet of all 3 is inconclusive, never a clear match 1ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > straight-lined sheet of all 5 is inconclusive, never a clear match 1ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > strictly alternating answers are flagged and capped at low confidence 1ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > reversed sheets mirror the dimension scores 2ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > missing answers: fewer than 15 is rejected; a missing dimension is incomplete and low 9ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > is deterministic 1ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype midnight_philosopher is reachable from a diverse, decisive sheet 1134ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype chaos_diplomat is reachable from a diverse, decisive sheet 1796ms
+ ✓ tests/integration/deploy-config.test.ts > hosted deployment config > uses the CA certificate and drops URL sslmode so verification cannot be overridden 10ms
+ ✓ tests/integration/deploy-config.test.ts > hosted deployment config > leaves the connection string untouched without a CA certificate 1ms
+ ✓ tests/integration/deploy-config.test.ts > hosted deployment config > takes APP_ORIGIN from RENDER_EXTERNAL_URL unless set explicitly 21ms
+ ✓ tests/integration/deploy-config.test.ts > hosted deployment config > still refuses production without a secret or with the dev mailbox 9ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype unbothered_overthinker is reachable from a diverse, decisive sheet 1487ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype lore_keeper is reachable from a diverse, decisive sheet 2435ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype soft_launch_romantic is reachable from a diverse, decisive sheet 3334ms
+ ✓ tests/integration/deploy-config.test.ts > row level security lock-down > enables RLS on public tables; the owner keeps access, other roles see nothing 8044ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype human_plot_twist is reachable from a diverse, decisive sheet 1869ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype professional_disappearing_act is reachable from a diverse, decisive sheet 1908ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype emotional_archivist is reachable from a diverse, decisive sheet 2100ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype delulu_strategist is reachable from a diverse, decisive sheet 2931ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype accidental_therapist is reachable from a diverse, decisive sheet 3472ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype quiet_instigator is reachable from a diverse, decisive sheet 4197ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype social_battery_economist is reachable from a diverse, decisive sheet 4691ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype group_chat_mayor is reachable from a diverse, decisive sheet 3196ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype spreadsheet_optimist is reachable from a diverse, decisive sheet 1832ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype main_character_trainee is reachable from a diverse, decisive sheet 1456ms
+ ✓ tests/integration/deploy-config.test.ts > database file storage > persists uploads in PostgreSQL, serves only public files publicly, and enforces type and size 27210ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype calm_in_the_chaos is reachable from a diverse, decisive sheet 1454ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype side_quest_collector is reachable from a diverse, decisive sheet 1801ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype kind_truth_teller is reachable from a diverse, decisive sheet 2084ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype cosy_contrarian is reachable from a diverse, decisive sheet 1817ms
+ ✓ tests/integration/sharing.test.ts > archetype share links > anonymous preview shares are scored by the server and identify nobody 445ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype loyal_night_owl is reachable from a diverse, decisive sheet 2124ms
+ ✓ tests/integration/sharing.test.ts > archetype share links > signed-in shares carry a referral link, include the name only on request, count sign-ups and can be revoked 2047ms
+ ✓ tests/integration/discover.test.ts > Account-free Cosmic ID > returns an archetype, distinct Vedic and Western text, and stores nothing about the birth moment 1024ms
+ ✓ tests/integration/discover.test.ts > Account-free Cosmic ID > applies the same validation and adult-only rule as saved profiles 401ms
+ ✓ tests/integration/sharing.test.ts > archetype share links > share pages carry escaped link-preview metadata in the HTML (no JavaScript needed) 1388ms
+ ✓ tests/integration/sharing.test.ts > archetype share links > refuses to share an inconclusive (straight-lined) result 635ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype hype_engineer is reachable from a diverse, decisive sheet 2121ms
+ ✓ tests/integration/sharing.test.ts > archetype share links > cannot share without a result 627ms
+ ✓ tests/integration/discover.test.ts > Account-free Cosmic ID > gives a signed-in user the same identity as the preview for the same birth data 1764ms
+ ✓ tests/integration/discover.test.ts > Account-free Cosmic ID > accepts only whitelisted anonymous page events 79ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype gentle_detective is reachable from a diverse, decisive sheet 1970ms
+ ✓ tests/integration/features.test.ts > Identity Evolution Timeline > shows each result with dimension deltas, vibes and milestones — only to its owner 1228ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype plan_b_poet is reachable from a diverse, decisive sheet 1640ms
+ ✓ tests/integration/modules.test.ts > module registry > maps paths to the most specific module 12ms
+ ✓ tests/integration/modules.test.ts > launch scope enforcement > reports legacy modules off and core modules on 827ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > archetype steady_signal is reachable from a diverse, decisive sheet 1899ms
+ ✓ tests/integration/razorpay.test.ts > Razorpay adapter > verifies webhook and checkout signatures 25ms
+ ✓ tests/integration/features.test.ts > Common Ground cards > uses only shared data, gives starters, and is limited to co-members 2229ms
+ ✓ src/shared/personality.test.ts > personality scoring — response quality (quality-v1) > random sheets no longer produce confident "Calm in the Chaos" matches 510ms
+ ✓ tests/integration/modules.test.ts > launch scope enforcement > every API prefix of a disabled module answers 404 module_disabled, for GET and POST 1873ms
+ ✓ tests/integration/modules.test.ts > launch scope enforcement > the shop shows only the identity catalogue; legacy products cannot be opened or bought 647ms
+ ✓ tests/integration/modules.test.ts > launch scope enforcement > an admin can switch a module back on (reversible, no data lost) 509ms
+ ✓ tests/integration/razorpay.test.ts > Razorpay adapter > checkout → Razorpay order → signed capture webhook → paid order → refund → signed refund webhook 3821ms
+ ✓ tests/integration/razorpay.test.ts > Razorpay adapter > the development simulator is not reachable when Razorpay is configured 468ms
+ ✓ tests/integration/features.test.ts > Game rematch > opens a new lobby for a finished game and invites the other players without auto-joining them 3324ms
+ ✓ tests/integration/journeys.test.ts > Journey B — Bonds with consent and revocation > invites, accepts, computes compatibility, shares, revokes and blocks access 9523ms
+ ✓ tests/integration/smtp.test.ts > SMTP delivery > queues mail, retries a temporary failure and delivers it over SMTP 2165ms
+ ✓ tests/integration/smtp.test.ts > SMTP delivery > gives up after three failed attempts and keeps the error for operators 51ms
+ ✓ tests/integration/social.test.ts > Identity Studio > scores without storing in preview, and saving completes onboarding without birth details 1917ms
+ ✓ tests/integration/journeys.test.ts > Journey B — Bonds with consent and revocation > supports private bonds with self-entered data that only the owner can see 3844ms
+ ✓ tests/integration/social.test.ts > Identity Studio > validates labels, pen names and locked card styles on the server 1465ms
+ ✓ tests/integration/schema-isolation.test.ts > app isolated in its own schema next to clashing public tables > creates and uses every app table in the app schema and leaves public untouched 29203ms
+ ✓ tests/integration/schema-isolation.test.ts > app isolated in its own schema next to clashing public tables > rejects schema names that would need quoting 15ms
+ ✓ tests/integration/social.test.ts > Identity Studio > public identity respects profile and attribute visibility and never exposes the pen name 1103ms
+ ✓ src/astro/rules.test.ts > nakshatra and pada boundaries > 0° is Ashwini pada 1; 13°20′ starts Bharani; 359.99° is Revati pada 4 11ms
+ ✓ src/astro/rules.test.ts > nakshatra and pada boundaries > dasha lords follow the Ketu–Venus–Sun… cycle 2ms
+ ✓ src/astro/rules.test.ts > Vimshottari dasha > Moon at 0° Aries starts a full 7-year Ketu dasha at birth 5ms
+ ✓ src/astro/rules.test.ts > Vimshottari dasha > Moon half-way through Bharani leaves 10 years of Venus 2ms
+ ✓ src/astro/rules.test.ts > Vimshottari dasha > antardashas sum to their mahadasha and the cycle totals 120 years 3ms
+ ✓ src/astro/rules.test.ts > Vimshottari dasha > active dasha at a period boundary belongs to the new period 3ms
+ ✓ src/astro/rules.test.ts > divisional charts > Navamsa: fire signs start from Aries, earth from Capricorn, air from Libra, water from Cancer 2ms
+ ✓ src/astro/rules.test.ts > divisional charts > Hora: odd sign first half → Leo, even sign first half → Cancer 1ms
+ ✓ src/astro/rules.test.ts > divisional charts > Drekkana: 1st, 5th and 9th from the sign 1ms
+ ✓ src/astro/rules.test.ts > divisional charts > Dashamsa: even signs count from the 9th 1ms
+ ✓ src/astro/rules.test.ts > divisional charts > Trimshamsa odd/even tables 1ms
+ ✓ src/astro/rules.test.ts > Ashtakavarga > bhinnashtakavarga totals match the fixed classical totals and SAV = 337 24ms
+ ✓ src/astro/rules.test.ts > Ashtakavarga > is unavailable without a birth time 9ms
+ ✓ src/astro/rules.test.ts > Guna Milan > yoni table is symmetric with zero for the seven enemy pairs 24ms
+ ✓ src/astro/rules.test.ts > Guna Milan > total is bounded 0..36 and koota maxima sum to 36 for every nakshatra pair 248ms
+ ✓ src/astro/rules.test.ts > Guna Milan > same nakshatra: nadi dosha (0) and full yoni (4) 1ms
+ ✓ src/astro/rules.test.ts > Guna Milan > 6/8 Moon signs give zero Bhakoot 1ms
+ ✓ src/astro/rules.test.ts > natal charts > whole-sign houses follow the Lagna sign in the chart zodiac (regression: sidereal cusps were offset by the ayanamsa) 280ms
+ ✓ src/astro/rules.test.ts > natal charts > is reproducible: identical input produces identical output 34ms
+ ✓ src/astro/rules.test.ts > natal charts > sidereal = tropical − ayanamsa (Lahiri ≈ 23.7° in 1990) 34ms
+ ✓ src/astro/rules.test.ts > natal charts > mid-June Sun is in tropical Gemini and sidereal Taurus/Gemini boundary region 74ms
+ ✓ src/astro/rules.test.ts > natal charts > Rahu and Ketu are exactly opposite 8ms
+ ✓ src/astro/rules.test.ts > natal charts > unknown birth time: no ascendant/houses, flagged reliability and warnings 23ms
+ ✓ src/astro/rules.test.ts > natal charts > detects Moon sign uncertainty for a birth near a Moon ingress 369ms
+ ✓ src/astro/rules.test.ts > natal charts > high latitude chart (Tromsø) computes with a warning 12ms
+ ✓ src/astro/rules.test.ts > natal charts > full Vedic and Western reports build 68ms
+ ✓ src/astro/rules.test.ts > yogas and doshas > every yoga reports its rule and caveat 41ms
+ ✓ src/astro/rules.test.ts > yogas and doshas > manglik reports all three references 8ms
+ ✓ src/astro/rules.test.ts > yogas and doshas > kaal sarp and sade sati evaluate 10ms
+ ✓ src/astro/rules.test.ts > yogas and doshas > gochar lists nine grahas with houses from Moon 4ms
+ ✓ src/astro/rules.test.ts > western techniques > solar return Sun matches natal Sun within 1 arcminute 21ms
+ ✓ src/astro/rules.test.ts > western techniques > secondary progressions move the Sun about 1° per year 7ms
+ ✓ src/astro/rules.test.ts > western techniques > composite midpoint of identical charts equals the chart 2ms
+ ✓ src/astro/rules.test.ts > western techniques > Mercury has retrograde periods in 2024 (3 stations) 50ms
+ ✓ src/astro/rules.test.ts > numerology > life path keeps master numbers and reduces otherwise 2ms
+ ✓ src/astro/rules.test.ts > numerology > name numbers use Pythagorean values 1ms
+ ✓ src/astro/rules.test.ts > compatibility engine > is deterministic and reports dimensions without a combined score 32ms
+ ✓ src/astro/rules.test.ts > compatibility engine > colleague relationships omit the attraction dimension 2ms
+ ✓ src/astro/rules.test.ts > muhurat discovery > returns rule checks for each day and never passes a Rikta tithi 585ms
+ ✓ tests/integration/social.test.ts > Thought Network > supports Thought Drop types, pseudonymity boundaries, edits, replies and screening 3890ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-01 / SEC-02 / SEC-06 — pen names stay pen names > the post, feed and circle feed never carry the author identity 542ms
+ ✓ tests/integration/journeys.test.ts > Journey C — learning, quiz, certificate, achievement > enrolls in a free course, completes lessons, passes quizzes and earns a certificate once 6356ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-01 / SEC-02 / SEC-06 — pen names stay pen names > muting a pen-name author lists only the pen name and an opaque reference (SEC-01) 533ms
+ ✓ tests/integration/progression.test.ts > quests, XP ledger and anti-abuse > daily vibe quest: complete only after a real check-in, claimed once, XP in the single ledger 2290ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-01 / SEC-02 / SEC-06 — pen names stay pen names > the author replying in their own pen-name thread stays under the pen name (SEC-02) 756ms
+ ✓ tests/integration/journeys.test.ts > Journey C — learning, quiz, certificate, achievement > blocks paid lessons without an entitlement 803ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-01 / SEC-02 / SEC-06 — pen names stay pen names > renaming the pen name does not relabel or link older posts (snapshot) 142ms
+ ✓ tests/integration/core.test.ts > Journey A — new user, Cosmic ID, persistence > signs up, completes birth data, calculates chart, saves an insight, logs out and back in 7257ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-01 / SEC-02 / SEC-06 — pen names stay pen names > following mode never shows other people's pen-name posts (SEC-06) 342ms
+ ✓ tests/integration/social.test.ts > Circles > keeps circles private, uses expiring single-hash invites, and enforces roles 2422ms
+ ✓ tests/integration/core.test.ts > Journey A — new user, Cosmic ID, persistence > rejects wrong passwords with a generic message and rejects under-18 birth dates 804ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Sun apparent longitude — Meeus Example 25.b, 1992-10-13 0h TD: 199°54′21.56″ 8ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Moon apparent longitude — Meeus Example 47.a, 1992-04-12 0h TD: 133.167265° 1ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Venus apparent longitude — Meeus Example 33.a, 1992-12-20 0h TD: 313.08102° 5ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Mean lunar node — Meeus Example 47.a, 1992-04-12 0h TD: 274.400656° 1ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Apparent sidereal time — Meeus Example 12.a, 1987-04-10 0h UT: 13h10m46.1351s 2ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Lahiri mean ayanamsa at J2000.0 ≈ 23°51′25.5″ (Swiss Ephemeris SE_SIDM_LAHIRI definition) 2ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Ascendant at the equator with RAMC = 0 is 0° Cancer (geometric identity) 2ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Placidus cusps 1/4/7/10 coincide with ASC/IC/DSC/MC and intermediate cusps are ordered 7ms
+ ✓ src/astro/reference.test.ts > astronomical reference values > Placidus falls back to Porphyry inside the Arctic circle 5ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > uses the historical +06:30 war-time offset for Kolkata in 1943 7ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > uses IST (+05:30) for modern Indian dates 5ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > flags a non-existent spring-forward time (US DST 2021-03-14 02:30 New York) 11ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > flags an ambiguous fall-back time (US DST 2021-11-07 01:30 New York) 3ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > handles leap day and rejects 29 Feb in a non-leap year 7ms
+ ✓ src/astro/reference.test.ts > time-zone normalisation > marks unknown time as assumed noon with a 12-hour uncertainty window 6ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > Amavasya prevails at sunrise on 2024-11-01 and Kartika month begins after it 33ms
+ ✓ tests/integration/progression.test.ts > quests, XP ledger and anti-abuse > reply quest counts replies to other people only (self-replies do not farm it) 1533ms
+ ✓ tests/integration/core.test.ts > Journey A — new user, Cosmic ID, persistence > handles unknown birth time explicitly 757ms
+ ✓ src/web/lib/visual.test.ts > visual asset mapping > maps every real archetype to a distinct artwork slot with all seven parts 410ms
+ ✓ src/web/lib/visual.test.ts > visual asset mapping > maps all twelve engine games to their asset packs 127ms
+ ✓ src/web/lib/visual.test.ts > visual asset mapping > resolves brand, environments, icons, post types, circles, levels, achievements, card styles and empty states 119ms
+ ✓ tests/integration/social.test.ts > Circles > rewards the founder only once three members have contributed 2153ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > Purnima at sunrise on 2025-03-14 (Holi) 16ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > tithi index is consistent with elongation at a known full moon (2024-10-17 11:26 UTC) 1ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > sunrise in Delhi on 2024-11-01 is about 06:33 IST 11ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > makar_sankranti 2025 falls on 2025-01-14 1ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > maha_shivaratri 2025 falls on 2025-02-26 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > holika_dahan 2025 falls on 2025-03-13 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > holi 2025 falls on 2025-03-14 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > ram_navami 2025 falls on 2025-04-06 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > vaisakhi 2025 falls on 2025-04-14 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > raksha_bandhan 2025 falls on 2025-08-09 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > ganesh_chaturthi 2025 falls on 2025-08-27 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > navratri 2025 falls on 2025-09-22 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > dussehra 2025 falls on 2025-10-02 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > diwali 2025 falls on 2025-10-20 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > maha_shivaratri 2026 falls on 2026-02-15 2ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > holika_dahan 2026 falls on 2026-03-03 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > holi 2026 falls on 2026-03-04 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > raksha_bandhan 2026 falls on 2026-08-28 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > ganesh_chaturthi 2026 falls on 2026-09-14 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > navratri 2026 falls on 2026-10-11 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > dussehra 2026 falls on 2026-10-20 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > diwali 2026 falls on 2026-11-08 0ms
+ ✓ src/astro/reference.test.ts > panchang reference dates (New Delhi, published Indian calendars) > Diwali 2024 falls on 2024-10-31 under the pradosh rule 1964ms
+ ✓ tests/integration/security-regressions.test.ts > Feed visibility policy (post-level visibility decides) > public / followers / circle posts from a private profile reach exactly the right people 3003ms
+ ✓ tests/integration/journeys.test.ts > Journey D — dating lifecycle > creates eligible profiles, matches mutually, messages, reports and unmatches 3468ms
+ ✓ tests/integration/journeys.test.ts > Journey D — dating lifecycle > enforces email verification and preference hard filters 417ms
+ ✓ tests/integration/progression.test.ts > quests, XP ledger and anti-abuse > multi-step founding quest tracks each step from real circle activity 3834ms
+ ✓ src/astro/archetype.test.ts > Cosmic ID archetypes > covers all twelve element × modality combinations with one authored archetype each 12ms
+ ✓ src/astro/archetype.test.ts > Cosmic ID archetypes > is deterministic and documents its method 244ms
+ ✓ src/astro/archetype.test.ts > Cosmic ID archetypes > picks the weighted dominant element and modality 1ms
+ ✓ src/astro/archetype.test.ts > Cosmic ID archetypes > breaks exact ties by the Moon sign rather than by list order 3ms
+ ✓ src/astro/archetype.test.ts > Vedic content pack v2 > never reuses Western body text for Rashi, Lagna or Surya 12ms
+ ✓ tests/integration/progression.test.ts > quests, XP ledger and anti-abuse > identity exploration quests grant the Identity Explorer achievement after three claims 1106ms
+ ✓ tests/integration/core.test.ts > Journey A — new user, Cosmic ID, persistence > serves a daily briefing, panchang, festivals and an ICS calendar 4323ms
+ ✓ tests/integration/journeys.test.ts > Journey E — expert booking, payment, completion, accounting > books real availability, pays through the labelled simulator, completes and reviews 2981ms
+ ✓ tests/integration/progression.test.ts > seasons, inventory and reversals > season milestone rewards are claimed once into the inventory; premium track is off 1127ms
+ ✓ src/shared/progression.test.ts > streaks > counts consecutive days ending today or yesterday 12ms
+ ✓ src/shared/progression.test.ts > streaks > forgives one missed day per week, but not two in a row 2ms
+ ✓ src/shared/progression.test.ts > streaks > a broken streak resets to zero without removing the best 1ms
+ ✓ src/shared/progression.test.ts > streaks > is time-zone safe because it works on local calendar dates (year boundary) 1ms
+ ✓ src/shared/progression.test.ts > streaks > can be configured with no grace 1ms
+ ✓ src/shared/progression.test.ts > periods and definitions > ISO weeks 2ms
+ ✓ src/shared/progression.test.ts > periods and definitions > quest keys are unique, rewards modest, and every quest has steps 3ms
+ ✓ src/shared/progression.test.ts > periods and definitions > seasons do not overlap and the premium track stays off 2ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-03 — hidden authors in games > Who Said It? and Hot Take Arena never reveal the author before the reveal 4255ms
+ ✓ tests/integration/social.test.ts > Play > runs a full Who Said It? game with hidden authors, scoring, withdrawal and completion points 4979ms
+ ✓ tests/integration/journeys.test.ts > Journey E — expert booking, payment, completion, accounting > refunds automatically when cancelled 24h+ in advance 1421ms
+ ✓ tests/integration/progression.test.ts > seasons, inventory and reversals > staff can reverse an award exactly once; members cannot 1210ms
+ ✓ tests/integration/core.test.ts > security controls > throttles repeated failed sign-ins per account 2479ms
+ ✓ tests/integration/core.test.ts > security controls > rejects state-changing requests without a CSRF token 4ms
+ ✓ tests/integration/progression.test.ts > seasons, inventory and reversals > streak includes today after any meaningful action 1040ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-04 — private circle events > outsiders cannot list, search, RSVP to or see the location of circle events 1988ms
+ ✓ src/shared/social.test.ts > personality scoring > is deterministic and versioned 14ms
+ ✓ src/shared/social.test.ts > personality scoring > maps fully agreeing with high-keyed items to +1 on every dimension 3ms
+ ✓ src/shared/social.test.ts > personality scoring > neutral answers give zero scores and a deterministic tie-break by catalogue order 2ms
+ ✓ src/shared/social.test.ts > personality scoring > marks dimensions with too few answers unknown and lowers confidence 2ms
+ ✓ src/shared/social.test.ts > personality scoring > rejects incomplete or out-of-range answers 3ms
+ ✓ src/shared/social.test.ts > personality scoring > every archetype is reachable: its own prototype answers map back to it 7ms
+ ✓ src/shared/social.test.ts > personality scoring > keeps archetypes distinct and uniquely named 19ms
+ ✓ src/shared/social.test.ts > game engine > defines twelve distinct games with valid metadata 7ms
+ ✓ src/shared/social.test.ts > game engine > plans rounds deterministically per session and avoids recently used prompts 5ms
+ ✓ src/shared/social.test.ts > game engine > Who Said It: hides the author, excludes them from guessing and scores correctly 4ms
+ ✓ src/shared/social.test.ts > game engine > Honest Vote reveals totals only and blocks self-votes 5ms
+ ✓ src/shared/social.test.ts > game engine > Archetype Showdown needs a consenting player and only uses shared archetypes 5ms
+ ✓ src/shared/social.test.ts > game engine > Plot Twist enforces turn order 3ms
+ ✓ src/shared/social.test.ts > game engine > Prediction Market settles play points parimutuel without creating value 2ms
+ ✓ src/shared/social.test.ts > game engine > Memory Lane refuses to start without enough reusable lines 1ms
+ ✓ src/shared/social.test.ts > game engine > This or That and Compatibility Lab summaries count identical answers only 3ms
+ ✓ src/shared/social.test.ts > game engine > every game can be planned and validated with a sample move 11ms
+ ✓ src/shared/monetisation.test.ts > monetisation contracts > lists exactly 50 distinct revenue models, each with a status 14ms
+ ✓ src/shared/monetisation.test.ts > monetisation contracts > commission is integer paise, clamped and never above gross 4ms
+ ✓ src/shared/monetisation.test.ts > monetisation contracts > revenue share sums exactly to the net amount 2ms
+ ✓ src/shared/monetisation.test.ts > monetisation contracts > sponsored content is always labelled and never profile-targeted 2ms
+ ✓ src/shared/social.test.ts > game engine > shuffle is a deterministic permutation 1ms
+ ✓ src/shared/social.test.ts > content banks > every prompt id is unique across all banks (usage history depends on it) 5ms
+ ✓ src/shared/social.test.ts > ritual engine > does not repeat a prompt until the bank is exhausted 3ms
+ ✓ src/shared/social.test.ts > ritual engine > gives everyone in a scope the same prompt and different scopes can differ 1ms
+ ✓ src/shared/social.test.ts > ritual engine > uses calendar days in the user’s time zone, across DST changes 132ms
+ ✓ tests/integration/core.test.ts > security controls > requires authentication and does not leak resources across users (IDOR) 1695ms
+ ✓ src/shared/social.test.ts > ritual engine > chooses a stride coprime with the bank size 16ms
+ ✓ src/shared/social.test.ts > feed ranking safety > never uses author signals for pseudonymous posts 2ms
+ ✓ src/shared/social.test.ts > feed ranking safety > boosts unanswered questions and caps engagement so outrage cannot dominate 1ms
+ ✓ src/shared/social.test.ts > feed ranking safety > limits any single author to three posts before others get a turn 21ms
+ ✓ src/shared/social.test.ts > moderation, referrals and levels > blocks harassment phrases and contact details where identity is protected 2ms
+ ✓ src/shared/social.test.ts > moderation, referrals and levels > canonicalises email aliases for self-referral checks 1ms
+ ✓ src/shared/social.test.ts > moderation, referrals and levels > names levels and rewards meaningful actions only 2ms
+ ✓ tests/integration/journeys.test.ts > Journey E — expert booking, payment, completion, accounting > expires unpaid holds via the scheduler 2186ms
+ ✓ tests/integration/core.test.ts > security controls > never exposes birth details on public profiles and honours field visibility 589ms
+ ✓ tests/integration/core.test.ts > security controls > rejects forged payment webhooks and processes signed ones idempotently 49ms
+ ✓ tests/integration/security-regressions.test.ts > SEC-05 — MFA changes need fresh re-authentication > setup cannot overwrite an active factor; disable needs password AND a current code; other sessions end 1441ms
+ ✓ tests/integration/core.test.ts > security controls > suspended users cannot act but can appeal 461ms
+ ✓ tests/integration/social.test.ts > Play > Honest Vote never exposes individual votes; Memory Lane only reuses consented lines 3584ms
+ ✓ tests/integration/core.test.ts > security controls > analytics never store birth data or message bodies 17ms
+ ✓ tests/integration/journeys.test.ts > Journey F — commerce, digital delivery and refunds > buys a variant and a generated report, then refunds through admin approval 1455ms
+ ✓ tests/integration/security-regressions.test.ts > DEF-01 / DEF-02 — gifts reach the recipient, never the purchaser > existing member without an assessment: payment succeeds, gift claimed, report generated later 756ms
+ ✓ tests/integration/core.test.ts > security controls > supports TOTP MFA enrolment and enforcement at login 825ms
+ ✓ tests/integration/core.test.ts > configuration > treats blank values from .env.example as unset and still refuses unsafe production settings 19ms
+ ✓ tests/integration/journeys.test.ts > Journey F — commerce, digital delivery and refunds > a failed payment cancels the order and restores stock 559ms
+ ✓ tests/integration/security-regressions.test.ts > DEF-01 / DEF-02 — gifts reach the recipient, never the purchaser > unregistered email: nothing goes to the purchaser; the right person claims after verifying 790ms
+ ✓ tests/integration/journeys.test.ts > Journey F — commerce, digital delivery and refunds > activates and renews a subscription through payment state 651ms
+ ✓ tests/integration/social.test.ts > Play > plays a solo game, enforces turn order, and settles play points without touching the ledger 1992ms
+ ✓ tests/integration/security-regressions.test.ts > DEF-01 / DEF-02 — gifts reach the recipient, never the purchaser > expired gifts cannot be claimed; failed payments create no claim; refunds revoke 1039ms
+ ✓ tests/integration/security-regressions.test.ts > DEF-01 / DEF-02 — gifts reach the recipient, never the purchaser > rejects gifting to yourself 56ms
+ ✓ tests/integration/social.test.ts > Rituals, referrals and offers > accepts one ritual answer per period and unlocks circle answers only after answering 942ms
+ ✓ tests/integration/security-regressions.test.ts > DEF-05 — late provider success after an order expired is refunded > requests an automatic refund instead of keeping the payment 424ms
+ ✓ tests/integration/security-regressions.test.ts > Retention > blanks delivered SMTP bodies and removes stale sessions and tokens 21ms
+ ✓ tests/integration/journeys.test.ts > Journey G — wedding planning with shared permissions > creates a project, adds a partner, tasks, vendor inquiry, quotation and deposit 1657ms
+ ✓ tests/integration/social.test.ts > Rituals, referrals and offers > approves a referral only after activation and rejects self-referrals 983ms
+ ✓ tests/integration/journeys.test.ts > Journey H — gamification integrity > awards XP idempotently and never duplicates one-time achievements 943ms
+ ✓ tests/integration/social.test.ts > Rituals, referrals and offers > gates the identity report on an assessment and unlocks purchased card styles via entitlements 1188ms
+ ✓ tests/integration/social.test.ts > Rituals, referrals and offers > switching a feature off blocks the API, not just the navigation 358ms
+ ✓ tests/integration/journeys.test.ts > Journey I — privacy, export and deletion > exports account data then deletes the account per retention rules 1234ms
+ ✓ tests/integration/journeys.test.ts > Journey I — privacy, export and deletion > withdrawing birth-data consent removes birth data and charts 356ms
+ ✓ tests/integration/journeys.test.ts > social, matchmaking and family bridge > feed respects visibility, blocks, ranking explanations and moderation 1792ms
+ ✓ tests/integration/journeys.test.ts > social, matchmaking and family bridge > matchmaking: connect, mutual chart consent for kundli, family permissions 855ms
+ ✓ tests/integration/journeys.test.ts > social, matchmaking and family bridge > admin analytics computes WMCU from meaningful events 195ms
+ ✓ tests/integration/journeys.test.ts > concurrency safeguards > lets only one of two simultaneous requests book the same expert slot 528ms
+ ✓ tests/integration/journeys.test.ts > concurrency safeguards > awards XP once when the same action is submitted concurrently 319ms
+ ✓ tests/integration/journeys.test.ts > creator and seller applications > member applies, staff approves in verification, role grants studio access 425ms
+
+ Test Files  21 passed (21)
+      Tests  259 passed (259)
+   Start at  01:09:03
+   Duration  132.57s (transform 28.44s, setup 0ms, import 181.59s, tests 653.43s, environment 8ms)
+
+exit=0
