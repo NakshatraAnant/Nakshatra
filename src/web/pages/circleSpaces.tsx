@@ -125,7 +125,7 @@ function NewEvent({ circleId, canSell, limits, onDone }: { circleId: string; can
 interface ModResp {
   role: string;
   stats: { members: number; newMembers: number; postsThisWeek: number; openReports: number; activeTimeouts: number };
-  reports: { id: string; reason: string; targetType: string; postId: string; preview: string; author: string; authorId: string; createdAt: string }[];
+  reports: { id: string; reason: string; targetType: string; postId: string; preview: string; author: string; authorId: string | null; createdAt: string }[];
   timeouts: { userId: string; name: string; until: string; reason: string }[];
   banned: { userId: string; name: string }[];
   log: { action: string; by: string; about: string | null; at: string }[];
@@ -165,8 +165,8 @@ export function CircleModeration({ circleId }: { circleId: string }) {
                   <Select aria-label={`Pause ${r.author}`} className="w-40" value={hours[r.id] ?? ''} onChange={(e) => setHours({ ...hours, [r.id]: e.target.value })}>
                     <option value="">Pause posting…</option><option value="1">1 hour</option><option value="24">1 day</option><option value="72">3 days</option><option value="168">1 week</option>
                   </Select>
-                  {hours[r.id] && <Button size="sm" variant="secondary" onClick={() => pause.mutate({ userId: r.authorId, hours: Number(hours[r.id]), reason: `Reported for ${r.reason.replace('_', ' ')}` })}>Pause {r.author}</Button>}
-                  <Button size="sm" variant="ghost" className="text-danger" onClick={() => ban.mutate({ userId: r.authorId, on: true })}>Ban</Button>
+                  {r.authorId && hours[r.id] && <Button size="sm" variant="secondary" onClick={() => pause.mutate({ userId: r.authorId!, hours: Number(hours[r.id]), reason: `Reported for ${r.reason.replace('_', ' ')}` })}>Pause {r.author}</Button>}
+                  {r.authorId && <Button size="sm" variant="ghost" className="text-danger" onClick={() => ban.mutate({ userId: r.authorId!, on: true })}>Ban</Button>}
                 </div>
               </li>
             ))}</ul>

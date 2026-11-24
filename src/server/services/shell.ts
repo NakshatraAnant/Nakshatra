@@ -53,6 +53,7 @@ export async function renderShell(ctx: Ctx, shell: string, url: string): Promise
   ].join('\n    ');
   return shell
     .replace(/<meta property="og:image"[^>]*>/, '')
-    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(m.title)}</title>`)
-    .replace('</head>', `    ${tags}\n  </head>`);
+    // Function replacers: "$&" and similar in a member's name must stay plain text.
+    .replace(/<title>[^<]*<\/title>/, () => `<title>${escapeHtml(m.title)}</title>`)
+    .replace('</head>', () => `    ${tags}\n  </head>`);
 }

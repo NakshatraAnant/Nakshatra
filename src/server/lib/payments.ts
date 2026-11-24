@@ -129,6 +129,12 @@ export async function processWebhook(ctx: Ctx, provider: string, rawBody: string
     const h = handlers.get(payment.purpose as PaymentPurpose);
 
     if (event.type === 'payment.succeeded' || event.type === 'payment.failed') {
+      // Never deliver against a different amount than was asked for.
+      if (provider === 'razorpay' && event.type === 'payment.succeeded' && event.amountPaise !== undefined && event.amountPaise !== payment.amountPaise) {
+        ctx.log.error({ paymentId: payment.id, expected: payment.amountPaise, got: event.amountPaise }, 'payment amount mismatch; not fulfilled');
+        await audit(tx, { actorId: null, action: 'payment.amount_mismatch', targetType: 'payment', targetId: payment.id, meta: { expected: payment.amountPaise, got: event.amountPaise } });
+        return { status: 'ignored' as const };
+      }
       const to: PaymentStatus = event.type === 'payment.succeeded' ? 'succeeded' : 'failed';
       if (!canTransition(payment.status, to)) {
         ctx.log.warn({ paymentId: payment.id, from: payment.status, to }, 'ignored invalid payment transition');
@@ -144,7 +150,8 @@ export async function processWebhook(ctx: Ctx, provider: string, rawBody: string
 
     if (event.type === 'refund.succeeded' && event.refundId) {
       const [refund] = await tx.select().from(refunds).where(eq(refunds.id, event.refundId)).for('update');
-      if (!refund || refund.status !== 'processing') return { status: 'ignored' as const };
+      // "failed" includes requests whose answer was lost (timeout) but which the provider did carry out.
+      if (!refund || refund.paymentId !== payment.id || !['processing', 'failed'].includes(refund.status)) return { status: 'ignored' as const };
       const newRefunded = payment.refundedPaise + refund.amountPaise;
       const to: PaymentStatus = newRefunded >= payment.amountPaise ? 'refunded' : 'partially_refunded';
       if (!canTransition(payment.status, to)) return { status: 'ignored' as const };
@@ -173,14 +180,20 @@ export async function simulateOutcome(ctx: Ctx, paymentId: string, userId: strin
 
 /** Requests a refund (state: requested). Approval and processing are separate, audited steps. */
 export async function requestRefund(ctx: Ctx, db: Executor, p: { paymentId: string; amountPaise: number; reason: string; requestedBy: string; idempotencyKey: string }) {
-  const [payment] = await db.select().from(payments).where(eq(payments.id, p.paymentId));
+  return db.transaction((tx) => requestRefundLocked(tx, p));
+}
+
+async function requestRefundLocked(db: Executor, p: { paymentId: string; amountPaise: number; reason: string; requestedBy: string; idempotencyKey: string }) {
+  // Locked so two requests at once cannot both fit inside the refundable balance.
+  const [payment] = await db.select().from(payments).where(eq(payments.id, p.paymentId)).for('update');
   if (!payment) throw notFound('Payment');
+  // A repeated request returns the first one (before the balance check, which the first one already uses up).
+  const repeat = await db.select().from(refunds).where(eq(refunds.idempotencyKey, p.idempotencyKey));
+  if (repeat[0]) return repeat[0];
   if (!['succeeded', 'partially_refunded'].includes(payment.status)) throw conflict('Only completed payments can be refunded.');
   const [{ pending }] = await db.select({ pending: sql<number>`coalesce(sum(${refunds.amountPaise}), 0)::int` }).from(refunds)
     .where(and(eq(refunds.paymentId, payment.id), sql`${refunds.status} in ('requested','approved','processing')`));
   if (p.amountPaise <= 0 || p.amountPaise + payment.refundedPaise + pending > payment.amountPaise) throw badRequest('Refund amount exceeds the refundable balance.');
-  const existing = await db.select().from(refunds).where(eq(refunds.idempotencyKey, p.idempotencyKey));
-  if (existing[0]) return existing[0];
   const [r] = await db.insert(refunds).values({
     paymentId: payment.id, amountPaise: p.amountPaise, reason: p.reason, status: 'requested', requestedBy: p.requestedBy, idempotencyKey: p.idempotencyKey,
   }).returning();
@@ -193,7 +206,9 @@ export async function approveRefund(ctx: Ctx, refundId: string, adminId: string)
   if (!r) throw notFound('Refund');
   if (r.status !== 'requested') throw conflict(`Refund is already ${r.status}.`);
   const [payment] = await ctx.db.select().from(payments).where(eq(payments.id, r.paymentId));
-  await ctx.db.update(refunds).set({ status: 'processing', decidedBy: adminId, updatedAt: new Date() }).where(eq(refunds.id, r.id));
+  // Claimed atomically: two approvals at once must not refund twice.
+  const claimed = await ctx.db.update(refunds).set({ status: 'processing', decidedBy: adminId, updatedAt: new Date() }).where(and(eq(refunds.id, r.id), eq(refunds.status, 'requested'))).returning({ id: refunds.id });
+  if (!claimed.length) throw conflict('Refund is already being processed.');
   await audit(ctx.db, { actorId: adminId, action: 'refund.approve', targetType: 'refund', targetId: r.id, meta: { amountPaise: r.amountPaise } });
   if (payment.provider === 'dev_simulator') {
     const body = JSON.stringify({ id: `evt_${randomToken(12)}`, type: 'refund.succeeded', providerRef: payment.providerRef!, refundId: r.id, amountPaise: r.amountPaise } satisfies ProviderEvent);

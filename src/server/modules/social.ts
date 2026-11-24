@@ -5,7 +5,7 @@ import * as s from '../db/schema';
 import type { Executor } from '../db/client';
 import type { Ctx } from '../lib/context';
 import { audit, track } from '../lib/context';
-import { badRequest, conflict, forbidden, notFound, parse } from '../lib/http';
+import { QueryFlag, badRequest, conflict, forbidden, likePattern, notFound, parse } from '../lib/http';
 import { requireAuth } from '../lib/auth';
 import { hmac } from '../lib/crypto';
 import { notify } from '../lib/notify';
@@ -34,7 +34,8 @@ export const EDIT_WINDOW_MS = 15 * 60000;
 export function spamCheck(body: string, recentBodies: string[]): string | null {
   const links = (body.match(/https?:\/\//g) ?? []).length;
   if (links > 3) return 'Posts can include at most three links.';
-  if (recentBodies.filter((b) => b === body).length >= 2) return 'You have already posted this text recently.';
+  // Posts without text (photos, voice notes, cards) are not repeats of each other.
+  if (body && recentBodies.filter((b) => b === body).length >= 2) return 'You have already posted this text recently.';
   if (/(.)\1{14,}/.test(body)) return 'Please avoid long repeated characters.';
   return null;
 }
@@ -343,7 +344,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const expiresAt = body.kind === 'story' ? new Date(Date.now() + 24 * 3600000) : body.temporaryHours ? new Date(Date.now() + body.temporaryHours * 3600000) : null;
     const post = await ctx.db.transaction(async (tx) => {
       const [p] = await tx.insert(s.posts).values({
-        authorId: a.userId, groupId: body.groupId ?? null, channelId: body.visibility === 'group' ? body.channelId ?? null : null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
+        authorId: a.userId, groupId: body.visibility === 'group' ? body.groupId! : null, channelId: body.visibility === 'group' ? body.channelId ?? null : null, kind: body.kind, body: body.body, imageUrl: body.imageUrl ?? null, card,
         imageUrls: body.imageUrls ?? [], audioUrl: body.audioUrl ?? null, audioSeconds: body.audioUrl ? body.audioSeconds! : null,
         topics: body.topics, visibility: body.visibility, expiresAt, pseudonymous: body.pseudonymous, penName,
       }).returning();
@@ -368,6 +369,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const [p] = await ctx.db.select().from(s.posts).where(and(eq(s.posts.id, id), eq(s.posts.authorId, a.userId), isNull(s.posts.deletedAt)));
     if (!p) throw notFound('Post');
     if (!TEXT_KINDS.includes(p.kind) || p.kind === 'poll') throw badRequest('Only text posts can be edited.');
+    if (p.groupId) await assertNotTimedOut(ctx.db, p.groupId, a.userId);
     if (Date.now() - p.createdAt.getTime() > EDIT_WINDOW_MS) throw badRequest('Posts can be edited for 15 minutes after publishing.');
     if ((THOUGHT_KINDS as readonly string[]).includes(p.kind) && body.length > 500) throw badRequest('Thought Drops are up to 500 characters.');
     const screened = screenText(body, await blockedPhrases(ctx.db), { protectIdentity: p.pseudonymous || p.kind === 'confession' });
@@ -590,11 +592,11 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
   /* ---------- Groups & creator channels ---------- */
   app.get('/api/v1/groups', async (req) => {
     const a = requireAuth(req);
-    const { q, mine } = parse(z.object({ q: z.string().max(60).optional(), mine: z.coerce.boolean().optional() }), req.query);
+    const { q, mine } = parse(z.object({ q: z.string().max(60).optional(), mine: QueryFlag.optional() }), req.query);
     const memberships = await ctx.db.select().from(s.groupMembers).where(eq(s.groupMembers.userId, a.userId));
     const rows = await ctx.db.select().from(s.groups).where(and(isNull(s.groups.archivedAt), ne(s.groups.kind, 'circle'),
       mine ? inArray(s.groups.id, memberships.length ? memberships.map((m) => m.groupId) : ['00000000-0000-0000-0000-000000000000']) : undefined,
-      q ? sql`(${s.groups.name} ilike ${'%' + q + '%'} or ${s.groups.description} ilike ${'%' + q + '%'})` : undefined)).orderBy(desc(s.groups.createdAt)).limit(50);
+      q ? sql`(${s.groups.name} ilike ${likePattern(q)} or ${s.groups.description} ilike ${likePattern(q)})` : undefined)).orderBy(desc(s.groups.createdAt)).limit(50);
     const counts = rows.length ? await ctx.db.select({ g: s.groupMembers.groupId, n: sql<number>`count(*)::int` }).from(s.groupMembers).where(and(inArray(s.groupMembers.groupId, rows.map((r) => r.id)), eq(s.groupMembers.status, 'active'))).groupBy(s.groupMembers.groupId) : [];
     return { groups: rows.map((g) => ({ ...g, memberCount: counts.find((c) => c.g === g.id)?.n ?? 0, membership: memberships.find((m) => m.groupId === g.id) ?? null })) };
   });
@@ -621,11 +623,17 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const [m] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, g.id), eq(s.groupMembers.userId, a.userId)));
     if (g.kind === 'circle' && m?.status !== 'active') throw notFound('Group');
     const canSee = g.visibility === 'public' || m?.status === 'active';
-    const posts = canSee ? await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, g.id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false))).orderBy(desc(s.posts.createdAt)).limit(50) : [];
+    const excluded = await blockedSet(ctx.db, a.userId);
+    const locked = await hiddenChannels(ctx.db, a.userId, [g.id]);
+    const posts = (canSee ? await ctx.db.select().from(s.posts).where(and(eq(s.posts.groupId, g.id), isNull(s.posts.deletedAt), eq(s.posts.hiddenByModeration, false), or(isNull(s.posts.expiresAt), gt(s.posts.expiresAt, new Date())))).orderBy(desc(s.posts.createdAt)).limit(50) : [])
+      .filter((p) => !excluded.has(p.authorId) && !(p.channelId && locked.has(p.channelId)));
     const members = canSee ? await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, g.id), eq(s.groupMembers.status, 'active'))).limit(100) : [];
     const pending = m?.role === 'owner' || m?.role === 'moderator' ? await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, g.id), eq(s.groupMembers.status, 'pending'))) : [];
     const names = await displayNames(ctx.db, [...members.map((x) => x.userId), ...pending.map((x) => x.userId)]);
-    const events = await ctx.db.select().from(s.events).where(and(eq(s.events.groupId, g.id), gt(s.events.endsAt, new Date()))).orderBy(s.events.startsAt).limit(10);
+    // Private groups show their events to members only; join links go to people who said they're coming.
+    const eventRows = canSee ? await ctx.db.select().from(s.events).where(and(eq(s.events.groupId, g.id), gt(s.events.endsAt, new Date()), ne(s.events.status, 'cancelled'))).orderBy(s.events.startsAt).limit(10) : [];
+    const myRsvps = eventRows.length ? await ctx.db.select().from(s.eventRsvps).where(and(eq(s.eventRsvps.userId, a.userId), inArray(s.eventRsvps.eventId, eventRows.map((x) => x.id)))) : [];
+    const events = eventRows.map((x) => ({ ...x, liveUrl: x.hostId === a.userId || myRsvps.some((r) => r.eventId === x.id && r.status !== 'cancelled') ? x.liveUrl : null }));
     return {
       group: g, membership: m ?? null, canSee,
       posts: await hydratePosts(ctx.db, a.userId, posts),
@@ -639,7 +647,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireAuth(req);
     const { id } = parse(z.object({ id: z.uuid() }), req.params);
     const [g] = await ctx.db.select().from(s.groups).where(eq(s.groups.id, id));
-    if (!g || g.kind === 'circle') throw notFound('Group');
+    if (!g || g.kind === 'circle' || g.archivedAt) throw notFound('Group');
     const [existing] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, id), eq(s.groupMembers.userId, a.userId)));
     if (existing?.status === 'banned') throw forbidden('You cannot join this group.');
     const status = g.visibility === 'public' ? 'active' : 'pending';
@@ -648,7 +656,7 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
       await awardXp(ctx, ctx.db, a.userId, 'group_joined', { sourceId: id });
       await evaluateAchievements(ctx, ctx.db, a.userId, ['groups']);
     } else {
-      await notify(ctx, ctx.db, { userId: g.ownerId, category: 'social', title: `Someone asked to join ${g.name}`, link: `/social/groups/${g.slug}` });
+      await notify(ctx, ctx.db, { userId: g.ownerId, category: 'social', title: `Someone asked to join ${g.name}`, link: `/social/groups/${g.slug}`, dedupeKey: `group-join:${id}:${a.userId}` });
     }
     return { status };
   });
@@ -696,12 +704,12 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!a.emailVerified) throw forbidden('Verify your email to host events.');
     const body = parse(z.object({
       title: z.string().trim().min(3).max(100), description: z.string().max(2000).default(''), startsAt: z.iso.datetime(), endsAt: z.iso.datetime(),
-      mode: z.enum(['online', 'in_person']), location: z.string().max(200).optional(), liveUrl: z.url().optional(), capacity: z.number().int().min(1).max(10000).optional(),
+      mode: z.enum(['online', 'in_person']), location: z.string().max(200).optional(), liveUrl: z.url({ protocol: /^https?$/ }).optional(), capacity: z.number().int().min(1).max(10000).optional(),
       groupId: z.uuid().optional(), kind: z.enum(['community', 'workshop', 'live_class', 'challenge']).default('community'),
     }), req.body);
     if (new Date(body.endsAt) <= new Date(body.startsAt)) throw badRequest('End time must be after start time.');
     if (body.groupId) {
-      const [m] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, body.groupId), eq(s.groupMembers.userId, a.userId), inArray(s.groupMembers.role, ['owner', 'moderator'])));
+      const [m] = await ctx.db.select().from(s.groupMembers).where(and(eq(s.groupMembers.groupId, body.groupId), eq(s.groupMembers.userId, a.userId), eq(s.groupMembers.status, 'active'), inArray(s.groupMembers.role, ['owner', 'moderator'])));
       if (!m) throw forbidden('Only group owners and moderators can schedule group events.');
     }
     const [e] = await ctx.db.insert(s.events).values({ ...body, hostId: a.userId, startsAt: new Date(body.startsAt), endsAt: new Date(body.endsAt) }).returning();
@@ -716,13 +724,15 @@ export async function socialRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!e || e.status === 'cancelled') throw notFound('Event');
     if (e.pricePaise > 0) throw badRequest(e.groupId ? 'This event needs a ticket. Paid tickets are refunded automatically only if the host cancels.' : 'Paid events are booked through the marketplace.');
     if (status === 'going' && e.capacity) {
-      const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, id), eq(s.eventRsvps.status, 'going')));
+      const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(s.eventRsvps).where(and(eq(s.eventRsvps.eventId, id), eq(s.eventRsvps.status, 'going'), ne(s.eventRsvps.userId, a.userId)));
       if (n >= e.capacity) throw conflict('This event is full.');
     }
     await ctx.db.insert(s.eventRsvps).values({ eventId: id, userId: a.userId, status }).onConflictDoUpdate({ target: [s.eventRsvps.eventId, s.eventRsvps.userId], set: { status } });
     if (status === 'going') {
       await ctx.db.insert(s.scheduledReminders).values({ userId: a.userId, category: 'social', title: `Starting soon: ${e.title}`, link: e.groupId ? `/circles/${e.groupId}?tab=events` : '/social/events', dueAt: new Date(e.startsAt.getTime() - 3600000), sourceKey: `event:${id}` }).onConflictDoNothing();
     }
+    // The reminder follows the answer: off when you drop out, back on if you change your mind.
+    await ctx.db.update(s.scheduledReminders).set({ cancelledAt: status === 'going' ? null : new Date() }).where(and(eq(s.scheduledReminders.userId, a.userId), eq(s.scheduledReminders.sourceKey, `event:${id}`), isNull(s.scheduledReminders.sentAt)));
     return { ok: true };
   });
 

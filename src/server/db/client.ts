@@ -78,10 +78,11 @@ export function migrationsFor(schemaName?: string): string {
  * against it, and any sslmode in the URL is dropped because pg lets URL parameters override `ssl`.
  */
 export function postgresPoolOptions(databaseUrl: string, caCert?: string, max = 10) {
-  if (!caCert) return { connectionString: databaseUrl, max };
+  // Fail a request after 10 s rather than queue forever when the database is unreachable.
+  if (!caCert) return { connectionString: databaseUrl, max, connectionTimeoutMillis: 10_000 };
   const url = new URL(databaseUrl);
   for (const p of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'uselibpqcompat']) url.searchParams.delete(p);
-  return { connectionString: url.toString(), max, ssl: { ca: caCert.replace(/\\n/g, '\n'), rejectUnauthorized: true } };
+  return { connectionString: url.toString(), max, connectionTimeoutMillis: 10_000, ssl: { ca: caCert.replace(/\\n/g, '\n'), rejectUnauthorized: true } };
 }
 
 /**
@@ -102,6 +103,8 @@ export async function openDatabase(opts: { databaseUrl?: string; pgliteDir: stri
     const { drizzle } = await import('drizzle-orm/node-postgres');
     const { migrate } = await import('drizzle-orm/node-postgres/migrator');
     const pool = new pg.default.Pool(postgresPoolOptions(opts.databaseUrl, opts.caCert, opts.poolMax));
+    // Without a listener, a dropped idle connection would be an uncaught error and end the process.
+    pool.on('error', (err: Error) => console.error(JSON.stringify({ level: 50, msg: 'idle database connection lost', err: err.message })));
     // Queued before any other query on each new connection. If it fails the connection is discarded
     // rather than left on the default path, where unqualified names could reach another app's tables.
     if (schemaName) pool.on('connect', (c) => { c.query(`set search_path to "${schemaName}"`).catch((err: Error) => c.emit('error', err)); });

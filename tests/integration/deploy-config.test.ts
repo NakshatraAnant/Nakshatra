@@ -17,7 +17,7 @@ describe('hosted deployment config', () => {
 
   it('leaves the connection string untouched without a CA certificate', () => {
     const url = 'postgresql://u:p@db.example.com:5432/postgres?sslmode=require';
-    expect(postgresPoolOptions(url)).toEqual({ connectionString: url, max: 10 });
+    expect(postgresPoolOptions(url)).toEqual({ connectionString: url, max: 10, connectionTimeoutMillis: 10_000 });
   });
 
   it('takes APP_ORIGIN from RENDER_EXTERNAL_URL unless set explicitly', () => {

@@ -78,6 +78,8 @@ export function loadConfig(overrides: Partial<Record<keyof z.infer<typeof schema
   const c = parsed.data;
   const isProd = c.NODE_ENV === 'production';
   if (isProd && !c.APP_SECRET) throw new Error('APP_SECRET (≥32 chars) is required in production');
+  // Links in emails and invites are built from APP_ORIGIN, so a forgotten value would send members to localhost.
+  if (isProd && !raw.APP_ORIGIN) throw new Error('APP_ORIGIN is required in production (the public address of the site).');
   if (isProd && c.PAYMENT_PROVIDER === 'dev_simulator') {
     throw new Error('The development payment simulator cannot be used when NODE_ENV=production');
   }

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { audit, EVENT_TAXONOMY } from '../lib/context';
-import { badRequest, conflict, notFound, parse } from '../lib/http';
+import { badRequest, conflict, likePattern, notFound, parse } from '../lib/http';
 import { requireCapability, type Role } from '../lib/auth';
 import { notify } from '../lib/notify';
 import { approveRefund, rejectRefund, requestRefund } from '../lib/payments';
@@ -44,7 +44,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     const { q, status } = parse(z.object({ q: z.string().max(80).optional(), status: z.enum(['active', 'suspended', 'deleted']).optional() }), req.query);
     const rows = await ctx.db.select({ id: s.users.id, email: s.users.email, status: s.users.status, createdAt: s.users.createdAt, emailVerifiedAt: s.users.emailVerifiedAt, handle: s.profiles.handle, displayName: s.profiles.displayName })
       .from(s.users).leftJoin(s.profiles, eq(s.profiles.userId, s.users.id))
-      .where(and(status ? eq(s.users.status, status) : undefined, q ? sql`(${s.users.email} ilike ${'%' + q + '%'} or ${s.profiles.handle} ilike ${'%' + q + '%'} or ${s.profiles.displayName} ilike ${'%' + q + '%'})` : undefined))
+      .where(and(status ? eq(s.users.status, status) : undefined, q ? sql`(${s.users.email} ilike ${likePattern(q)} or ${s.profiles.handle} ilike ${likePattern(q)} or ${s.profiles.displayName} ilike ${likePattern(q)})` : undefined))
       .orderBy(desc(s.users.createdAt)).limit(100);
     const roles = rows.length ? await ctx.db.select().from(s.userRoles).where(inArray(s.userRoles.userId, rows.map((r) => r.id))) : [];
     return { users: rows.map((u) => ({ ...u, roles: roles.filter((r) => r.userId === u.id).map((r) => r.role) })) };
@@ -129,6 +129,9 @@ export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
         else throw badRequest('This target type cannot be hidden; choose another action.');
       }
       if (action === 'suspend_user' && r.targetUserId) {
+        if (r.targetUserId === a.userId) throw badRequest('You cannot change your own account status.');
+        const targetRoles = await tx.select().from(s.userRoles).where(eq(s.userRoles.userId, r.targetUserId));
+        if (targetRoles.some((x) => x.role === 'admin') && !a.roles.includes('admin')) throw badRequest('Only administrators can moderate administrators.');
         await tx.update(s.users).set({ status: 'suspended', suspendedReason: reason }).where(eq(s.users.id, r.targetUserId));
         await tx.update(s.sessions).set({ revokedAt: new Date() }).where(and(eq(s.sessions.userId, r.targetUserId), isNull(s.sessions.revokedAt)));
       }

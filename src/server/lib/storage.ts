@@ -1,5 +1,5 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { join, resolve, normalize } from 'node:path';
+import { join, resolve, normalize, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { randomToken } from './crypto';
 import { badRequest, notFound } from './http';
@@ -40,29 +40,114 @@ export interface FileStorage {
   read(relPath: string): Promise<Buffer>;
 }
 
+/**
+ * Phones write the GPS position, device and time into photos. Those blocks are dropped before storing: JPEG
+ * APP1/APP13/comments (only the orientation is kept, or the photo would turn sideways), PNG text/eXIf chunks and
+ * WebP EXIF/XMP chunks. Pixels are untouched. A file that does not parse is stored as it came.
+ */
+export function stripImageMetadata(buf: Buffer, mime: string): Buffer {
+  try {
+    if (mime === 'image/jpeg') return stripJpeg(buf);
+    if (mime === 'image/png') return stripPng(buf);
+    if (mime === 'image/webp') return stripWebp(buf);
+  } catch { /* malformed: keep the original bytes */ }
+  return buf;
+}
+
+function exifOrientation(app1: Buffer): number {
+  if (app1.subarray(4, 10).toString('latin1') !== 'Exif\0\0') return 1;
+  const t = app1.subarray(10);
+  const le = t.subarray(0, 2).toString('latin1') === 'II';
+  const u16 = (o: number) => (le ? t.readUInt16LE(o) : t.readUInt16BE(o));
+  const ifd = le ? t.readUInt32LE(4) : t.readUInt32BE(4);
+  for (let i = 0, n = u16(ifd); i < n; i++) {
+    const at = ifd + 2 + i * 12;
+    if (u16(at) === 0x0112) { const v = u16(at + 8); return v >= 1 && v <= 8 ? v : 1; }
+  }
+  return 1;
+}
+
+function stripJpeg(buf: Buffer): Buffer {
+  const out: Buffer[] = [buf.subarray(0, 2)];
+  let orientation = 1;
+  let pos = 2;
+  const kept: Buffer[] = [];
+  while (pos + 4 <= buf.length && buf[pos] === 0xff && buf[pos + 1] !== 0xda) {
+    const marker = buf[pos + 1];
+    const len = buf.readUInt16BE(pos + 2);
+    if (len < 2 || pos + 2 + len > buf.length) return buf;
+    const seg = buf.subarray(pos, pos + 2 + len);
+    if (marker === 0xe1) { try { const o = exifOrientation(seg); if (o !== 1) orientation = o; } catch { /* unreadable EXIF is simply dropped */ } }
+    else if (marker !== 0xed && marker !== 0xfe) kept.push(seg);
+    pos += 2 + len;
+  }
+  if (buf[pos] !== 0xff || buf[pos + 1] !== 0xda) return buf;
+  if (orientation !== 1) {
+    const b = Buffer.alloc(36);
+    b.writeUInt16BE(0xffe1, 0); b.writeUInt16BE(34, 2); b.write('Exif\0\0MM\0*', 4, 'latin1');
+    b.writeUInt32BE(8, 14); b.writeUInt16BE(1, 18);
+    b.writeUInt16BE(0x0112, 20); b.writeUInt16BE(3, 22); b.writeUInt32BE(1, 24); b.writeUInt16BE(orientation, 28);
+    out.push(b);
+  }
+  return Buffer.concat([...out, ...kept, buf.subarray(pos)]);
+}
+
+function stripPng(buf: Buffer): Buffer {
+  const out: Buffer[] = [buf.subarray(0, 8)];
+  for (let pos = 8; pos + 12 <= buf.length;) {
+    const end = pos + 12 + buf.readUInt32BE(pos);
+    if (end > buf.length) return buf;
+    const type = buf.subarray(pos + 4, pos + 8).toString('latin1');
+    if (!['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME'].includes(type)) out.push(buf.subarray(pos, end));
+    if (type === 'IEND') return Buffer.concat(out);
+    pos = end;
+  }
+  return buf; // no end marker: not a well-formed PNG
+}
+
+function stripWebp(buf: Buffer): Buffer {
+  const out: Buffer[] = [];
+  for (let pos = 12; pos + 8 <= buf.length;) {
+    const size = buf.readUInt32LE(pos + 4);
+    const end = Math.min(pos + 8 + size + (size % 2), buf.length);
+    if (pos + 8 + size > buf.length) return buf;
+    const type = buf.subarray(pos, pos + 4).toString('latin1');
+    if (type !== 'EXIF' && type !== 'XMP ') {
+      const chunk = Buffer.from(buf.subarray(pos, end));
+      if (type === 'VP8X') chunk[8] &= ~0x0c; // the "has EXIF" and "has XMP" flags
+      out.push(chunk);
+    }
+    pos = end;
+  }
+  const body = Buffer.concat(out);
+  const head = Buffer.from(buf.subarray(0, 12));
+  head.writeUInt32LE(body.length + 4, 4);
+  return Buffer.concat([head, body]);
+}
+
 /** Shared validation: non-empty, within size, type detected from content, random name. */
 function prepare(buf: Buffer, opts: SaveOpts) {
   if (buf.length === 0) throw badRequest('Empty file');
   if (buf.length > opts.maxBytes) throw badRequest(`File too large (max ${Math.round(opts.maxBytes / 1048576)} MB)`);
   const { mime, ext } = detectType(buf, opts.allowed);
   const dir = opts.isPrivate ? 'private' : 'public';
-  return { mime, dir, name: `${randomToken(16)}.${ext}` };
+  return { data: stripImageMetadata(buf, mime), mime, dir, name: `${randomToken(16)}.${ext}` };
 }
 
 export class LocalStorage implements FileStorage {
   constructor(private root: string) {}
 
   async save(buf: Buffer, opts: SaveOpts): Promise<Saved> {
-    const { mime, dir, name } = prepare(buf, opts);
+    const { data, mime, dir, name } = prepare(buf, opts);
     await mkdir(join(resolve(this.root), dir), { recursive: true });
-    await writeFile(join(resolve(this.root), dir, name), buf);
-    return { path: `${dir}/${name}`, mime, bytes: buf.length };
+    await writeFile(join(resolve(this.root), dir, name), data);
+    return { path: `${dir}/${name}`, mime, bytes: data.length };
   }
 
   async read(relPath: string): Promise<Buffer> {
     const full = resolve(this.root, normalize(relPath));
-    if (!full.startsWith(resolve(this.root))) throw badRequest('Invalid path');
-    return readFile(full);
+    if (!full.startsWith(resolve(this.root) + sep)) throw badRequest('Invalid path');
+    return readFile(full).catch((err: NodeJS.ErrnoException) => { throw err.code === 'ENOENT' ? notFound('File') : err; });
   }
 
   get publicDir(): string {
@@ -78,10 +163,10 @@ export class DatabaseStorage implements FileStorage {
   constructor(private db: DB, private maxFileBytes: number) {}
 
   async save(buf: Buffer, opts: SaveOpts): Promise<Saved> {
-    const { mime, dir, name } = prepare(buf, { ...opts, maxBytes: Math.min(opts.maxBytes, this.maxFileBytes) });
+    const { data, mime, dir, name } = prepare(buf, { ...opts, maxBytes: Math.min(opts.maxBytes, this.maxFileBytes) });
     const path = `${dir}/${name}`;
-    await this.db.insert(storedFiles).values({ path, mime, bytes: buf.length, isPrivate: opts.isPrivate, data: buf });
-    return { path, mime, bytes: buf.length };
+    await this.db.insert(storedFiles).values({ path, mime, bytes: data.length, isPrivate: opts.isPrivate, data });
+    return { path, mime, bytes: data.length };
   }
 
   async read(relPath: string): Promise<Buffer> {
@@ -92,7 +177,7 @@ export class DatabaseStorage implements FileStorage {
 
   /** Public files only, for the /uploads/public route. */
   async readPublic(name: string): Promise<{ data: Buffer; mime: string } | null> {
-    if (!/^[A-Za-z0-9_-]+.[a-z0-9]+$/.test(name)) return null;
+    if (!/^[A-Za-z0-9_-]+\.[a-z0-9]+$/.test(name)) return null;
     const [f] = await this.db.select({ data: storedFiles.data, mime: storedFiles.mime, isPrivate: storedFiles.isPrivate }).from(storedFiles).where(eq(storedFiles.path, `public/${name}`));
     return f && !f.isPrivate ? { data: Buffer.from(f.data), mime: f.mime } : null;
   }

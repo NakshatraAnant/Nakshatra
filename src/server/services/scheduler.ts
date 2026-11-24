@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { and, eq, isNull, lt, lte, inArray, ne, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, lte, inArray, ne, or, sql } from 'drizzle-orm';
 import * as s from '../db/schema';
 import type { Ctx } from '../lib/context';
 import { deliverOutbox, notify, type NotificationCategory } from '../lib/notify';
@@ -13,19 +13,26 @@ import { refundDueTickets } from './eventTickets';
  */
 export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
   const results: Record<string, number> = {};
+  // One failing job (a bad row, a provider outage) must never stop the ones after it, such as retention.
+  const job = async (name: string, run: () => Promise<number>) => {
+    try { results[name] = await run(); } catch (err) { results[name] = 0; ctx.log.error({ err, job: name }, 'scheduled job failed'); }
+  };
 
   // 0. Deliver queued email and retry failed SMTP sends (no-op for the dev mailbox).
-  results.emailsSent = (await deliverOutbox(ctx)).sent;
+  await job('emailsSent', async () => (await deliverOutbox(ctx)).sent);
 
   // 1. Due reminders → notifications (respecting preferences inside notify()).
+  await job('reminders', async () => {
   const due = await ctx.db.select().from(s.scheduledReminders).where(and(lte(s.scheduledReminders.dueAt, now), isNull(s.scheduledReminders.sentAt), isNull(s.scheduledReminders.cancelledAt))).limit(200);
   for (const r of due) {
     await notify(ctx, ctx.db, { userId: r.userId, category: r.category as NotificationCategory, title: r.title, body: r.body, link: r.link ?? undefined, dedupeKey: `reminder:${r.id}` });
     await ctx.db.update(s.scheduledReminders).set({ sentAt: now }).where(eq(s.scheduledReminders.id, r.id));
   }
-  results.reminders = due.length;
+  return due.length;
+  });
 
   // 2. Expire unpaid booking holds after 15 minutes.
+  await job('expiredBookings', async () => {
   const holdCutoff = new Date(now.getTime() - 15 * 60000);
   const expired = await ctx.db.update(s.bookings).set({ status: 'expired', updatedAt: now }).where(and(eq(s.bookings.status, 'pending_payment'), lt(s.bookings.createdAt, holdCutoff))).returning({ id: s.bookings.id, paymentId: s.bookings.paymentId });
   if (expired.length) {
@@ -33,9 +40,11 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
     const ids = expired.map((b) => b.paymentId).filter(Boolean) as string[];
     if (ids.length) await ctx.db.update(s.payments).set({ status: 'cancelled', updatedAt: now }).where(and(inArray(s.payments.id, ids), eq(s.payments.status, 'created')));
   }
-  results.expiredBookings = expired.length;
+  return expired.length;
+  });
 
   // 3. Cancel unpaid orders after 1 hour and restock.
+  await job('cancelledOrders', async () => {
   const orderCutoff = new Date(now.getTime() - 3600000);
   const stale = await ctx.db.select().from(s.orders).where(and(eq(s.orders.status, 'pending_payment'), lt(s.orders.createdAt, orderCutoff))).limit(100);
   for (const o of stale) {
@@ -47,15 +56,17 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
       for (const it of items) {
         const [v] = await tx.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
         if (v.stock !== null) {
-          await tx.update(s.productVariants).set({ stock: v.stock + it.quantity }).where(eq(s.productVariants.id, v.id));
+          await tx.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.quantity}` }).where(eq(s.productVariants.id, v.id));
           await tx.insert(s.inventoryMovements).values({ variantId: v.id, delta: it.quantity, reason: 'adjustment', refId: o.id });
         }
       }
     });
   }
-  results.cancelledOrders = stale.length;
+  return stale.length;
+  });
 
   // 4. Subscriptions reaching period end: cancel (if requested) or mark past_due awaiting renewal payment.
+  await job('subscriptionsEnded', async () => {
   const ending = await ctx.db.select().from(s.subscriptions).where(and(eq(s.subscriptions.status, 'active'), lte(s.subscriptions.currentPeriodEnd, now)));
   for (const sub of ending) {
     const status = sub.cancelAtPeriodEnd ? 'cancelled' : 'past_due';
@@ -65,23 +76,23 @@ export async function runScheduledJobs(ctx: Ctx, now = new Date()) {
   // Past-due for more than 7 days → expired.
   const graceCutoff = new Date(now.getTime() - 7 * 86400000);
   const lapsed = await ctx.db.update(s.subscriptions).set({ status: 'expired', updatedAt: now }).where(and(eq(s.subscriptions.status, 'past_due'), lt(s.subscriptions.currentPeriodEnd, graceCutoff))).returning();
-  results.subscriptionsEnded = ending.length + lapsed.length;
+  return ending.length + lapsed.length;
+  });
 
   // 5. Expire stale bond invitations.
-  const inv = await ctx.db.update(s.bondInvitations).set({ status: 'expired' }).where(and(eq(s.bondInvitations.status, 'pending'), lt(s.bondInvitations.expiresAt, now))).returning();
-  results.expiredInvitations = inv.length;
+  await job('expiredInvitations', async () => (await ctx.db.update(s.bondInvitations).set({ status: 'expired' }).where(and(eq(s.bondInvitations.status, 'pending'), lt(s.bondInvitations.expiresAt, now))).returning({ id: s.bondInvitations.id })).length);
 
   // 6. Gifts not claimed in time.
-  results.expiredGifts = await expireGifts(ctx, now);
+  await job('expiredGifts', () => expireGifts(ctx, now));
 
   // 6b. Keep repeating circle events stocked a few weeks ahead.
-  results.eventOccurrences = await materialiseAllSeries(ctx.db, now);
+  await job('eventOccurrences', () => materialiseAllSeries(ctx.db, now));
 
   // 6c. Paid tickets for cancelled events are refunded automatically (retries provider failures).
-  results.ticketRefunds = await refundDueTickets(ctx);
+  await job('ticketRefunds', () => refundDueTickets(ctx));
 
   // 7. Retention: sign-in links and sessions are security material; keep them only as long as needed.
-  results.retention = await runRetention(ctx, now);
+  await job('retention', () => runRetention(ctx, now));
   return results;
 }
 
@@ -94,6 +105,9 @@ export async function runRetention(ctx: Ctx, now = new Date()): Promise<number> 
   let n = 0;
   n += (await ctx.db.update(s.emailOutbox).set({ textBody: '[delivered — content removed by retention policy]' })
     .where(and(eq(s.emailOutbox.transport, 'smtp'), eq(s.emailOutbox.status, 'sent'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - day)), ne(s.emailOutbox.textBody, '[delivered — content removed by retention policy]'))).returning({ id: s.emailOutbox.id })).length;
+  // Mail that could not be delivered holds the same one-time links; exports hold a full copy of someone's data.
+  n += (await ctx.db.delete(s.emailOutbox).where(and(eq(s.emailOutbox.transport, 'smtp'), eq(s.emailOutbox.status, 'failed'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - 7 * day)))).returning({ id: s.emailOutbox.id })).length;
+  n += (await ctx.db.update(s.dataExportRequests).set({ payload: null }).where(and(isNotNull(s.dataExportRequests.payload), lt(s.dataExportRequests.createdAt, new Date(now.getTime() - 7 * day)))).returning({ id: s.dataExportRequests.id })).length;
   n += (await ctx.db.delete(s.emailOutbox).where(and(eq(s.emailOutbox.transport, 'dev_mailbox'), lt(s.emailOutbox.createdAt, new Date(now.getTime() - 7 * day)))).returning({ id: s.emailOutbox.id })).length;
   n += (await ctx.db.delete(s.adDelivery).where(lt(s.adDelivery.day, DateTime.fromJSDate(now).minus({ days: 30 }).toISODate()!)).returning({ c: s.adDelivery.campaignId })).length;
   n += (await ctx.db.delete(s.adParticipation).where(lt(s.adParticipation.createdAt, new Date(now.getTime() - 90 * day))).returning({ c: s.adParticipation.campaignId })).length;
@@ -102,9 +116,19 @@ export async function runRetention(ctx: Ctx, now = new Date()): Promise<number> 
   return n;
 }
 
-export function startScheduler(ctx: Ctx, intervalMs = 60000): () => void {
-  const tick = () => runScheduledJobs(ctx).catch((err) => ctx.log.error({ err }, 'scheduled job failed'));
+/** Returns a stop function that resolves once a pass in progress has finished. */
+export function startScheduler(ctx: Ctx, intervalMs = 60000): () => Promise<void> {
+  let current: Promise<unknown> | null = null;
+  // A pass slower than the interval must not overlap the next one.
+  const tick = () => {
+    if (current) return;
+    current = runScheduledJobs(ctx).catch((err) => ctx.log.error({ err }, 'scheduled jobs failed')).finally(() => { current = null; });
+  };
   const handle = setInterval(tick, intervalMs);
-  setTimeout(tick, 5000);
-  return () => clearInterval(handle);
+  const first = setTimeout(tick, 5000);
+  return async () => {
+    clearInterval(handle);
+    clearTimeout(first);
+    await current;
+  };
 }

@@ -36,7 +36,7 @@ export const isStaff = (me: Me | null | undefined) => Boolean(me?.roles.some((r)
 /** Applies theme, motion and language preferences to the document. */
 export function usePreferenceEffects(me: Me | null | undefined) {
   useEffect(() => {
-    const scheme = me?.profile?.colorScheme ?? (localStorage.getItem('nk_scheme') as Me['profile'] extends null ? never : string | null) ?? 'system';
+    const scheme = me?.profile?.colorScheme ?? cachedScheme() ?? 'system';
     // While the session loads, reuse this device's last look to avoid a flash; signed out means the default look.
     const appearance = me === undefined ? cachedAppearance() : normaliseAppearance(me?.profile?.appearance);
     if (me?.profile) try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)); } catch { /* storage unavailable */ }
@@ -61,6 +61,9 @@ export function usePreferenceEffects(me: Me | null | undefined) {
 }
 
 const APPEARANCE_KEY = 'nk_appearance';
+function cachedScheme(): string | null {
+  try { return localStorage.getItem('nk_scheme'); } catch { return null; }
+}
 function cachedAppearance(): Appearance {
   try { return normaliseAppearance(JSON.parse(localStorage.getItem(APPEARANCE_KEY) ?? 'null')); } catch { return DEFAULT_APPEARANCE; }
 }
@@ -74,8 +77,16 @@ export function RequireAuth({ children, onboarding = true, staff = false }: { ch
   const q = useMe();
   const loc = useLocation();
   if (q.isLoading) return <div className="mx-auto max-w-3xl p-8"><LoadingBlock /></div>;
+  if (q.isError && !q.data) {
+    return (
+      <div className="mx-auto max-w-lg p-8 text-center" role="alert">
+        <p className="text-fg-2">We couldn’t reach Nakshatra. Check your connection and try again.</p>
+        <button type="button" className="mt-4 text-accent underline underline-offset-2" onClick={() => void q.refetch()}>Try again</button>
+      </div>
+    );
+  }
   const me = q.data?.user;
-  if (q.data?.mfaRequired) return <Navigate to={`/signin?mfa=1&next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (q.data?.mfaRequired) return <Navigate to={`/signin?mfa=1&next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!me) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (onboarding && !me.onboardingComplete) return <Navigate to="/onboarding" replace />;
   if (staff && !isStaff(me)) return <Navigate to="/today" replace />;

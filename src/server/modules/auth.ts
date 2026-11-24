@@ -19,7 +19,7 @@ import { notify, sendEmail, NOTIFICATION_CATEGORIES } from '../lib/notify';
 export const POLICY_VERSION = '2026-10-v1';
 
 const Password = z.string().min(10, 'Use at least 10 characters.').max(200);
-const Email = z.email('Enter a valid email address.').max(254).transform((e) => e.trim().toLowerCase());
+const Email = z.string().trim().toLowerCase().max(254).pipe(z.email('Enter a valid email address.'));
 
 export const SignupBody = z.object({
   email: Email,
@@ -224,7 +224,10 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!t || t.expiresAt < new Date()) throw badRequest('This reset link is invalid or has expired.');
     const passwordHash = await hashPassword(password);
     await ctx.db.transaction(async (tx) => {
-      await tx.update(s.authTokens).set({ usedAt: new Date() }).where(eq(s.authTokens.id, t.id));
+      // Claimed atomically (one use, even if submitted twice), and every other outstanding reset link stops working.
+      const used = await tx.update(s.authTokens).set({ usedAt: new Date() }).where(and(eq(s.authTokens.id, t.id), isNull(s.authTokens.usedAt))).returning({ id: s.authTokens.id });
+      if (!used.length) throw badRequest('This reset link is invalid or has expired.');
+      await tx.update(s.authTokens).set({ usedAt: new Date() }).where(and(eq(s.authTokens.userId, t.userId), eq(s.authTokens.purpose, 'reset_password'), isNull(s.authTokens.usedAt)));
       await tx.update(s.users).set({ passwordHash, updatedAt: new Date() }).where(eq(s.users.id, t.userId));
       await tx.update(s.sessions).set({ revokedAt: new Date() }).where(and(eq(s.sessions.userId, t.userId), isNull(s.sessions.revokedAt)));
       await audit(tx, { actorId: t.userId, action: 'auth.password_reset', ip: req.ip });
@@ -240,6 +243,7 @@ export async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!(await verifyPassword(currentPassword, u.passwordHash))) throw badRequest('Current password is incorrect.');
     await ctx.db.update(s.users).set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() }).where(eq(s.users.id, a.userId));
     await ctx.db.update(s.sessions).set({ revokedAt: new Date() }).where(and(eq(s.sessions.userId, a.userId), ne(s.sessions.id, a.sessionId), isNull(s.sessions.revokedAt)));
+    await ctx.db.update(s.authTokens).set({ usedAt: new Date() }).where(and(eq(s.authTokens.userId, a.userId), eq(s.authTokens.purpose, 'reset_password'), isNull(s.authTokens.usedAt)));
     await audit(ctx.db, { actorId: a.userId, action: 'auth.password_change', ip: req.ip });
     await notify(ctx, ctx.db, { userId: a.userId, category: 'security', title: 'Your password was changed', body: 'Other sessions were signed out.' });
     return reply.send({ ok: true });

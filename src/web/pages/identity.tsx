@@ -56,7 +56,7 @@ export function CosmicId() {
   const me = useMe().data?.user;
   const [params] = useSearchParams();
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<'3d' | '2d'>(() => (localStorage.getItem('nk_view') as '3d' | '2d') ?? '3d');
+  const [view, setView] = useState<'3d' | '2d'>(() => { try { return (localStorage.getItem('nk_view') as '3d' | '2d') ?? '3d'; } catch { return '3d'; } });
   const [customise, setCustomise] = useState(false);
   const [share, setShare] = useState(false);
   const loading = v.isLoading || w.isLoading;

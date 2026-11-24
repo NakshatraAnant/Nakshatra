@@ -26,15 +26,22 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
   );
 }
 
+/** Only paths on this site ("//host" and "/\host" are other sites to a browser). */
+function safeNext(next: string | null): string | null {
+  return next && /^\/(?![/\\])/.test(next) ? next : null;
+}
+
 function useAuthSuccess() {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [params] = useSearchParams();
   return async (user: { onboardingComplete: boolean }) => {
+    // Nothing cached for a previous account on this device may show up for this one.
+    qc.removeQueries({ predicate: (x) => x.queryKey[0] !== 'me' });
     await qc.invalidateQueries({ queryKey: ['me'] });
-    const next = params.get('next');
-    if (next && next.startsWith('/') && !next.startsWith('//')) { try { sessionStorage.setItem('nk_after_onboarding', next); } catch { /* storage unavailable */ } }
-    nav(!user.onboardingComplete ? '/onboarding' : next && next.startsWith('/') && !next.startsWith('//') ? next : '/home', { replace: true });
+    const next = safeNext(params.get('next'));
+    if (next) { try { sessionStorage.setItem('nk_after_onboarding', next); } catch { /* storage unavailable */ } }
+    nav(!user.onboardingComplete ? '/onboarding' : next ?? '/home', { replace: true });
   };
 }
 
@@ -198,8 +205,8 @@ const STEPS = ['Welcome', 'Your identity', 'Your interests'];
 /** Where to go after onboarding: a pending circle invite (or other deep link) wins. */
 function afterOnboarding(fallback: string): string {
   try {
-    const next = sessionStorage.getItem('nk_after_onboarding');
-    if (next) { sessionStorage.removeItem('nk_after_onboarding'); if (next.startsWith('/') && !next.startsWith('//')) return next; }
+    const next = safeNext(sessionStorage.getItem('nk_after_onboarding'));
+    if (next) { sessionStorage.removeItem('nk_after_onboarding'); return next; }
   } catch { /* storage unavailable */ }
   return fallback;
 }

@@ -9,4 +9,11 @@ backups
 coverage
 playwright-report
 test-results
+.git
+.claude
+artifacts
+design
+docs
+e2e
+tests
 *.log
